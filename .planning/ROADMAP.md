@@ -32,7 +32,12 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
   3. Clerk sign-in / sign-up flow renders and successfully completes against Clerk dev keys.
   4. Supabase client connects (a trivial `select 1` succeeds via Drizzle's connection).
   5. `middleware.ts` enforces public-route policy: `/`, `/pricing`, `/sign-in`, `/sign-up` reachable unauthenticated; everything else redirects to sign-in.
-**Plans**: TBD
+**Plans**: 5 plans
+- [ ] 01-01-PLAN.md - Scaffold Next.js 15 + pnpm deps + tsconfig hardening + shadcn/ui (Button, Card, Input) + .env.local.example DATABASE_URL patch
+- [ ] 01-02-PLAN.md - Operator manual: create Clerk dev app + Supabase dev project, populate .env.local
+- [ ] 01-03-PLAN.md - App shell: ClerkProvider root layout + marketing landing + pricing stub + Clerk sign-in/sign-up + sign-in-success placeholder
+- [ ] 01-04-PLAN.md - middleware.ts (ADR-009/D-10) + Drizzle skeleton (D-06/D-07) + scripts/check-db.ts
+- [ ] 01-05-PLAN.md - scripts/check-foundation.ts + pnpm verify:phase-1 + operator human-verify of Clerk flow
 **UI hint**: yes
 
 ### Phase 2: Data Layer
