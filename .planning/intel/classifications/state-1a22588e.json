@@ -1,0 +1,30 @@
+{
+  "source_path": "C:\\Users\\matth\\Desktop\\PolicyPilot\\STATE.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "PolicyPilot — Session Continuity",
+  "summary": "Session continuity tracker recording current build phase, completed artifacts, in-progress work, decisions log, and parking lot for PolicyPilot.",
+  "scope": [
+    "session continuity",
+    "build phase status",
+    "FOUNDRY completion",
+    "ASSEMBLY phase planning",
+    "stack decisions log",
+    "blocked items / parking lot"
+  ],
+  "cross_refs": [
+    "CLAUDE.md",
+    "REQUIREMENTS.md",
+    "BLUEPRINT.md",
+    "reference/STACK.md",
+    "reference/SCHEMA.md",
+    "reference/PROMPTS.md",
+    "reference/TIER-LIMITS.md",
+    "reference/API-SPEC.md",
+    ".env.local.example"
+  ],
+  "locked": false,
+  "precedence": 4,
+  "notes": ""
+}

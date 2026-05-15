@@ -1,0 +1,23 @@
+{
+  "source_path": "C:\\Users\\matth\\Desktop\\PolicyPilot\\reference\\TIER-LIMITS.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "reference/TIER-LIMITS.md",
+  "summary": "Technical specification of plan tier limits, feature gates, Stripe price IDs, and the tier-check API contract for PolicyPilot billing enforcement.",
+  "scope": [
+    "tier limits",
+    "feature gates",
+    "Stripe price IDs",
+    "plan tiers (starter, growth, business)",
+    "checkTierLimit API contract",
+    "tier_limit_exceeded error response"
+  ],
+  "cross_refs": [
+    "lib/stripe/products.ts",
+    ".env.local"
+  ],
+  "locked": false,
+  "precedence": 2,
+  "notes": ""
+}

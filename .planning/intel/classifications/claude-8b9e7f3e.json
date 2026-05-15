@@ -1,0 +1,33 @@
+{
+  "source_path": "C:\\Users\\matth\\Desktop\\PolicyPilot\\CLAUDE.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "PolicyPilot — CLAUDE.md",
+  "summary": "Project rules and AI orchestration doc for PolicyPilot — stack, build sequence, multi-tenancy rules, Always/Ask First/Never lists, AI API rules, and Stripe rules.",
+  "scope": [
+    "project structure",
+    "stack",
+    "build sequence",
+    "multi-tenancy rules",
+    "Always/Ask First/Never rules",
+    "AI API rules (Claude Sonnet/Haiku)",
+    "Stripe subscription event handling",
+    "validation gate",
+    "non-goals",
+    "key files index"
+  ],
+  "cross_refs": [
+    "BLUEPRINT.md",
+    "REQUIREMENTS.md",
+    "reference/STACK.md",
+    "reference/SCHEMA.md",
+    "reference/PROMPTS.md",
+    "reference/TIER-LIMITS.md",
+    "reference/API-SPEC.md",
+    ".env.local.example"
+  ],
+  "locked": false,
+  "precedence": 4,
+  "notes": ""
+}

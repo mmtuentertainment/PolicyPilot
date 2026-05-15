@@ -1,6 +1,10 @@
-# STATE.md
-# PolicyPilot — Session Continuity
+# STATE-FOUNDRY.md
+# PolicyPilot — Session Continuity (ARCHIVED FOUNDRY snapshot)
 # Updated: 2026-05-15 | Operator: Matthew
+
+> **Archived 2026-05-15.** Live session state is in `.planning/STATE.md`.
+> This file preserves the FOUNDRY-stage handoff snapshot for historical
+> context only. Do not edit.
 
 ---
 

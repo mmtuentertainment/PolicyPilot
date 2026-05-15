@@ -1,0 +1,28 @@
+docs:
+  - path: BLUEPRINT.md
+    type: ADR
+    precedence: 0          # highest — architecture is locked
+  - path: reference/STACK.md
+    type: ADR
+    precedence: 1          # "Why X not Y" rationale -> decisions
+  - path: reference/SCHEMA.md
+    type: SPEC
+    precedence: 2
+  - path: reference/API-SPEC.md
+    type: SPEC
+    precedence: 2
+  - path: reference/PROMPTS.md
+    type: SPEC
+    precedence: 2
+  - path: reference/TIER-LIMITS.md
+    type: SPEC
+    precedence: 2
+  - path: REQUIREMENTS.md
+    type: PRD
+    precedence: 3
+  - path: CLAUDE.md
+    type: DOC
+    precedence: 4
+  - path: STATE.md
+    type: DOC
+    precedence: 4

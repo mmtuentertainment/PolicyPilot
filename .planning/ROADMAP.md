@@ -1,0 +1,146 @@
+# ROADMAP — PolicyPilot
+
+8-phase ASSEMBLY sequence. Locked by ADR-007 (BLUEPRINT.md §5). Phase N+1 cannot start until Phase N compiles clean (`tsc --noEmit`). Goal-backward success criteria preserve observable user value at every phase boundary.
+
+Granularity: **standard** (8 phases — matches the locked build sequence).
+
+---
+
+## Phases
+
+- [ ] **Phase 1: Foundation** — Next.js 15 + Clerk + Supabase wired up, `localhost:3000` loads clean.
+- [ ] **Phase 2: Data Layer** — Drizzle schema + RLS + Clerk webhooks; `org_id` invariant established.
+- [ ] **Phase 3: Admin UI** — Policy library, TipTap editor, full lifecycle (Draft → Published → Archived).
+- [ ] **Phase 4: AI Layer** — Draft generation, TL;DR summaries, Employee Q&A, Consistency Check (Growth+).
+- [ ] **Phase 5: Employee Portal** — Assigned-policies dashboard + append-only acknowledgment flow.
+- [ ] **Phase 6: Billing** — Stripe Checkout + 5-event webhook + tier gating via `TIER_LIMITS`.
+- [ ] **Phase 7: Crons + Email** — Railway worker + Resend templates + idempotent reminders.
+- [ ] **Phase 8: Validation** — Compliance dashboard + CSV export + all 8 acceptance criteria green.
+
+---
+
+## Phase Details
+
+### Phase 1: Foundation
+**Goal**: A deployable Next.js 15 shell exists, with Clerk auth and Supabase wired, that compiles clean and serves the marketing landing page.
+**Depends on**: Nothing (first phase)
+**Requirements**: REQ-product-vision
+**Anchoring decisions**: ADR-001, ADR-008, ADR-009, ADR-010, ADR-012
+**Success Criteria** (what must be TRUE):
+  1. `tsc --noEmit` returns zero errors against a fresh `pnpm install` (per BLUEPRINT.md §5 Phase 1 verify).
+  2. `localhost:3000` loads the marketing landing page without runtime errors.
+  3. Clerk sign-in / sign-up flow renders and successfully completes against Clerk dev keys.
+  4. Supabase client connects (a trivial `select 1` succeeds via Drizzle's connection).
+  5. `middleware.ts` enforces public-route policy: `/`, `/pricing`, `/sign-in`, `/sign-up` reachable unauthenticated; everything else redirects to sign-in.
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 2: Data Layer
+**Goal**: The complete Drizzle schema exists in code, RLS is enforced in Postgres, Clerk webhooks populate `organizations` and `users`, and basic tenant-scoped CRUD works end-to-end.
+**Depends on**: Phase 1
+**Requirements**: REQ-user-roles, REQ-multi-tenancy
+**Anchoring decisions**: ADR-003, ADR-004, ADR-011, ADR-019, ADR-018 (acknowledgments table shape locked here)
+**Success Criteria** (what must be TRUE):
+  1. All tables from `reference/SCHEMA.md` exist via Drizzle migration and `tsc --noEmit` is clean.
+  2. RLS is enabled on every tenant-scoped table (`organizations`, `users`, `departments`, `policies`, `policy_versions`, `policy_assignments`, `acknowledgments`, `ai_generations`, `notifications`, `workflow_stages`) with the `org_isolation` policy applied.
+  3. Clerk webhooks at `/api/webhooks/clerk` create `organizations` on `organization.created` and `users` on `user.created`; role propagates on `organizationMembership.created`.
+  4. Every application-layer DB query in `lib/db/*` includes `org_id` in its WHERE clause — verified by code inspection / grep audit.
+  5. A direct cross-org Postgres query (impersonating Org A's JWT) returning Org B rows is blocked by RLS — verified with a service-role-bypassed test.
+**Plans**: TBD
+
+### Phase 3: Admin UI
+**Goal**: An admin can sign in, create a policy in the TipTap editor, walk it through Draft → Under Review → Published → Archived, and see every status transition reflected in the policy library list.
+**Depends on**: Phase 2
+**Requirements**: REQ-policy-library, REQ-policy-lifecycle, REQ-access-control
+**Anchoring decisions**: ADR-008 (route group `(admin)`), ADR-009 (admin gate)
+**Success Criteria** (what must be TRUE):
+  1. Admin can create a new policy from the dashboard, populate it in TipTap, and save it as Draft.
+  2. The Draft → Under Review → Published → Archived state machine is enforced — illegal transitions return a 4xx and the UI surfaces the rejection.
+  3. Editing a published policy automatically creates a new `policy_versions` row AND resets `policies.status` to Draft.
+  4. Admin policy library list shows all policies in all statuses for the admin's org; an `org_id` impersonation cannot view another org's list.
+  5. Search by title, category, and content keyword returns the expected results scoped by `org_id`.
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 4: AI Layer
+**Goal**: The four Claude-powered AI surfaces (Draft, TL;DR, Q&A, Consistency Check) are live behind tier gating, with prompt caching on Q&A, every call logged to `ai_generations`, and Q&A citing only published policies from the requesting org.
+**Depends on**: Phase 3
+**Requirements**: REQ-ai-policy-assistant, REQ-ai-usage-rules
+**Anchoring decisions**: ADR-005, ADR-006, ADR-015, ADR-021
+**Success Criteria** (what must be TRUE):
+  1. `POST /api/ai/draft` returns a complete Sonnet 4.6 draft, enforces `TIER_LIMITS.aiDraftsMonthly` (returns 429 with `tier_limit_exceeded` on overage), and writes one row to `ai_generations`.
+  2. `POST /api/ai/summary` generates a Haiku 4.5 TL;DR exactly once per policy and stores it on `policies.tldrSummary` — subsequent calls return the cached value without a Claude call.
+  3. `POST /api/ai/qa` answers ONLY from the requesting org's published policies, returns a non-empty `citations` array of real policy names, and appends the legal disclaimer when the question is legal-adjacent.
+  4. The Q&A endpoint uses Anthropic prompt caching (`cache_control: { type: "ephemeral" }`) on the policy-library block — cache hit observable via Anthropic API response metadata.
+  5. `POST /api/ai/consistency` is feature-gated to Growth+ (403 on Starter), submits to Claude Batch API, returns a `batchId`, and a poll endpoint returns the strict JSON array result.
+**Plans**: TBD
+
+### Phase 5: Employee Portal
+**Goal**: An employee can sign in, see only their assigned + published policies, read them, ask Q&A questions, and one-click acknowledge — with every acknowledgment captured append-only with timestamp and IP. Policy updates correctly require re-acknowledgment.
+**Depends on**: Phase 4
+**Requirements**: REQ-acknowledgment-tracking, REQ-acknowledgment-rules
+**Anchoring decisions**: ADR-018 (append-only), ADR-008 (route group `(employee)`), ADR-009 (employee gate)
+**Success Criteria** (what must be TRUE):
+  1. Employee dashboard shows only policies assigned to them or to their department AND in `status = 'published'` — Draft and Under Review policies never appear.
+  2. One-click "Acknowledge" inserts a row into `acknowledgments` with `{user_id, policy_id, policy_version_id, acknowledged_at, ip_address}` and the UI updates without page reload.
+  3. Editing a policy and re-publishing it surfaces "requires re-acknowledgment" to all assigned employees; prior acknowledgment rows remain untouched in the DB.
+  4. Bulk assignment to a department creates one `policy_assignments` row with `assigneeType = 'department'` and is visible to every member of that department.
+  5. No code path exists to DELETE or UPDATE rows in `acknowledgments` — verified by code inspection.
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 6: Billing
+**Goal**: A new sign-up can pick a plan, complete Stripe Checkout, see their org's `planTier` synced from the webhook, hit tier limits with a clear 403 + upgrade prompt, and have their subscription survive the first billing-cycle renewal automatically.
+**Depends on**: Phase 5
+**Requirements**: REQ-tier-starter, REQ-tier-growth, REQ-tier-business
+**Anchoring decisions**: ADR-013, ADR-017, ADR-020
+**Success Criteria** (what must be TRUE):
+  1. All 6 Stripe products (Starter/Growth/Business × Monthly/Annual) exist in Stripe Dashboard with the price IDs from `reference/TIER-LIMITS.md` wired into env vars.
+  2. `POST /api/webhooks/stripe` verifies signatures against the raw body, deduplicates against `stripe_events`, and correctly handles all 5 events: `checkout.session.completed`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.deleted`, `customer.subscription.updated`.
+  3. A full checkout → webhook → DB sync → tier-gate cycle works end-to-end without manual intervention: a Stripe test-mode subscription survives one simulated billing-cycle renewal (`invoice.paid`) and `organizations.planTier` remains correct (REQUIREMENTS.md §10 #6).
+  4. `checkTierLimit(orgId, feature)` returns the correct `{allowed, limit, current}` shape; a Starter org attempting a Growth-only feature (e.g. `consistencyCheck`) receives a 403 with `{ error: 'tier_limit_exceeded', upgradeUrl: '/pricing' }`.
+  5. Customer Portal link from the admin settings page allows the org admin to update payment method and view invoices via Stripe-hosted UI.
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 7: Crons + Email
+**Goal**: Reminders and notifications go out automatically: the Railway cron worker runs daily, the Resend + React Email templates send for all 4 notification types, no duplicates fire on retry, and the in-app bell surfaces unread items.
+**Depends on**: Phase 6
+**Requirements**: REQ-notification-system
+**Anchoring decisions**: ADR-014, ADR-016
+**Success Criteria** (what must be TRUE):
+  1. `GET /api/cron/reminders` is reachable only with `Authorization: Bearer {CRON_SECRET}`; unauthorized calls return 401.
+  2. The Railway worker triggers the cron endpoint daily at 08:00 UTC; one successful run is observable in Railway logs.
+  3. All 4 notification types (`policy_assigned`, `policy_updated`, `review_due`, `ack_reminder`) send via Resend using React Email templates and insert a corresponding `notifications` row.
+  4. Re-running the same cron window does not send duplicate emails for the same `(user, policy, type)` tuple — idempotency verified.
+  5. The in-app notification bell shows the correct unread count from `notifications.read = false` and marking-as-read updates immediately.
+**Plans**: TBD
+
+### Phase 8: Validation
+**Goal**: All 8 numbered acceptance criteria from REQUIREMENTS.md §10 pass with real data on a populated org, the admin compliance dashboard renders the Recharts donut + CSV export, and the product is demonstrably faster and more reliable than a Google Drive folder.
+**Depends on**: Phase 7
+**Requirements**: REQ-compliance-dashboard, REQ-integrations, REQ-acceptance-criteria
+**Anchoring decisions**: All — final integration gate
+**Success Criteria** (what must be TRUE):
+  1. Admin compliance dashboard renders the Recharts donut (acknowledged vs pending) and `/api/reports/acknowledgments?format=csv` downloads a valid CSV with the expected columns.
+  2. All 8 numbered acceptance criteria from REQUIREMENTS.md §10 are verified end-to-end against a populated org with at least 10 employees and 5 policies — captured as a checklist with evidence (screenshots or test output) per criterion.
+  3. Multi-tenancy boundary test: provision Org A and Org B with overlapping titles; verify under all admin and employee surfaces that Org A cannot view, search for, or acknowledge Org B's policies (criterion 8).
+  4. Stripe subscription created in Phase 6 has now ridden through one real billing-cycle renewal in test mode and is in `status = 'active'` post-renewal (criterion 6).
+  5. Beat-manual benchmark: a same-day side-by-side test (same admin, same 3 policies, same 10 employees) shows PolicyPilot delivers faster ack collection and more reliable audit trail than a Google Drive folder — recorded as a short comparison note.
+**Plans**: TBD
+**UI hint**: yes
+
+---
+
+## Progress
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 1. Foundation | 0/0 | Not started | - |
+| 2. Data Layer | 0/0 | Not started | - |
+| 3. Admin UI | 0/0 | Not started | - |
+| 4. AI Layer | 0/0 | Not started | - |
+| 5. Employee Portal | 0/0 | Not started | - |
+| 6. Billing | 0/0 | Not started | - |
+| 7. Crons + Email | 0/0 | Not started | - |
+| 8. Validation | 0/0 | Not started | - |

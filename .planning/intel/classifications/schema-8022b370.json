@@ -1,0 +1,28 @@
+{
+  "source_path": "C:/Users/matth/Desktop/PolicyPilot/reference/SCHEMA.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "reference/SCHEMA.md — Complete Drizzle schema (all tables with types and RLS patterns)",
+  "summary": "Complete Drizzle ORM schema for PolicyPilot defining all PostgreSQL tables, columns, types, and Supabase RLS org-isolation policies.",
+  "scope": [
+    "organizations",
+    "users",
+    "departments",
+    "policies",
+    "policy_versions",
+    "policy_assignments",
+    "acknowledgments",
+    "ai_generations",
+    "notifications",
+    "workflow_stages",
+    "stripe_events",
+    "Drizzle ORM schema (lib/db/schema.ts)",
+    "Supabase Row Level Security policies",
+    "status enums (policy, user role, subscription, workflow, notification, AI generation)"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": 2,
+  "notes": "Type assigned from authoritative MANIFEST_TYPE=SPEC (manifest_override=true, precedence=2). Content strongly corroborates SPEC: schema/data-model contract with table definitions, column types, RLS policy SQL, and enum value lists — implementation contract the system must honor. No outbound markdown links or filename references detected in the document body."
+}

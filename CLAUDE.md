@@ -24,13 +24,19 @@ policypilot/
 
 ## How to Use (Any Model)
 
-1. **Architecture** → `BLUEPRINT.md`
-2. **Business rules / domain** → `REQUIREMENTS.md`
-3. **Stack decisions + rationale** → `reference/STACK.md`
-4. **DB schema** → `reference/SCHEMA.md`
-5. **AI prompts** → `reference/PROMPTS.md`
-6. **Tier limits + feature gates** → `reference/TIER-LIMITS.md`
-7. **API route specs** → `reference/API-SPEC.md`
+> **GSD overlay active.** Live planning is in `.planning/`. The files below
+> are the frozen FOUNDRY-stage source; consult them for original rationale
+> but author all updates in `.planning/`.
+
+1. **Architecture (live)** → `.planning/PROJECT.md` · *frozen*: `BLUEPRINT.md`
+2. **Business rules / domain (live)** → `.planning/REQUIREMENTS.md` · *frozen*: `REQUIREMENTS.md`
+3. **Active roadmap** → `.planning/ROADMAP.md`
+4. **Session memory** → `.planning/STATE.md`
+5. **Stack rationale (frozen)** → `reference/STACK.md`
+6. **DB schema (frozen contract)** → `reference/SCHEMA.md`
+7. **AI prompts (frozen contract)** → `reference/PROMPTS.md`
+8. **Tier limits (frozen contract)** → `reference/TIER-LIMITS.md`
+9. **API route specs (frozen contract)** → `reference/API-SPEC.md`
 
 ---
 

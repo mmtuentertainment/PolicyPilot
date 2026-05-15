@@ -3,6 +3,10 @@
 # Stage: REFINERY output → FOUNDRY input
 # Operator: Matthew (MMTU Entertainment LLC) | Updated: 2026-05-15
 
+> **Frozen FOUNDRY output (2026-05-15).** Live requirements are in `.planning/REQUIREMENTS.md`
+> (with REQ-IDs and phase traceability). This file preserves the original
+> domain knowledge document for historical context.
+
 ---
 
 ## 1. Product Vision

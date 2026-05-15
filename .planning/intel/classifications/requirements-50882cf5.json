@@ -1,0 +1,32 @@
+{
+  "source_path": "C:\\Users\\matth\\Desktop\\PolicyPilot\\REQUIREMENTS.md",
+  "type": "PRD",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "PolicyPilot — Domain Knowledge + Business Rules",
+  "summary": "Product requirements for PolicyPilot SaaS covering user roles, tier features, multi-tenancy, business rules, integrations, non-goals, and acceptance criteria.",
+  "scope": [
+    "product vision",
+    "user roles (Admin, Employee, Reviewer)",
+    "Starter tier features",
+    "Growth tier features",
+    "Business tier features",
+    "policy library",
+    "AI policy assistant",
+    "acknowledgment tracking",
+    "compliance dashboard",
+    "notification system",
+    "multi-tenancy model",
+    "policy lifecycle rules",
+    "acknowledgment rules",
+    "AI usage rules",
+    "access control rules",
+    "integration targets",
+    "non-goals",
+    "acceptance criteria"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": 3,
+  "notes": ""
+}

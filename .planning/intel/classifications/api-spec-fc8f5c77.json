@@ -1,0 +1,30 @@
+{
+  "source_path": "C:/Users/matth/Desktop/PolicyPilot/reference/API-SPEC.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Every API route - method, auth, request, response, errors",
+  "summary": "Technical specification of every PolicyPilot API route covering AI endpoints, Stripe/Clerk webhooks, cron jobs, and report endpoints with auth, request/response shapes, and error codes.",
+  "scope": [
+    "AI draft endpoint",
+    "AI summary endpoint",
+    "AI Q&A endpoint",
+    "AI consistency batch endpoint",
+    "Stripe webhook handler",
+    "Clerk webhook handler",
+    "Cron reminders endpoint",
+    "Acknowledgments report endpoint",
+    "Authentication and authorization",
+    "Tier limit enforcement",
+    "Multi-tenancy (org_id scoping)"
+  ],
+  "cross_refs": [
+    "PROMPTS.md",
+    "TIER_LIMITS",
+    "ai_generations",
+    "stripe_events"
+  ],
+  "locked": false,
+  "precedence": 2,
+  "notes": ""
+}

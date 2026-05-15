@@ -1,0 +1,37 @@
+{
+  "source_path": "C:\\Users\\matth\\Desktop\\PolicyPilot\\BLUEPRINT.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "PolicyPilot — System Architecture Blueprint",
+  "summary": "FOUNDRY-stage architecture blueprint defining PolicyPilot's system topology, repo layout, key design decisions, and 8-phase ASSEMBLY build sequence.",
+  "scope": [
+    "system architecture",
+    "Next.js 15 App Router",
+    "Supabase Postgres + RLS",
+    "Drizzle ORM",
+    "Clerk auth",
+    "Stripe billing",
+    "Claude AI integration",
+    "Resend email",
+    "Railway worker / cron",
+    "repository structure",
+    "middleware routing",
+    "build sequence (8 phases)"
+  ],
+  "cross_refs": [
+    "REQUIREMENTS.md",
+    "SCHEMA.md",
+    "STATE.md",
+    "CLAUDE.md",
+    "reference/STACK.md",
+    "reference/SCHEMA.md",
+    "reference/PROMPTS.md",
+    "reference/TIER-LIMITS.md",
+    "reference/API-SPEC.md",
+    ".env.local.example"
+  ],
+  "locked": true,
+  "precedence": 0,
+  "notes": "Manifest-declared ADR (precedence 0). Document has no explicit Status: Accepted marker, but represents FOUNDRY-stage output describing committed architecture and phased build sequence — treated as locked architecture per manifest authority and locked-marker rule for committed FOUNDRY output."
+}

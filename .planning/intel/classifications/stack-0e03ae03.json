@@ -1,0 +1,24 @@
+{
+  "source_path": "C:\\Users\\matth\\Desktop\\PolicyPilot\\reference\\STACK.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "reference/STACK.md",
+  "summary": "Stack decisions with full rationale — locked technology choices (Next.js 15, Supabase, Clerk, Stripe, Vercel+Railway, Claude Sonnet 4.6) with rejected alternatives for PolicyPilot SaaS.",
+  "scope": [
+    "Next.js 15",
+    "Supabase",
+    "Drizzle ORM",
+    "Clerk",
+    "Stripe",
+    "Vercel",
+    "Railway",
+    "Claude Sonnet 4.6",
+    "Claude Haiku 4.5",
+    "TypeScript"
+  ],
+  "cross_refs": [],
+  "locked": true,
+  "precedence": 1,
+  "notes": "Manifest-declared ADR (FOUNDRY stack rationale). Asserts committed choices with explicitly rejected alternatives (FastAPI, Auth0, Prisma, Paddle, Neon, Opus 4.7) — stack frozen for build."
+}

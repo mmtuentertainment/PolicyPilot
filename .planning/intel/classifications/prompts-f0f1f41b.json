@@ -1,0 +1,25 @@
+{
+  "source_path": "C:\\Users\\matth\\Desktop\\PolicyPilot\\reference\\PROMPTS.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "reference/PROMPTS.md",
+  "summary": "Canonical Claude system/user prompt templates and caching directives for draft generation, TL;DR summaries, employee Q&A, and consistency check.",
+  "scope": [
+    "Claude API prompts",
+    "Sonnet 4.6 draft generation",
+    "Haiku 4.5 TL;DR summary",
+    "Employee Q&A prompt",
+    "Consistency check (Batch API)",
+    "Prompt caching configuration",
+    "lib/ai/prompts.ts",
+    "lib/ai/cache.ts"
+  ],
+  "cross_refs": [
+    "lib/ai/prompts.ts",
+    "lib/ai/cache.ts"
+  ],
+  "locked": false,
+  "precedence": 2,
+  "notes": ""
+}

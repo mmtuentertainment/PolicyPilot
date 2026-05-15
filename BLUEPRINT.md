@@ -3,6 +3,10 @@
 # Stage: FOUNDRY output → ASSEMBLY input
 # Derived from: REQUIREMENTS.md | Updated: 2026-05-15
 
+> **Frozen FOUNDRY output (2026-05-15).** Live updates: see `.planning/PROJECT.md` and `.planning/ROADMAP.md`.
+> The decisions and 8-phase build sequence in this file were ingested as
+> locked ADRs into `.planning/intel/decisions.md`.
+
 ---
 
 ## 1. Architecture Overview
