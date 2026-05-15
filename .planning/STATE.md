@@ -2,13 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-last_updated: "2026-05-15T15:30:00.000Z"
+status: executing
+last_updated: "2026-05-15T19:00:00.000Z"
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 5
-  completed_plans: 0
+  completed_plans: 1
+  percent: 2
 ---
 
 # STATE — PolicyPilot
@@ -30,16 +31,19 @@ GSD session state. Updated each time a phase or plan transitions. Source of trut
 
 ## Current Position
 
+Phase: 01 (foundation) — EXECUTING
+Plan: 2 of 5
+
 - **Phase**: 1 — Foundation
-- **Plan**: 5 plans drafted (01-01 through 01-05) — ready to execute
-- **Status**: Plans verified — `## VERIFICATION PASSED` from gsd-plan-checker
-- **Progress**: 0 / 8 phases complete (Phase 1 plans 0 / 5 executed)
+- **Plan**: 01-01 complete (scaffold + deps + shadcn + DATABASE_URL); 01-02 through 01-05 pending
+- **Status**: Plan 01-01 executed clean — `pnpm tsc --noEmit` exits 0, all 5 Phase 1 deps pinned in lockfile
+- **Progress**: 0 / 8 phases complete (Phase 1 plans 1 / 5 executed)
 
 ```
-[░░░░░░░░] 0/8 phases  —  Foundation: plans ready for execution
+[░░░░░░░░] 0/8 phases  —  Foundation: 1/5 plans complete
 ```
 
-**Next action**: Run `/gsd:execute-phase 1` to execute Phase 1 plans in dependency order.
+**Next action**: Execute plan 01-02 (operator manual: Clerk dev app + Supabase project + populate .env.local).
 
 ---
 
@@ -49,7 +53,7 @@ GSD session state. Updated each time a phase or plan transitions. Source of trut
 |--------|-------|
 | Phases complete | 0 / 8 |
 | Phase 1 plans drafted | 5 / 5 |
-| Phase 1 plans executed | 0 / 5 |
+| Phase 1 plans executed | 1 / 5 |
 | Requirements mapped | 17 / 17 |
 | Locked decisions | 21 |
 | Constraints (SPEC) extracted | 28 |
@@ -67,7 +71,11 @@ Phase 1 added 15 implementation decisions (D-01 to D-15) at `.planning/phases/01
 
 ### Todos
 
-- [ ] Run `/gsd:execute-phase 1` to execute the 5 Phase 1 plans (waves 1 → 4)
+- [x] Plan 01-01: Scaffold Next.js 15 + install Phase 1 deps + shadcn + DATABASE_URL — **completed 2026-05-15** (commits 5d2057d, 3b74de5, f58aea7)
+- [ ] Plan 01-02: Operator creates Clerk dev app + Supabase project + populates .env.local
+- [ ] Plan 01-03: App shell (ClerkProvider + marketing landing + pricing stub + Clerk auth pages)
+- [ ] Plan 01-04: middleware.ts + Drizzle skeleton + scripts/check-db.ts
+- [ ] Plan 01-05: scripts/check-foundation.ts + verify:phase-1 implementation + operator human-verify
 - [x] Verify `.env.local.example` is complete before Phase 1 plan execution — **folded D-11**: keys complete except `DATABASE_URL` (added by Plan 01-01)
 - [x] Confirm pnpm vs npm package manager preference before Phase 1 init — **folded D-01**: pnpm
 
@@ -95,8 +103,8 @@ None.
 - **Roadmap**: created `2026-05-15` — derived directly from ADR-007's 8-phase locked build sequence
 - **Phase 1 context**: captured `2026-05-15` via `/gsd-discuss-phase --all` — 15 implementation decisions (D-01 to D-15) at `.planning/phases/01-foundation/01-CONTEXT.md`
 - **Phase 1 plans**: drafted `2026-05-15` via `/gsd-plan-phase 1 --auto` — 5 plans in 4 waves at `.planning/phases/01-foundation/01-0{1..5}-PLAN.md`; passed gsd-plan-checker verification
-- **Last session**: Phase 1 plan-phase (this session)
-- **Next session entry point**: `.planning/phases/01-foundation/01-01-PLAN.md` → run `/gsd:execute-phase 1`
+- **Last session**: Phase 1 execute plan 01-01 (2026-05-15) — Next.js 15 scaffold + Phase 1 deps + shadcn (Button/Card/Input) + DATABASE_URL env line. `pnpm tsc --noEmit` exits 0.
+- **Next session entry point**: `.planning/phases/01-foundation/01-02-PLAN.md` → execute plan 01-02 (operator manual)
 
 ---
 
@@ -104,7 +112,7 @@ None.
 
 | # | Phase | Requirements | Status |
 |---|-------|--------------|--------|
-| 1 | Foundation | REQ-product-vision | Plans drafted (5/5) — **execute next** |
+| 1 | Foundation | REQ-product-vision | Executing — 1/5 plans complete (01-01 done) |
 | 2 | Data Layer | REQ-user-roles, REQ-multi-tenancy | Not started |
 | 3 | Admin UI | REQ-policy-library, REQ-policy-lifecycle, REQ-access-control | Not started |
 | 4 | AI Layer | REQ-ai-policy-assistant, REQ-ai-usage-rules | Not started |
