@@ -27,3 +27,23 @@ yarn-error.log*
 
 # GSD ephemeral
 .planning/intel/classifications/*.tmp
+
+# Next.js / create-next-app additions
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+/coverage
+*.pem
+.pnpm-debug.log*
+
+# Drizzle / pnpm
+drizzle/
+.drizzle/
+*.local
+.pnpm-store/
+.next/cache/
+
