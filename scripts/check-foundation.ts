@@ -21,8 +21,26 @@
 // passes. Failures are accumulated and printed in a summary at the end so
 // the operator sees the full failure set, not just the first.
 import { spawnSync } from "node:child_process";
+import { resolve as resolvePath } from "node:path";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+// IN-02 (01-REVIEW) — direct-Node spawn helpers (shell:false).
+//
+// `spawnSync('pnpm', [...], {shell:true})` works on Windows but joins argv
+// into a single shell-interpreted command, leaving a future-injection
+// footgun if anyone later parameterizes the args. The naive fix
+// `spawnSync('pnpm.cmd', [...], {shell:false})` triggers `EINVAL` on
+// Node 20.12.2+ / 22.x per CVE-2024-27980 — Windows refuses to spawn
+// .cmd/.bat without a shell.
+//
+// The portable solution: skip pnpm entirely and spawn the underlying
+// Node tools (tsc, tsx) via the current Node binary (`process.execPath`)
+// with their resolved JS entry points. The args remain static literals,
+// `shell:false` holds, and the .cmd-resolution problem disappears.
+const NODE_BIN = process.execPath;
+const TSC_ENTRY = resolvePath(process.cwd(), "node_modules/typescript/bin/tsc");
+const TSX_ENTRY = resolvePath(process.cwd(), "node_modules/tsx/dist/cli.mjs");
 
 type Result = { ok: boolean; label: string; detail?: string };
 
@@ -33,11 +51,13 @@ function logResult(idx: number, total: number, r: Result): void {
 }
 
 function checkTypecheck(): Result {
-  // Spawn `pnpm tsc --noEmit` synchronously. shell:true is required on
-  // Windows because pnpm.cmd needs the shell to resolve the .cmd extension.
-  const result = spawnSync("pnpm", ["tsc", "--noEmit"], {
+  // IN-02 (01-REVIEW) fix: invoke `tsc` directly via Node (`process.execPath`
+  // + node_modules/typescript/bin/tsc) instead of `pnpm tsc` through a shell.
+  // shell:false removes the future-injection footgun without falling into
+  // CVE-2024-27980's .cmd-spawn restriction. Static argv invariant preserved.
+  const result = spawnSync(NODE_BIN, [TSC_ENTRY, "--noEmit"], {
     encoding: "utf8",
-    shell: true,
+    shell: false,
   });
   if (result.status === 0) {
     return { ok: true, label: "tsc --noEmit zero errors" };
@@ -133,10 +153,25 @@ function checkSelectOne(): Result {
   // (the orchestrator) to also opt into `--conditions=react-server`. The
   // surface contract — `select 1` round-trips — is the same; the gate is
   // just one process boundary away.
-  const result = spawnSync("pnpm", ["check:db"], {
-    encoding: "utf8",
-    shell: true,
-  });
+  //
+  // IN-02 (01-REVIEW) fix: invoke `tsx` directly via Node (same pattern as
+  // checkTypecheck above) and inline the flags that `pnpm check:db` passes —
+  // see package.json: "check:db": "tsx --conditions=react-server
+  // --env-file=.env.local scripts/check-db.ts". The contract is identical;
+  // we just drop the shell-mediated pnpm layer. Static argv preserved.
+  const result = spawnSync(
+    NODE_BIN,
+    [
+      TSX_ENTRY,
+      "--conditions=react-server",
+      "--env-file=.env.local",
+      "scripts/check-db.ts",
+    ],
+    {
+      encoding: "utf8",
+      shell: false,
+    },
+  );
   if (result.status === 0) {
     return { ok: true, label: "Drizzle select 1 round-trip" };
   }
