@@ -37,7 +37,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 - [x] 01-02-PLAN.md - Operator manual: create Clerk dev app + Supabase dev project, populate .env.local
 - [x] 01-03-PLAN.md - App shell: ClerkProvider root layout + marketing landing + pricing stub + Clerk sign-in/sign-up + sign-in-success placeholder ✓ (2026-05-16)
 - [x] 01-04-PLAN.md - middleware.ts (ADR-009/D-10) + Drizzle skeleton (D-06/D-07) + scripts/check-db.ts ✓ (2026-05-16)
-- [ ] 01-05-PLAN.md - scripts/check-foundation.ts + pnpm verify:phase-1 + operator human-verify of Clerk flow
+- [x] 01-05-PLAN.md - scripts/check-foundation.ts + pnpm verify:phase-1 + operator human-verify of Clerk flow
 **UI hint**: yes
 
 ### Phase 2: Data Layer

@@ -3,8 +3,9 @@ phase: 01-foundation
 plan: 05
 subsystem: verification-gate
 tags: [verify, smoke-check, e2e-gate, phase-1-completion, checkpoint-pending]
-one_liner: "Single-script Phase 1 verification gate at scripts/check-foundation.ts — wires all 5 ROADMAP success criteria to `pnpm verify:phase-1`; Task 1 complete + committed, Task 2 (operator human-verify) pending"
-status: task-1-complete-task-2-pending-operator
+one_liner: "Single-script Phase 1 verification gate at scripts/check-foundation.ts — wires all 5 ROADMAP success criteria to `pnpm verify:phase-1`; both tasks complete, operator returned `all approved` 2026-05-16"
+status: complete
+tags_change: [checkpoint-pending → checkpoint-approved]
 dependency_graph:
   requires:
     - 01-01  # verify:phase-1 script slot reserved + tsx installed
@@ -37,8 +38,8 @@ metrics:
   duration_minutes: ~12
   tasks_completed: 1  # Task 1 only — Task 2 is the operator checkpoint
   files_touched: 2  # 1 created + 1 modified
-  commits: 1  # this SUMMARY commit will bring the total to 2 once landed
-completed: null  # Task 2 not yet completed
+  commits: 2  # Task 1 commit + initial SUMMARY commit; operator-approval addendum adds one more
+completed: 2026-05-16
 ---
 
 # Phase 01 Plan 05: Phase 1 Verification Gate — Summary
@@ -48,9 +49,9 @@ completed: null  # Task 2 not yet completed
 | # | Task | Type | Status | Commit |
 |---|------|------|--------|--------|
 | 1 | Write `scripts/check-foundation.ts` + wire `pnpm verify:phase-1` | auto | **complete** | `b43ed8c` |
-| 2 | Operator runs `pnpm verify:phase-1` + visually confirms Clerk sign-in flow | checkpoint:human-verify (blocking) | **awaiting operator** | — |
+| 2 | Operator runs `pnpm verify:phase-1` + visually confirms Clerk sign-in flow | checkpoint:human-verify (blocking) | **complete (operator-approved 2026-05-16)** | n/a (live operator check) |
 
-**Phase 1 is NOT yet complete.** Task 2 is the final gate. The orchestrator should surface Task 2's `<how-to-verify>` instructions to the operator and not advance Phase 1 → Phase 2 until the operator returns the `approved` resume signal.
+**Phase 1 IS now complete.** Operator returned `all approved` after running `pnpm verify:phase-1` (6/6 OK) and completing all five visual / Clerk flow checks. Phase 2 (Data Layer) is unlocked. Detailed operator-approval record at the bottom of this summary.
 
 ## What Task 1 built
 
@@ -197,11 +198,50 @@ ASVS L1: no `high` severity threats. The plan is a verification gate, not a prod
 
 | Criterion | Result |
 |-----------|--------|
-| `pnpm verify:phase-1` exits 0 | DEFERRED to Task 2 (live HTTP probes require operator to start `pnpm dev`). |
-| Operator confirmed Clerk sign-in completes against dev keys (criterion 3 interactive) | DEFERRED to Task 2. |
-| Operator confirmed middleware redirect from private route (criterion 5 visual) | DEFERRED to Task 2. |
+| `pnpm verify:phase-1` exits 0 | **PASS** — operator ran live; output captured `[1..6/6] OK`, final `✓ All 6 checks passed.` |
+| Operator confirmed Clerk sign-in completes against dev keys (criterion 3 interactive) | **PASS** — operator-confirmed via real test signup landing on `/sign-in-success` |
+| Operator confirmed middleware redirect from private route (criterion 5 visual) | **PASS** — incognito window redirected to `/sign-in?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fsign-in-success` |
 | No `: any` types introduced | PASS — `\bany\b\s*[:,)]` regex sweep clean across `scripts/check-foundation.ts`. |
 | No new dependencies installed beyond what Plan 01 specified | PASS — script uses only `node:child_process` (stdlib) and the Web `fetch` global. |
+
+## Task 2 — Operator approval record (2026-05-16)
+
+### Initial verify-gate run on 2026-05-16
+
+The first live `pnpm verify:phase-1` against the dev server caught a **real bug**: criterion 5 (middleware redirect) failed with `expected 307 redirect, got 200` on `/sign-in-success`. Root cause: Plan 01-04's public-route matcher used Clerk's canonical greedy form `"/sign-in(.*)"` which inadvertently matched `/sign-in-success` (the `(.*)` consumed `-success`) and let the request through unauthenticated. Gap-closure committed as `446b554` ("fix(01-04): split /sign-in and /sign-up matchers so /sign-in-success stays private") — split the greedy patterns into `/sign-in` + `/sign-in/(.*)` so the slash boundary blocks sibling-prefix collisions. Operator restarted `pnpm dev`, re-ran the gate, and got the expected 6/6.
+
+This is the gate working exactly as intended — a real Phase 1 success-criterion failure caught BY the gate BEFORE Phase 1 was marked complete. Recorded here so the Phase-2 planner sees the lineage if `/sign-in-success` ever gets renamed.
+
+### Operator-side security audit (2026-05-16, side activity during Task 2)
+
+While running Task 2, the operator (security-conscious) requested an out-of-scope but valuable audit of the npm dependency tree against current (May 2026) supply-chain threat intelligence. Audit covered: Mini Shai-Hulud (May 11 2026, TanStack/Mistral/UiPath/OpenSearch), node-ipc (May 14 2026), PromptMink (Feb 2026 DPRK), McpInject (targets Claude Code / Cursor / VS Code Continue / Windsurf), chalk/debug Sept 2025 maintainer takeover, original Shai-Hulud Sept 2025, s1ngularity Aug 2025. **Result: supply chain clean.** 777/777 lockfile entries have sha512 integrity hashes; no postinstall scripts ran (pnpm 9 default block held); `.mcp.json` registers only the legitimate `qmd` server; `.claude/settings.local.json` runs only the wiki-refresh hook + qmd/obsidian/mcp__qmd__ permission grants; `@tanstack/query-core@5.100.10` (only TanStack-namespace package present, transitive via Clerk) verified clean against TanStack's published advisory and registry shasum. The audit DID surface **20 standard framework CVEs** (1 critical Next.js RCE, 8 high, 9 moderate, 2 low) which were patched as part of operator-approved bundle "approve all three" — see commits `ecd1d69` (pnpm 9.15.0→9.15.9), `e324e19` (ADR-022 Node 22 Active LTS), `1df82e9` (Next 15.5.0→15.5.18 + `pnpm.overrides.postcss>=8.5.10`). Audit went from 20 → 1 advisory, with the residual being `esbuild@0.18.20` via deprecated `@esbuild-kit/*` (vulnerable code path is the `esbuild --serve` dev-server CORS bypass, which we never invoke — `next dev` is our dev server).
+
+### Five visual / Clerk-flow checks (criterion 3 interactive + criterion 5 visual)
+
+| # | Step | URL | Result |
+|---|------|-----|--------|
+| 1 | Landing page D-03 copy + footer + console clean | `http://localhost:3000/` | PASS |
+| 2 | Pricing tiles ($79 / $199 / $449) + `Get started` → `/sign-up` | `http://localhost:3000/pricing` | PASS |
+| 3 | Clerk sign-in form renders, no `Missing publishable key` banner | `http://localhost:3000/sign-in` | PASS |
+| 4 | Real test sign-up completes, lands on `/sign-in-success` placeholder | `/sign-up` → `/sign-in-success` | PASS |
+| 5 | Incognito window redirects unauthenticated request to `/sign-in?redirect_url=...` | `http://localhost:3000/sign-in-success` (incognito) | PASS — operator pasted observed URL `http://localhost:3000/sign-in?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fsign-in-success` |
+
+### Resume signal received
+
+Operator returned: `all approved` (preceded by separate confirmation that `pnpm verify:phase-1` reported 6/6 OK after the matcher fix in `446b554`).
+
+### Side commits made between Task 1 and the final approval
+
+These were not in the original Plan 01-05 scope but were operator-approved before final approval:
+
+| Commit | Subject | Why it's here |
+|---|---|---|
+| `446b554` | `fix(01-04): split /sign-in and /sign-up matchers so /sign-in-success stays private` | Gap-closure of Plan 01-04 caught by Task 2's first gate run. |
+| `ecd1d69` | `chore: bump pnpm 9.15.0 to 9.15.9 (Jan 2026 advisories)` | Operator's `approve all three` — Step C of the security bundle. |
+| `e324e19` | `chore(adr-022): bump engines.node to 22 Active LTS; supersede D-01` | Operator's `approve all three` — Step A. Adds ADR-022 to PROJECT.md `<decisions>`. |
+| `1df82e9` | `fix(security): bump next 15.5.0 -> 15.5.18 + force postcss >=8.5.10` | Operator's `approve all three` — Step B. Closes the critical Next.js RCE and 17 other CVEs. |
+
+Phase 1 final commit count: 4 plan-scaffold commits in 01-01, 1 in 01-02 (SUMMARY only; `.env.local` gitignored), 4 in 01-03, 4 in 01-04, 2 in 01-05 (Task 1 + initial SUMMARY) + this addendum, plus the 4 side commits above = **20 commits** between `7fd7ee8` (last pre-execute commit) and the Phase-1-complete state.
 
 ## Self-Check: PASSED
 
