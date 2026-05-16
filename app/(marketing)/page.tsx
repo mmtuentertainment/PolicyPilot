@@ -1,12 +1,15 @@
 import Link from "next/link";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 
-// `Button` is imported for the public Phase 1 component-baseline (see Plan 01-03 acceptance criteria).
-// `buttonVariants` is what we actually render on these CTAs, because the shadcn `base-nova` preset's
-// `<Button>` wraps `@base-ui/react/button` directly and does not expose an `asChild` Slot. Applying
-// `buttonVariants({...})` as the `className` of `<Link>` is the canonical workaround and keeps the
-// CTAs visually identical to a `<Button>` while letting Next.js own client-side navigation.
-void Button;
+// CTAs apply `buttonVariants({...})` as the `className` on `<Link>` because the
+// shadcn `base-nova` preset's `<Button>` wraps `@base-ui/react/button` directly
+// and does not expose an `asChild` Slot. This keeps the CTAs visually identical
+// to a `<Button>` while letting Next.js own client-side navigation.
+//
+// IN-01 (01-REVIEW) fix: dropped the `void Button;` workaround. The Plan 01-03
+// `key_links` contract requires only the substring `from "@/components/ui/button"`
+// — `buttonVariants` is imported from the same module, so the static-artifact
+// gate stays green without forcing an unused `Button` symbol on this file.
 
 export default function LandingPage() {
   return (

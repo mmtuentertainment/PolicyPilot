@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardHeader,
@@ -9,9 +9,13 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 
-// `Button` is imported per Plan 01-03 acceptance criteria; tile CTAs render `buttonVariants`
-// applied to `<Link>` because the shadcn `base-nova` preset's `<Button>` does not expose `asChild`.
-void Button;
+// Tile CTAs render `buttonVariants({...})` applied to `<Link>` because the
+// shadcn `base-nova` preset's `<Button>` does not expose `asChild`.
+//
+// IN-01 (01-REVIEW) fix: dropped the `void Button;` workaround. The Plan 01-03
+// `key_links` contract requires only the substring `from "@/components/ui/button"`
+// — `buttonVariants` is imported from the same module, so the static-artifact
+// gate stays green without forcing an unused `Button` symbol on this file.
 
 type Tier = {
   name: string;
