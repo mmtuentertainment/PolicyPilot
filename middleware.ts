@@ -13,11 +13,20 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+// Split each Clerk catch-all into exact + slash-prefixed children patterns.
+// The greedy `(.*)` form (`/sign-in(.*)`) matches sibling paths that start with
+// the same prefix — e.g. `/sign-in-success` (a private post-auth placeholder)
+// gets matched by `/sign-in(.*)` and let through unauthenticated. The slash
+// boundary stops that while still covering Clerk's nested factor routes
+// (`/sign-in/factor-one`, `/sign-in/sso-callback`, etc.) via the
+// `[[...sign-in]]` catch-all in `app/(auth)/sign-in/`.
 const isPublicRoute = createRouteMatcher([
   "/",
   "/pricing",
-  "/sign-in(.*)",
-  "/sign-up(.*)",
+  "/sign-in",
+  "/sign-in/(.*)",
+  "/sign-up",
+  "/sign-up/(.*)",
 ]);
 
 const isWebhookRoute = createRouteMatcher([
