@@ -10,8 +10,18 @@ async function main(): Promise<void> {
     // Drizzle's execute returns a `Row[]`-compatible array; the row at [0]
     // exposes columns by name. With `noUncheckedIndexedAccess`, rows[0] is
     // possibly-undefined — narrow before reading.
+    //
+    // IN-03 (01-REVIEW) fix: replace `(first as { ok?: number }).ok !== 1`
+    // with proper `in` + `typeof` narrowing. Expresses the actual invariant
+    // ("did postgres return a column named `ok` with numeric value 1?")
+    // without a type assertion that bypasses the unknown narrowing.
     const first = rows[0];
-    if (!first || (first as { ok?: number }).ok !== 1) {
+    if (
+      !first ||
+      !("ok" in first) ||
+      typeof first.ok !== "number" ||
+      first.ok !== 1
+    ) {
       console.error("Unexpected result from `select 1`:", rows);
       process.exit(1);
     }
