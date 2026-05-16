@@ -56,18 +56,11 @@ function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-function CardAction({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-action"
-      className={cn(
-        "col-start-2 row-span-2 row-start-1 self-start justify-self-end",
-        className
-      )}
-      {...props}
-    />
-  )
-}
+// IN-04 (01-REVIEW): `CardAction` removed — was a pre-emptive shadcn export
+// with no importers in Phase 1. The `has-data-[slot=card-action]:...` CSS
+// selector on CardHeader above is left intact (zero cost, forward-compat):
+// re-add the component via `pnpm dlx shadcn@latest add card` in Phase 3 if
+// the admin UI needs action-button slots on cards.
 
 function CardContent({ className, ...props }: React.ComponentProps<"div">) {
   return (
@@ -97,7 +90,6 @@ export {
   CardHeader,
   CardFooter,
   CardTitle,
-  CardAction,
   CardDescription,
   CardContent,
 }
