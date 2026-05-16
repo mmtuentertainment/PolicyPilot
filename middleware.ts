@@ -85,7 +85,16 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   const { userId } = await auth();
   if (!userId) {
     const signInUrl = new URL("/sign-in", req.url);
-    signInUrl.searchParams.set("redirect_url", req.url);
+    // WR-01 (01-REVIEW): pass only path+query — never the full URL. `req.url`
+    // would leak any attacker-controlled Host header into the redirect target;
+    // restricting to pathname+search keeps the redirect strictly same-origin
+    // by construction. Clerk v7 already enforces same-origin on its side, but
+    // tightening this here removes the Host-header trust dependency permanently
+    // before any Phase 3+ consumer reads `redirect_url`.
+    signInUrl.searchParams.set(
+      "redirect_url",
+      req.nextUrl.pathname + req.nextUrl.search,
+    );
     return NextResponse.redirect(signInUrl);
   }
 
