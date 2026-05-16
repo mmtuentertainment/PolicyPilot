@@ -12,7 +12,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "verify:phase-1": "tsx scripts/check-foundation.ts",
+    "verify:phase-1": "tsx --env-file=.env.local scripts/check-foundation.ts",
     "check:db": "tsx --conditions=react-server --env-file=.env.local scripts/check-db.ts"
   },
   "dependencies": {
