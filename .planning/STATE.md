@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-15T19:00:00.000Z"
+last_updated: "2026-05-16T00:00:00.000Z"
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 5
-  completed_plans: 1
-  percent: 2
+  completed_plans: 3
+  percent: 8
 ---
 
 # STATE — PolicyPilot
@@ -32,18 +32,18 @@ GSD session state. Updated each time a phase or plan transitions. Source of trut
 ## Current Position
 
 Phase: 01 (foundation) — EXECUTING
-Plan: 2 of 5
+Plan: 4 of 5
 
 - **Phase**: 1 — Foundation
-- **Plan**: 01-01 complete (scaffold + deps + shadcn + DATABASE_URL); 01-02 through 01-05 pending
-- **Status**: Plan 01-01 executed clean — `pnpm tsc --noEmit` exits 0, all 5 Phase 1 deps pinned in lockfile
-- **Progress**: 0 / 8 phases complete (Phase 1 plans 1 / 5 executed)
+- **Plan**: 01-01 / 01-02 / 01-03 complete; 01-04 (middleware + Drizzle skeleton) and 01-05 (verify scripts) pending
+- **Status**: Plan 01-03 executed clean — `pnpm tsc --noEmit` exits 0, `pnpm build` succeeds with all 7 routes generated
+- **Progress**: 0 / 8 phases complete (Phase 1 plans 3 / 5 executed)
 
 ```
-[░░░░░░░░] 0/8 phases  —  Foundation: 1/5 plans complete
+[░░░░░░░░] 0/8 phases  —  Foundation: 3/5 plans complete
 ```
 
-**Next action**: Execute plan 01-02 (operator manual: Clerk dev app + Supabase project + populate .env.local).
+**Next action**: Execute plan 01-04 (middleware.ts public-route policy + Drizzle skeleton + scripts/check-db.ts).
 
 ---
 
@@ -53,7 +53,7 @@ Plan: 2 of 5
 |--------|-------|
 | Phases complete | 0 / 8 |
 | Phase 1 plans drafted | 5 / 5 |
-| Phase 1 plans executed | 1 / 5 |
+| Phase 1 plans executed | 3 / 5 |
 | Requirements mapped | 17 / 17 |
 | Locked decisions | 21 |
 | Constraints (SPEC) extracted | 28 |
@@ -72,8 +72,8 @@ Phase 1 added 15 implementation decisions (D-01 to D-15) at `.planning/phases/01
 ### Todos
 
 - [x] Plan 01-01: Scaffold Next.js 15 + install Phase 1 deps + shadcn + DATABASE_URL — **completed 2026-05-15** (commits 5d2057d, 3b74de5, f58aea7)
-- [ ] Plan 01-02: Operator creates Clerk dev app + Supabase project + populates .env.local
-- [ ] Plan 01-03: App shell (ClerkProvider + marketing landing + pricing stub + Clerk auth pages)
+- [x] Plan 01-02: Operator creates Clerk dev app + Supabase project + populates .env.local — **completed 2026-05-16** (no source commits — `.env.local` is gitignored; only SUMMARY committed in 72ea3b8)
+- [x] Plan 01-03: App shell (ClerkProvider + marketing landing + pricing stub + Clerk auth pages) — **completed 2026-05-16** (commits bd12768, 479b06c, b20a6ff)
 - [ ] Plan 01-04: middleware.ts + Drizzle skeleton + scripts/check-db.ts
 - [ ] Plan 01-05: scripts/check-foundation.ts + verify:phase-1 implementation + operator human-verify
 - [x] Verify `.env.local.example` is complete before Phase 1 plan execution — **folded D-11**: keys complete except `DATABASE_URL` (added by Plan 01-01)
@@ -103,8 +103,8 @@ None.
 - **Roadmap**: created `2026-05-15` — derived directly from ADR-007's 8-phase locked build sequence
 - **Phase 1 context**: captured `2026-05-15` via `/gsd-discuss-phase --all` — 15 implementation decisions (D-01 to D-15) at `.planning/phases/01-foundation/01-CONTEXT.md`
 - **Phase 1 plans**: drafted `2026-05-15` via `/gsd-plan-phase 1 --auto` — 5 plans in 4 waves at `.planning/phases/01-foundation/01-0{1..5}-PLAN.md`; passed gsd-plan-checker verification
-- **Last session**: Phase 1 execute plan 01-01 (2026-05-15) — Next.js 15 scaffold + Phase 1 deps + shadcn (Button/Card/Input) + DATABASE_URL env line. `pnpm tsc --noEmit` exits 0.
-- **Next session entry point**: `.planning/phases/01-foundation/01-02-PLAN.md` → execute plan 01-02 (operator manual)
+- **Last session**: Phase 1 execute plan 01-03 (2026-05-16) — root layout ClerkProvider wrap, `(marketing)` landing + pricing stub, `(auth)` Clerk sign-in/sign-up mounts, `/sign-in-success` placeholder. `pnpm tsc --noEmit` exits 0, `pnpm build` generates all 7 routes.
+- **Next session entry point**: `.planning/phases/01-foundation/01-04-PLAN.md` → execute plan 01-04 (middleware.ts + Drizzle skeleton)
 
 ---
 
@@ -112,7 +112,7 @@ None.
 
 | # | Phase | Requirements | Status |
 |---|-------|--------------|--------|
-| 1 | Foundation | REQ-product-vision | Executing — 1/5 plans complete (01-01 done) |
+| 1 | Foundation | REQ-product-vision | Executing — 3/5 plans complete (01-01, 01-02, 01-03 done) |
 | 2 | Data Layer | REQ-user-roles, REQ-multi-tenancy | Not started |
 | 3 | Admin UI | REQ-policy-library, REQ-policy-lifecycle, REQ-access-control | Not started |
 | 4 | AI Layer | REQ-ai-policy-assistant, REQ-ai-usage-rules | Not started |
