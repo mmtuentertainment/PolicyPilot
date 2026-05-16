@@ -13,7 +13,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "verify:phase-1": "tsx scripts/check-foundation.ts",
-    "check:db": "tsx scripts/check-db.ts"
+    "check:db": "tsx --conditions=react-server --env-file=.env.local scripts/check-db.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

@@ -1,0 +1,27 @@
+// Phase 1 success criterion 4: Supabase client connects via Drizzle.
+// Runs `select 1` and prints OK on success. Invoked by `pnpm check:db`.
+import { sql } from "drizzle-orm";
+import { db } from "@/lib/db";
+
+async function main(): Promise<void> {
+  try {
+    const rows = await db.execute(sql`select 1 as ok`);
+    // postgres-js result shape: array-like with column accessors.
+    // Drizzle's execute returns a `Row[]`-compatible array; the row at [0]
+    // exposes columns by name. With `noUncheckedIndexedAccess`, rows[0] is
+    // possibly-undefined — narrow before reading.
+    const first = rows[0];
+    if (!first || (first as { ok?: number }).ok !== 1) {
+      console.error("Unexpected result from `select 1`:", rows);
+      process.exit(1);
+    }
+    console.log("OK");
+    process.exit(0);
+  } catch (err) {
+    console.error("Drizzle smoke check failed:");
+    console.error(err instanceof Error ? err.message : err);
+    process.exit(1);
+  }
+}
+
+void main();
