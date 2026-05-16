@@ -8,7 +8,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 
 ## Phases
 
-- [ ] **Phase 1: Foundation** — Next.js 15 + Clerk + Supabase wired up, `localhost:3000` loads clean.
+- [x] **Phase 1: Foundation** — Next.js 15 + Clerk + Supabase wired up, `localhost:3000` loads clean. ✓ 2026-05-16 (operator-approved; VERIFICATION.md PASS)
 - [ ] **Phase 2: Data Layer** — Drizzle schema + RLS + Clerk webhooks; `org_id` invariant established.
 - [ ] **Phase 3: Admin UI** — Policy library, TipTap editor, full lifecycle (Draft → Published → Archived).
 - [ ] **Phase 4: AI Layer** — Draft generation, TL;DR summaries, Employee Q&A, Consistency Check (Growth+).
@@ -141,7 +141,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 4/5 | Executing | - |
+| 1. Foundation | 5/5 | Complete | 2026-05-16 |
 | 2. Data Layer | 0/0 | Not started | - |
 | 3. Admin UI | 0/0 | Not started | - |
 | 4. AI Layer | 0/0 | Not started | - |

@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-last_updated: "2026-05-16T12:00:00.000Z"
+status: Phase 01 complete
+last_updated: "2026-05-16T23:13:46.455Z"
 progress:
   total_phases: 8
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 4
-  percent: 10
+  completed_plans: 5
+  percent: 13
 ---
 
 # STATE — PolicyPilot
@@ -24,26 +24,26 @@ GSD session state. Updated each time a phase or plan transitions. Source of trut
 - **Operator**: Matthew (MMTU Entertainment LLC) — `mmtuentertainment@gmail.com`
 - **Core value**: Replaces Google Drive / SharePoint for SMB policy management with AI drafting, append-only acknowledgment tracking, and audit-ready compliance trails — at a price an SMB can afford.
 - **Beat-manual gate**: Product must be demonstrably faster and more reliable than a Google Drive folder.
-- **Current focus**: ASSEMBLY Phase 1 — Foundation (plans drafted, ready to execute).
+- **Current focus**: ASSEMBLY Phase 2 — Data Layer (Drizzle schema + RLS + Clerk webhooks). Phase 1 complete and operator-approved 2026-05-16.
 - **Granularity**: standard (8 phases)
 
 ---
 
 ## Current Position
 
-Phase: 01 (foundation) — EXECUTING
+Phase: 01 — COMPLETE
 Plan: 5 of 5
 
-- **Phase**: 1 — Foundation
-- **Plan**: 01-01 / 01-02 / 01-03 / 01-04 complete; 01-05 (verify scripts) pending
-- **Status**: Plan 01-04 executed clean — middleware.ts in place, Drizzle skeleton compiles, `pnpm check:db` round-trips `select 1` against Supabase pooler in ~3.5s
-- **Progress**: 0 / 8 phases complete (Phase 1 plans 4 / 5 executed)
+- **Phase**: 1 — Foundation **COMPLETE** (2026-05-16, operator-approved)
+- **Plan**: all 5 complete — 01-01 scaffold, 01-02 operator dev keys, 01-03 app shell, 01-04 middleware + Drizzle, 01-05 verification gate
+- **Status**: All 5 ROADMAP success criteria satisfied. `pnpm verify:phase-1` 6/6 OK on live dev server; operator confirmed all 5 visual / Clerk flow checks; gsd-verifier produced VERIFICATION.md PASS (commit `7dcfeae`)
+- **Progress**: 1 / 8 phases complete (Phase 1 plans 5 / 5 executed)
 
 ```
-[█░░░░░░░] 0/8 phases  —  Foundation: 4/5 plans complete
+[█░░░░░░░] 1/8 phases  —  Foundation: 5/5 plans complete ✓
 ```
 
-**Next action**: Execute plan 01-05 (scripts/check-foundation.ts + `pnpm verify:phase-1` body + operator human-verify of Clerk sign-in flow).
+**Next action**: Start Phase 2 (Data Layer) via `/gsd:discuss-phase 2` then `/gsd:plan-phase 2` then `/gsd:execute-phase 2`. The Drizzle skeleton at `lib/db/{index,schema}.ts` is ready to be populated from `reference/SCHEMA.md`; middleware webhook exemption for `/api/webhooks/clerk` is already wired (Plan 01-04).
 
 ---
 
