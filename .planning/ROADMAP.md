@@ -36,7 +36,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 - [x] 01-01-PLAN.md - Scaffold Next.js 15 + pnpm deps + tsconfig hardening + shadcn/ui (Button, Card, Input) + .env.local.example DATABASE_URL patch ✓ (2026-05-15)
 - [x] 01-02-PLAN.md - Operator manual: create Clerk dev app + Supabase dev project, populate .env.local
 - [x] 01-03-PLAN.md - App shell: ClerkProvider root layout + marketing landing + pricing stub + Clerk sign-in/sign-up + sign-in-success placeholder ✓ (2026-05-16)
-- [ ] 01-04-PLAN.md - middleware.ts (ADR-009/D-10) + Drizzle skeleton (D-06/D-07) + scripts/check-db.ts
+- [x] 01-04-PLAN.md - middleware.ts (ADR-009/D-10) + Drizzle skeleton (D-06/D-07) + scripts/check-db.ts ✓ (2026-05-16)
 - [ ] 01-05-PLAN.md - scripts/check-foundation.ts + pnpm verify:phase-1 + operator human-verify of Clerk flow
 **UI hint**: yes
 
@@ -141,7 +141,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 3/5 | Executing | - |
+| 1. Foundation | 4/5 | Executing | - |
 | 2. Data Layer | 0/0 | Not started | - |
 | 3. Admin UI | 0/0 | Not started | - |
 | 4. AI Layer | 0/0 | Not started | - |
