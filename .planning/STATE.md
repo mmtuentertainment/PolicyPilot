@@ -2,8 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 01 complete
-last_updated: "2026-05-16T23:13:46.455Z"
+status: Phase 01 shipped — PR #1
+last_updated: "2026-05-16T23:55:00.000Z"
+shipped:
+  phase_01:
+    pr: 1
+    pr_url: https://github.com/mmtuentertainment/PolicyPilot/pull/1
+    branch: gsd/phase-1-foundation
+    base: main
+    commits: 34
+    shipped_at: 2026-05-16
 progress:
   total_phases: 8
   completed_phases: 1
@@ -36,14 +44,14 @@ Plan: 5 of 5
 
 - **Phase**: 1 — Foundation **COMPLETE** (2026-05-16, operator-approved)
 - **Plan**: all 5 complete — 01-01 scaffold, 01-02 operator dev keys, 01-03 app shell, 01-04 middleware + Drizzle, 01-05 verification gate
-- **Status**: All 5 ROADMAP success criteria satisfied. `pnpm verify:phase-1` 6/6 OK on live dev server; operator confirmed all 5 visual / Clerk flow checks; gsd-verifier produced VERIFICATION.md PASS (commit `7dcfeae`)
+- **Status**: All 5 ROADMAP success criteria satisfied. `pnpm verify:phase-1` 6/6 OK on live dev server; operator confirmed all 5 visual / Clerk flow checks; gsd-verifier produced VERIFICATION.md PASS (commit `7dcfeae`). **Shipped: PR [#1](https://github.com/mmtuentertainment/PolicyPilot/pull/1) opened 2026-05-16 — branch `gsd/phase-1-foundation` → `main`, 34 commits, awaiting merge.**
 - **Progress**: 1 / 8 phases complete (Phase 1 plans 5 / 5 executed)
 
 ```
 [█░░░░░░░] 1/8 phases  —  Foundation: 5/5 plans complete ✓
 ```
 
-**Next action**: Start Phase 2 (Data Layer) via `/gsd:discuss-phase 2` then `/gsd:plan-phase 2` then `/gsd:execute-phase 2`. The Drizzle skeleton at `lib/db/{index,schema}.ts` is ready to be populated from `reference/SCHEMA.md`; middleware webhook exemption for `/api/webhooks/clerk` is already wired (Plan 01-04).
+**Next action**: Merge PR #1 (wait for CI / self-review). After merge, locally run `git switch main && git pull` to fast-forward main, then start Phase 2 (Data Layer) via `/gsd:discuss-phase 2` → `/gsd:plan-phase 2` → `/gsd:execute-phase 2`. The Drizzle skeleton at `lib/db/{index,schema}.ts` is ready to be populated from `reference/SCHEMA.md`; middleware webhook exemption for `/api/webhooks/clerk` is already wired (Plan 01-04).
 
 ---
 
