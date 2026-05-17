@@ -6,8 +6,9 @@ async function main(): Promise<void> {
   try {
     const rows = await db.execute(sql`select 1 as ok`);
     // noUncheckedIndexedAccess: rows[0] is Row | undefined. The `&& "ok" in
-    // first` narrows before reading; the unknown→number equality check
-    // covers absent row, missing column, wrong type, and wrong value in one.
+    // first` narrows before reading; strict `!== 1` then rejects any non-1
+    // value in one comparison — covers absent row, missing/wrong column, and
+    // any non-number type (string, bigint, null, etc.).
     const first = rows[0];
     const okValue = first && "ok" in first ? first.ok : undefined;
     if (okValue !== 1) {

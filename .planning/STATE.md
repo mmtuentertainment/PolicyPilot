@@ -106,11 +106,7 @@ Surfaced by `/pr-review-toolkit:review-pr` against PR #1 head `e3689d3` (silent-
 - **SF-L1** `scripts/check-foundation.ts:127` — `res.headers.get("location") ?? ""` ambiguates missing-header vs empty-header. Surface "Location header absent" explicitly.
 - **SF-L2** `package.json:15` — `verify:phase-1` chain has `pnpm` shell invocation on the second half (`&& pnpm check:artifacts`), inconsistent with the IN-02 / `process.execPath` hardening on the first half. Cosmetic.
 
-**Comment cleanup** (lower priority; existing comments are misleading but the underlying code is correct):
-
-- `scripts/check-artifacts.ts:96-100, 790-798` — Plan-01-NN references ("Plan 01-05 strict regex, relaxed to substring", "scripts/check-artifacts.ts (this file) contains the needle…") explain WHAT + reference plan numbers. Trim. Keep raw `D-NN` / `ADR-NNN` / `T-NN-NN` tokens (stable citations).
-- `scripts/check-artifacts.ts:563-567` — comment-stripped any-detection rationale mentions Plan 01-04 verify-block. Keep the CLAUDE.md NEVER #4 mention, drop the Plan reference.
-- `scripts/check-artifacts.ts:1-19` — 19-line USAGE header could trim to one line. Lower priority than the source-tree comments (this file isn't read often by humans).
+**Comment cleanup** — ~~all closed by `a58469d` (W1 refactor stripped the "Plan 01-05 strict regex, relaxed to substring" + "this file contains the needle" + "Plan 01-04 verify-block" comments) and `4582225` (N-3 trimmed the "Phase 1" coupling)~~. The remaining `Plan 01-NN` mentions in `scripts/check-artifacts.ts` are stable section dividers + frozen plan-doc anchors per the `.coderabbit.yaml` profile.
 
 **Code-reviewer nits** (low-confidence, can defer indefinitely):
 

@@ -20,6 +20,9 @@ function logResult(idx: number, total: number, r: Result): void {
   console.log(`[${idx}/${total}] ${status} — ${r.label}${detail}`);
 }
 
+// Callers concat stderr first, then stdout (`${stderr}\n${stdout}`) so the
+// "first non-empty line" deterministically favours stderr when both produce
+// output — keeps failure summaries terse and ordered by likely-cause.
 function firstNonEmptyLine(s: string): string {
   return s.split("\n").map((l) => l.trim()).find((l) => l.length > 0) ?? "";
 }
