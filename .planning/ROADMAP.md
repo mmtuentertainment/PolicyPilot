@@ -56,8 +56,8 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 - [ ] 02-02-PLAN.md — Operator manual config: Clerk org roles (D-09) + session token customization (D-04) + webhook endpoint + signing secret (D-03) + Supabase test project (D-05) + .env.local amendments
 - [~] 02-03-PLAN.md — Drizzle migrations (0000_initial generate + 0001_rls_policies hand-written 10×RLS + 10×POLICY + 10×GRANT + D-03a CHECK) + drizzle.config DIRECT_URL split + [BLOCKING] schema push to dev + test — **PARTIAL completed 2026-05-17** (Tasks 1-3 shipped via `c1dcf6f`, `0bbf321`, `f443cd0`; Task 4 [BLOCKING] live DB push deferred on SF-DB-2: legacy IPv6-only DIRECT_URL hostname)
 - [x] 02-04-PLAN.md — 9 repository skeletons (OrgScope-first; ADR-018 no update/delete on acks; ADR-005 Policies.create omits tldrSummary; D-06) ✓ (2026-05-17; commits 2973555, e71000a — closes Plan 02-01 tsc baseline failure)
-- [ ] 02-05-PLAN.md — svix install + Clerk webhook handler (4 events, svix verify, ON CONFLICT idempotency, D-03c delete log-only) + middleware SF-M4 fold
-- [ ] 02-06-PLAN.md — ts-morph + L-05 check-db-imports (AST allow-list) + L-06 check-rls (cross-org + positive control) + D-08 check-schema (pg_catalog audit) + check-data-layer orchestrator + Pitfall 5 stale-null audit + verify:phase-2 wiring + operator human-verify
+- [x] 02-05-PLAN.md — svix install + Clerk webhook handler (4 events, svix verify, ON CONFLICT idempotency, D-03c delete log-only) + middleware SF-M4 fold ✓ (2026-05-17; commits a9301b2, 6ae44f5, c39ea98 — SF-M4 from Phase 1 PR review fully closed)
+- [ ] 02-06-PLAN.md — ts-morph + L-05 check-db-imports (AST allow-list) + L-06 check-rls (cross-org + positive control) + D-08 check-schema (pg_catalog audit) + check-data-layer orchestrator + Pitfall 5 stale-null audit + verify:phase-2 wiring + operator human-verify (blocked on SF-DB-1)
 
 ### Phase 3: Admin UI
 **Goal**: An admin can sign in, create a policy in the TipTap editor, walk it through Draft → Under Review → Published → Archived, and see every status transition reflected in the policy library list.
@@ -148,7 +148,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 5/5 | Complete | 2026-05-16 |
-| 2. Data Layer | 4/6 | In Progress | - |
+| 2. Data Layer | 5/6 | In Progress | - |
 | 3. Admin UI | 0/0 | Not started | - |
 | 4. AI Layer | 0/0 | Not started | - |
 | 5. Employee Portal | 0/0 | Not started | - |
