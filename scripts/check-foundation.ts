@@ -1,4 +1,4 @@
-// pnpm verify:phase-1 — runs all ROADMAP Phase 1 success criteria.
+// pnpm verify:phase-1 — runs the ROADMAP success criteria for this phase.
 // Failures are accumulated; the summary prints the full failure set.
 import { spawnSync } from "node:child_process";
 import { resolve as resolvePath } from "node:path";
@@ -20,6 +20,10 @@ function logResult(idx: number, total: number, r: Result): void {
   console.log(`[${idx}/${total}] ${status} — ${r.label}${detail}`);
 }
 
+function firstNonEmptyLine(s: string): string {
+  return s.split("\n").map((l) => l.trim()).find((l) => l.length > 0) ?? "";
+}
+
 function checkTypecheck(): Result {
   const result = spawnSync(NODE_BIN, [TSC_ENTRY, "--noEmit"], {
     encoding: "utf8",
@@ -28,13 +32,11 @@ function checkTypecheck(): Result {
   if (result.status === 0) {
     return { ok: true, label: "tsc --noEmit zero errors" };
   }
-  const firstLine = (result.stderr || result.stdout || "")
-    .trim()
-    .split("\n")[0];
+  const detail = firstNonEmptyLine(`${result.stderr ?? ""}\n${result.stdout ?? ""}`);
   return {
     ok: false,
     label: "tsc --noEmit zero errors",
-    detail: firstLine && firstLine.length > 0 ? firstLine : "tsc failed",
+    detail: detail || "tsc failed",
   };
 }
 
@@ -135,25 +137,19 @@ function checkSelectOne(): Result {
   if (result.status === 0) {
     return { ok: true, label: "Drizzle select 1 round-trip" };
   }
-  const stderr = (result.stderr || "").trim();
-  const stdout = (result.stdout || "").trim();
   // postgres-js error messages mention host + port but not the password
-  // portion of the URL (T-04-06 / T-05-02 mitigation). We surface only the
-  // first non-empty line to keep the failure summary terse.
-  const lines = (stderr + "\n" + stdout)
-    .split("\n")
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
-  const firstLine = lines[0];
+  // portion of the URL (T-04-06 / T-05-02 mitigation). Surface only the
+  // first non-empty line of combined stderr+stdout.
+  const detail = firstNonEmptyLine(`${result.stderr ?? ""}\n${result.stdout ?? ""}`);
   return {
     ok: false,
     label: "Drizzle select 1 round-trip",
-    detail: firstLine ?? `check:db exited ${result.status ?? "unknown"}`,
+    detail: detail || `check:db exited ${result.status ?? "unknown"}`,
   };
 }
 
 async function main(): Promise<void> {
-  console.log("─── Phase 1 Foundation — verification ───");
+  console.log("─── Foundation — verification ───");
   console.log(`App URL: ${APP_URL}`);
   console.log("");
 

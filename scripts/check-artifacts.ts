@@ -51,8 +51,8 @@ function assert(
 }
 
 // Strip line + block comments before regex-matching for `any` types so the
-// English word "any" inside code comments (e.g. `// 5. Default: any other
-// route...`) doesn't trigger a false positive.
+// English word "any" inside a sentence comment doesn't trigger a false
+// positive in the three type-position regexes below.
 function hasAnyType(source: string): boolean {
   const stripped = source
     .replace(/\/\/[^\n]*/g, "")
@@ -88,7 +88,7 @@ function checkPackageJsonShape(): Check[] {
     "engines.node not present",
   );
 
-  // Phase 1 stack-table dependencies
+  // Stack-table dependencies (CLAUDE.md "Stack" section)
   for (const dep of [
     "@clerk/nextjs",
     "drizzle-orm",
@@ -644,11 +644,12 @@ function checkSmokeScripts(): Check[] {
 // ─── T-03-05 / T-04-03 — `lib/db` is server-only-imported ──────────────────
 
 function checkServerOnlyBoundary(): Check[] {
-  // Grep all source files for `from "@/lib/db"` — the only legitimate
-  // consumer in Phase 1 is scripts/check-db.ts. Any other file would be a
-  // server-only-guard breach (Client Component imports would trigger build
-  // failure, but App-Router Server Components could still leak data in
-  // Phase 1 if they exist — and none should in Phase 1 per ROADMAP).
+  // Grep all source files for `from "@/lib/db"`. Until Server Components or
+  // server actions consume the DB client, the only legitimate importer is
+  // `scripts/check-db.ts`. Any other importer is a server-only-guard breach
+  // — Client Component imports fail the build, but Server Components could
+  // silently leak. The allowlist below must grow alongside legitimate
+  // server-side consumers as they land.
   const out: Check[] = [];
   const result = spawnSync(
     "node",
@@ -678,7 +679,7 @@ function checkServerOnlyBoundary(): Check[] {
   if (result.status !== 0) {
     out.push(
       fail(
-        "grep `from \"@/lib/db\"` — Phase 1 importers",
+        "grep `from \"@/lib/db\"` — importer enumeration",
         `walker error: ${(result.stderr || "").trim()}`,
       ),
     );
@@ -688,10 +689,9 @@ function checkServerOnlyBoundary(): Check[] {
     .split(/\r?\n/)
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
-  // Only allowed Phase 1 consumer: scripts/check-db.ts.
-  // scripts/check-artifacts.ts (this file) contains the needle `from "@/lib/db"`
-  // as a literal string inside the grep walker template — not a real import —
-  // so we whitelist it the same way.
+  // Currently allowed: scripts/check-db.ts (the DB smoke gate). Plus the
+  // walker-template substring inside this file itself — not a real import,
+  // whitelisted the same way to keep the regex check honest.
   const allowed = new Set([
     "scripts/check-db.ts",
     "./scripts/check-db.ts",
@@ -719,7 +719,7 @@ function checkServerOnlyBoundary(): Check[] {
 // ─── Main ─────────────────────────────────────────────────────────────────
 
 function main(): void {
-  console.log("─── Phase 1 Foundation — artifact regression gate ───");
+  console.log("─── Foundation — artifact regression gate ───");
   console.log(`Repo root: ${REPO_ROOT}`);
   console.log("");
 

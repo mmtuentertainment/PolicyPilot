@@ -5,15 +5,12 @@ import { db } from "@/lib/db";
 async function main(): Promise<void> {
   try {
     const rows = await db.execute(sql`select 1 as ok`);
-    // noUncheckedIndexedAccess: narrow rows[0] via `in` + `typeof` before
-    // reading `.ok` (no cast — preserves the unknown-narrowing invariant).
+    // noUncheckedIndexedAccess: rows[0] is Row | undefined. The `&& "ok" in
+    // first` narrows before reading; the unknown→number equality check
+    // covers absent row, missing column, wrong type, and wrong value in one.
     const first = rows[0];
-    if (
-      !first ||
-      !("ok" in first) ||
-      typeof first.ok !== "number" ||
-      first.ok !== 1
-    ) {
+    const okValue = first && "ok" in first ? first.ok : undefined;
+    if (okValue !== 1) {
       console.error("Unexpected result from `select 1`");
       process.exit(1);
     }
