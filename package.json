@@ -14,6 +14,10 @@
     "typecheck": "tsc --noEmit",
     "verify:phase-1": "tsx --env-file=.env.local scripts/check-foundation.ts && pnpm check:artifacts",
     "check:db": "tsx --conditions=react-server --env-file=.env.local scripts/check-db.ts",
+    "db:generate": "tsx --env-file=.env.local node_modules/drizzle-kit/bin.cjs generate",
+    "db:generate:rls": "tsx --env-file=.env.local node_modules/drizzle-kit/bin.cjs generate --custom --name=rls_policies",
+    "db:migrate": "tsx --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate",
+    "db:migrate:test": "tsx --env-file=.env.local.test node_modules/drizzle-kit/bin.cjs migrate",
     "check:artifacts": "tsx scripts/check-artifacts.ts",
     "check:coderabbit-config": "tsx scripts/check-coderabbit-config.ts"
   },

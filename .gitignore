@@ -1,6 +1,8 @@
 # secrets
 .env.local
 .env*.local
+# Phase 2 — env file for test-DB-targeted commands (Plan 02-03)
+.env.local.test
 
 # Next.js / Node
 node_modules/
