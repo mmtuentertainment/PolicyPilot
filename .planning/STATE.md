@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: "Phase 02 context gathered — ready for plan-phase"
-last_updated: "2026-05-17T06:30:00.000Z"
+status: Phase 02 context gathered — ready for plan-phase
+last_updated: "2026-05-17T07:58:38.550Z"
 progress:
   total_phases: 8
   completed_phases: 1
-  total_plans: 5
+  total_plans: 11
   completed_plans: 5
-  percent: 13
+  percent: 45
 ---
 
 # STATE — PolicyPilot
@@ -86,6 +86,12 @@ Phase 2 added 9 implementation decisions (D-01 to D-09) at `.planning/phases/02-
 ### Blockers
 
 None.
+
+### Phase 2 follow-ups (deferred — opportunistic cleanup)
+
+Items surfaced during Phase 2 planning + plan-checker review (2026-05-17) that are intentionally deferred. None block Phase 2 success criteria.
+
+- **SF-W5** Plan 02-05 webhook handler writes `clerk_events` BEFORE dispatch. If dispatch silently fails, Clerk receives 200 and does not retry. Phase 7 should invert ordering OR add structured logging + alerts. (Plan-checker WARNING-05, 2026-05-17.)
 
 ### Phase 1 PR-review follow-ups (deferred — opportunistic cleanup)
 

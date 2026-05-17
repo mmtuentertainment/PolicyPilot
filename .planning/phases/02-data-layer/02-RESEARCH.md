@@ -838,22 +838,25 @@ export async function POST(req: Request): Promise<Response> {
 
 **Note:** A1, A4, A6, A8 are HIGH-confidence (multiple sources + Drizzle docs). A2, A3, A5, A7 are MEDIUM-confidence — operational empirical tests in the verify scripts are the failsafe.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **How does Drizzle's `db.transaction()` interact with a pgbouncer Transaction-mode pool when `prepare: false` is set AND `SET LOCAL ROLE` is the first statement?**
    - What we know: Drizzle's `db.transaction()` issues `BEGIN`/`COMMIT` (or `ROLLBACK` on throw). postgres-js with `prepare: false` doesn't use prepared statements. pgbouncer transaction-mode binds the connection to a single transaction.
    - What's unclear: Empirically — does the pool's connection-recycling logic break `SET LOCAL ROLE` semantics in any edge case? The docs say "no, SET LOCAL resets at COMMIT regardless," but I couldn't find a definitive Supabase blog post that confirms this end-to-end with the same query pattern we're using.
    - Recommendation: Pitfall 2's stress-test (100 iterations of cross-org probe) is the empirical answer. Add a load test as part of plan-task acceptance: 1000 sequential `withOrgScope` calls, each with a different `ctx.orgId`, all from the same Node process — assert all 1000 see only their own org's row. This catches pool-recycling bugs.
+   - **RESOLVED:** Defer empirical load test to Phase 8 perf pass; D-08 step 4 (L-06 cross-org test) is sufficient evidence for Phase 2 MVP traffic levels (SMB-scale, 25-300 employees). The 1000-iteration stress test recommendation is noted but NOT a Phase 2 blocker. Mitigation acknowledged in CONTEXT deferred items #6 (connection-pool sizing).
 
 2. **Does Drizzle 0.45's TypeScript inference for `Parameters<typeof db.transaction>[0]` produce a usable type for the `tx` parameter in `OrgScope`?**
    - What we know: The CONTEXT `<specifics>` chose `PgTransaction<any, any, any>` and noted "tightening is possible but not Phase-2 critical."
    - What's unclear: Whether `Parameters<typeof db.transaction>[0]` infers cleanly when `db` is typed as `PostgresJsDatabase<typeof schema>`. The drilldown might produce `(tx: PgTransaction<PostgresJsQueryResultHKT, typeof schema, ExtractTablesWithRelations<typeof schema>>) => Promise<T>` — usable but verbose.
    - Recommendation: Try `Parameters<typeof db.transaction>[0]` first in `lib/db/scoped.ts`. If the inferred type is too verbose to re-export cleanly, fall back to the documented `PgTransaction<any, any, any>` with the eslint-disable comment as CONTEXT permits. Either is acceptable per the operator's discretion-granting comment.
+   - **RESOLVED:** Default to `PgTransaction<any, any, any>` with the documented `// eslint-disable-next-line` per CONTEXT specifics block #1. Tightening to the inferred type is a Phase 8 refactor candidate, not a Phase 2 blocker. The `any` use is bounded (single eslint-disable line in `lib/db/scoped.ts`) and audited.
 
 3. **Does Clerk send `organizationMembership.created` BEFORE or AFTER the corresponding `user.created` for a brand-new sign-up flow?**
    - What we know: D-03a explicitly assumes ordering is NOT guaranteed and designs around it (nullable `users.org_id` with CHECK constraint).
    - What's unclear: In practice — is there an observed ordering preference? Anecdotally, Clerk webhooks fire in event-occurrence order, but the docs don't guarantee it. The D-03a design holds regardless of ordering, so this is informational.
    - Recommendation: No action needed — D-03a + the stale-null audit handle both orderings. Note for Phase 3+ planners: if Phase-3 features assume `users.org_id IS NOT NULL` for all logged-in users, add a `if (!user.orgId) throw new Error('User org not yet bound — try again in 30s')` guard at the entry point.
+   - **RESOLVED:** Ordering is not guaranteed by Clerk and the D-03a nullable `users.org_id` design + the 5-min CHECK constraint + Plan 02-06's Pitfall-5 stale-null audit cover both orderings. Informational only — no Phase 2 action.
 
 ## Environment Availability
 
