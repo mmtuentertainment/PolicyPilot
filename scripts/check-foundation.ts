@@ -196,7 +196,7 @@ async function main(): Promise<void> {
   logResult(5, 6, c4);
 
   console.log("");
-  console.log("─── Criterion 5 (middleware redirect) ───");
+  console.log("─── Middleware redirect check ───");
   const c5 = await checkRedirect(
     "/sign-in-success",
     "/sign-in",
@@ -214,9 +214,7 @@ async function main(): Promise<void> {
     }
     process.exit(1);
   }
-  console.log(
-    `✓ All ${results.length} checks passed. Phase 1 ready for Phase 2.`,
-  );
+  console.log(`✓ All ${results.length} checks passed.`);
   process.exit(0);
 }
 

@@ -4,7 +4,7 @@ export default function SignInSuccessPage() {
       <div className="max-w-md text-center">
         <h1 className="text-2xl font-semibold">You&apos;re signed in.</h1>
         <p className="mt-2 text-zinc-600">
-          Phase 1 placeholder. Admin and Employee dashboards arrive in Phase 3 and Phase 5.
+          Thanks for signing up. Your workspace isn&apos;t built yet — check back soon.
         </p>
       </div>
     </div>

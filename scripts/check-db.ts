@@ -19,8 +19,12 @@ async function main(): Promise<void> {
     }
     console.log("OK");
     process.exit(0);
-  } catch {
-    console.error("Drizzle smoke check failed");
+  } catch (err) {
+    console.error(
+      `Drizzle smoke check failed: ${
+        err instanceof Error ? `${err.name}: ${err.message}` : String(err)
+      }`,
+    );
     process.exit(1);
   }
 }
