@@ -43,7 +43,9 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # Drizzle / pnpm
-drizzle/
+# (drizzle/ removed in Plan 02-03 — migrations + meta MUST be tracked so
+# the team / deployment can reproduce schema state. The Plan-01-01 entry
+# was a mistake-in-advance; this is the fix.)
 .drizzle/
 *.local
 .pnpm-store/
