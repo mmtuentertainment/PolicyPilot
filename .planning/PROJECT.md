@@ -28,7 +28,7 @@ Next.js 15 App Router on Vercel + a Railway worker for cron and bulk email. Post
 
 <decisions>
 
-The following 21 decisions are LOCKED (precedence 0–1 ADRs from `BLUEPRINT.md` and `reference/STACK.md`). They cannot be changed without explicit operator approval and a new ADR. Full text lives in `.planning/intel/decisions.md` — short form preserved here for downstream consumers.
+The following 22 decisions are LOCKED (precedence 0–1 ADRs from `BLUEPRINT.md` and `reference/STACK.md`). They cannot be changed without explicit operator approval and a new ADR. Full text lives in `.planning/intel/decisions.md` — short form preserved here for downstream consumers.
 
 ### ADR-001 — System Topology (locked)
 Single Next.js 15 App Router app on Vercel + Railway worker + Supabase Postgres + external SaaS (Clerk, Stripe, Claude, Resend).
@@ -92,6 +92,9 @@ The `/api/webhooks/stripe` handler handles `checkout.session.completed`, `invoic
 
 ### ADR-021 — Batch API for Consistency Check (locked)
 The Consistency Check uses Claude Batch API (async) for ~50% cost reduction. Endpoint returns `batchId`; client polls. The only async AI operation — draft, summary, Q&A remain synchronous.
+
+### ADR-022 — Node 22 Active LTS (locked, 2026-05-16, supersedes Phase 1 D-01's Node 20 pin)
+`engines.node` is `>=22.0.0 <23.0.0`. Node 22 became Active LTS in Oct 2024; Node 20 entered maintenance-LTS. The Phase-1 D-01 decision predated this cutover and pinned 20 as "the LTS at the time" — Node 22 satisfies the same spirit ("use Active LTS") with current security patches. Concretely required because Plan 01-04 chose `node --env-file=.env.local` for `pnpm check:db` and `pnpm verify:phase-1`; `--env-file` was experimental in Node 20.6 and only became stable in Node 22, so the previous `<21.0.0` upper bound silently made the project's own verify scripts incompatible with its declared runtime. Vercel + Railway both support Node 22 in production.
 
 </decisions>
 

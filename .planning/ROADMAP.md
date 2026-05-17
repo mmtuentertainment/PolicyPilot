@@ -8,7 +8,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 
 ## Phases
 
-- [ ] **Phase 1: Foundation** — Next.js 15 + Clerk + Supabase wired up, `localhost:3000` loads clean.
+- [x] **Phase 1: Foundation** — Next.js 15 + Clerk + Supabase wired up, `localhost:3000` loads clean. ✓ 2026-05-16 (operator-approved; VERIFICATION.md PASS)
 - [ ] **Phase 2: Data Layer** — Drizzle schema + RLS + Clerk webhooks; `org_id` invariant established.
 - [ ] **Phase 3: Admin UI** — Policy library, TipTap editor, full lifecycle (Draft → Published → Archived).
 - [ ] **Phase 4: AI Layer** — Draft generation, TL;DR summaries, Employee Q&A, Consistency Check (Growth+).
@@ -32,7 +32,12 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
   3. Clerk sign-in / sign-up flow renders and successfully completes against Clerk dev keys.
   4. Supabase client connects (a trivial `select 1` succeeds via Drizzle's connection).
   5. `middleware.ts` enforces public-route policy: `/`, `/pricing`, `/sign-in`, `/sign-up` reachable unauthenticated; everything else redirects to sign-in.
-**Plans**: TBD
+**Plans**: 5 plans
+- [x] 01-01-PLAN.md - Scaffold Next.js 15 + pnpm deps + tsconfig hardening + shadcn/ui (Button, Card, Input) + .env.local.example DATABASE_URL patch ✓ (2026-05-15)
+- [x] 01-02-PLAN.md - Operator manual: create Clerk dev app + Supabase dev project, populate .env.local
+- [x] 01-03-PLAN.md - App shell: ClerkProvider root layout + marketing landing + pricing stub + Clerk sign-in/sign-up + sign-in-success placeholder ✓ (2026-05-16)
+- [x] 01-04-PLAN.md - middleware.ts (ADR-009/D-10) + Drizzle skeleton (D-06/D-07) + scripts/check-db.ts ✓ (2026-05-16)
+- [x] 01-05-PLAN.md - scripts/check-foundation.ts + pnpm verify:phase-1 + operator human-verify of Clerk flow
 **UI hint**: yes
 
 ### Phase 2: Data Layer
@@ -136,7 +141,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/0 | Not started | - |
+| 1. Foundation | 5/5 | Complete | 2026-05-16 |
 | 2. Data Layer | 0/0 | Not started | - |
 | 3. Admin UI | 0/0 | Not started | - |
 | 4. AI Layer | 0/0 | Not started | - |

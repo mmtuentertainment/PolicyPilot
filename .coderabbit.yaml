@@ -1,0 +1,418 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# CodeRabbit config for PolicyPilot.
+# Tailored to the locked stack and rules in CLAUDE.md, BLUEPRINT.md, and
+# `.planning/PROJECT.md` <decisions> block (ADR-001 .. ADR-022). Path-scoped
+# instructions encode the project's hard rules so reviews fail loudly on
+# multi-tenancy, secret-handling, and webhook-verification regressions.
+#
+# Schema reference: https://docs.coderabbit.ai/reference/configuration
+
+language: en-US
+early_access: false
+tone_instructions: "Be terse and direct. Skip preamble. Lead with the diff finding, then the fix. Cite CLAUDE.md / ADR-NNN / D-NN when an issue conflicts with a locked decision."
+
+reviews:
+  # Assertive profile for a security-sensitive multi-tenant SaaS — we want
+  # CodeRabbit to flag aggressively rather than miss issues.
+  profile: assertive
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: true
+
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+      - "^gsd/.*$"   # phase branches (e.g. gsd/phase-2-data-layer) target main
+    auto_incremental_review: true
+    auto_pause_after_reviewed_commits: 5
+
+  # Exclusions: generated, vendored, lockfiles, snapshots, secrets-shaped
+  # files. .env.local is gitignored so should never appear, but the filter
+  # is defense-in-depth.
+  path_filters:
+    - "!node_modules/**"
+    - "!.next/**"
+    - "!dist/**"
+    - "!build/**"
+    - "!out/**"
+    - "!.pnpm-store/**"
+    - "!.wiki/raw/**"
+    - "!pnpm-lock.yaml"
+    - "!package-lock.json"
+    - "!yarn.lock"
+    - "!**/*.min.js"
+    - "!**/*.min.css"
+    - "!.env"
+    - "!.env.local"
+    - "!.env.development"
+    - "!.env.test"
+    - "!.env.production"
+    # Note: .env.local.example is intentionally NOT excluded — it has a
+    # dedicated path_instructions rule (template-only, all values empty).
+    - "!**/__generated__/**"
+    # Drizzle journal/snapshot metadata is machine-generated; SQL migration
+    # files in drizzle/ stay reviewable so ADR-018 / CLAUDE.md NEVER #5
+    # catches destructive DROP/ALTER statements.
+    - "!drizzle/meta/**"
+    - "!components/ui/**"     # shadcn primitives — reviewed once at install
+    - "!.planning/raw/**"
+    - "!.planning/intel/classifications/**"
+
+  path_instructions:
+    # ───────────────────────── Multi-tenancy + data access ─────────────────────────
+    - path: "lib/db/**/*.{ts,tsx}"
+      instructions: |
+        ADR-019 + CLAUDE.md ALWAYS #2: every DB query MUST include `org_id` in
+        its WHERE clause at the application layer. RLS (ADR-011) is the last
+        line of defense, not the primary gate. Flag any query without an
+        `org_id` filter — even if the table appears non-tenant-scoped, confirm
+        explicitly. Never query across organizations under any code path.
+        Drizzle ORM only — no raw SQL except where unavoidable. `schema.ts` is
+        the source of truth; types must flow from `$inferSelect` / `$inferInsert`.
+        Connection must go through the Supabase Transaction pooler (D-06,
+        port 6543) with `prepare: false`. `import "server-only"` at the top of
+        every file in `lib/db/`.
+
+        ADR-018 + CLAUDE.md NEVER #5 (acknowledgments append-only): in ANY
+        file under `lib/db/`, flag every `db.delete(acknowledgments)`,
+        `db.update(acknowledgments)`, any raw `DELETE FROM acknowledgments` /
+        `UPDATE acknowledgments` / `TRUNCATE acknowledgments`, and any query
+        builder that targets the `acknowledgments` table for mutation other
+        than `db.insert(...)`. The filename-scoped rule below
+        (`**/acknowledgments*.{ts,tsx}`) does NOT catch e.g.
+        `lib/db/queries/policy-lifecycle.ts` that mutates acknowledgments
+        from a non-acknowledgments-named module — this rule does.
+
+    - path: "app/**/*.{ts,tsx}"
+      instructions: |
+        App Router only (ADR-008, ADR-010). Server Components by default;
+        flag `"use client"` directives that don't need interactivity. Never
+        import from `@/lib/db` outside server contexts (server components,
+        server actions, route handlers). Never call Claude API client-side
+        (CLAUDE.md NEVER #2). The `SUPABASE_SERVICE_ROLE_KEY` must NEVER
+        reach a Client Component — bypass-RLS leak.
+
+        ADR-018 + CLAUDE.md NEVER #5 (acknowledgments append-only): flag any
+        `db.delete(acknowledgments)`, `db.update(acknowledgments)`, raw
+        `DELETE FROM acknowledgments` / `UPDATE acknowledgments` /
+        `TRUNCATE acknowledgments`, or mutation of the `acknowledgments`
+        table by any other means from server actions or route handlers,
+        regardless of the file's name. Only `db.insert(acknowledgments)` is
+        legal. On policy update, prior acks remain untouched; a "requires
+        re-acknowledgment" flag is surfaced against the new
+        `policy_version_id`.
+
+    # ───────────────────────── Auth + middleware ─────────────────────────
+    - path: "middleware.ts"
+      instructions: |
+        ADR-009 / D-10: middleware.ts is the SINGLE auth chokepoint. Any
+        change to public-route patterns must preserve:
+          (a) /api/webhooks/{stripe,clerk} bypass for signature-only auth
+          (b) /api/cron/(.*) bypass for CRON_SECRET-only auth
+          (c) /sign-in & /sign-up: split into exact + /(.*) child patterns —
+              do NOT collapse back to the greedy `/sign-in(.*)` form, which
+              accidentally matches `/sign-in-success` (this was bug `446b554`).
+        Default branch must redirect unauthenticated requests to /sign-in with
+        `redirect_url` set to `req.nextUrl.pathname + req.nextUrl.search`
+        only — never the full `req.url` (Host-header trust dependency,
+        WR-01 in 01-REVIEW.md). The `/(admin)/(.*)` matcher is acknowledged
+        dead code until Phase 3 adds real admin routes.
+
+    - path: "app/api/webhooks/**/*.{ts,tsx}"
+      instructions: |
+        CLAUDE.md ALWAYS #3 + ADR-020: every webhook handler MUST
+          (1) verify signature against the RAW body via `request.text()` —
+              never against `request.json()` (parsed body breaks signature)
+          (2) be idempotent — persist processed event IDs in `stripe_events`
+              or equivalent, reject duplicates with 200 OK
+          (3) handle ALL 5 Stripe events (checkout.session.completed,
+              invoice.paid, invoice.payment_failed, customer.subscription.
+              deleted, customer.subscription.updated). Missing invoice.paid
+              = users lose access after cycle 1.
+
+    # ───────────────────────── AI layer ─────────────────────────
+    - path: "app/api/ai/**/*.{ts,tsx}"
+      instructions: |
+        CLAUDE.md ALWAYS #5 + #6: every Claude API call must
+          (1) write a row to `ai_generations` (cost + audit trail)
+          (2) check tier limit via `checkTierLimit(orgId, feature)` BEFORE
+              the call — return 403 with `{ error: 'tier_limit_exceeded',
+              upgradeUrl: '/pricing' }` on overage
+          (3) use prompt caching for repeated system prompts (esp. Q&A —
+              `cache_control: { type: "ephemeral" }` on policy-library block,
+              ADR-006)
+          (4) use the correct model per ADR-015: Sonnet 4.6 for draft / Q&A /
+              consistency, Haiku 4.5 for TL;DR summaries only. Opus is rejected.
+        Q&A system prompts must constrain answers to the requesting org's
+        PUBLISHED policies only and cite the source. Consistency check uses
+        Claude Batch API (ADR-021), not synchronous.
+
+    - path: "lib/ai/**/*.{ts,tsx}"
+      instructions: |
+        Same rules as `app/api/ai/**`. Plus: no client-side imports of this
+        module. Prompt templates live here per `reference/PROMPTS.md`; flag
+        edits that diverge from the documented contract.
+
+    # ───────────────────────── Stripe + tier gating ─────────────────────────
+    - path: "lib/stripe/**/*.{ts,tsx}"
+      instructions: |
+        CLAUDE.md NEVER #3: never trust client-side for subscription state —
+        always read from `organizations.planTier` in DB. `TIER_LIMITS` in
+        `lib/stripe/products.ts` is the SSOT (ADR-017). Idempotent webhook
+        handling per ADR-020.
+
+    # ───────────────────────── Acknowledgments (append-only audit trail) ─────────────────────────
+    - path: "**/acknowledgments*.{ts,tsx}"
+      instructions: |
+        ADR-018 + CLAUDE.md NEVER #5: acknowledgment records are APPEND-ONLY.
+        Flag any DELETE or UPDATE statement, any `db.delete(acknowledgments)`,
+        `db.update(acknowledgments)`, or migration that DROPs / ALTERs the
+        column shape destructively. On policy update, prior acks remain
+        untouched; a "requires re-acknowledgment" flag is surfaced against
+        the new `policy_version_id`.
+
+    # ───────────────────────── Type safety + style ─────────────────────────
+    - path: "**/*.{ts,tsx}"
+      instructions: |
+        CLAUDE.md NEVER #4: never use the `any` type. Flag every occurrence
+        including `: any`, `as any`, `<any>`, and generic constraints set to
+        `any`. Prefer `unknown` + type narrowing or proper type guards
+        (`isFoo(x: unknown): x is Foo`). The tsconfig has D-08 strict flags
+        active (`strict`, `noUncheckedIndexedAccess`, `noImplicitOverride`);
+        flag silent suppressions (`// @ts-ignore`, `// @ts-expect-error`
+        without justification, non-null `!` assertions). Public APIs need
+        explicit return types.
+
+    # ───────────────────────── Scripts + verification ─────────────────────────
+    - path: "scripts/**/*.{ts,tsx}"
+      instructions: |
+        Verification + smoke scripts. Must never echo or log secret values —
+        operator rule `secrets-never-in-chat`. Use sentinel-substring checks
+        (e.g. `r.includes('pk_test_')`) with exit-code-only reporting; never
+        print a value on the success path. `spawnSync` calls must NOT pass
+        `shell: true` (injection vector — IN-02 in 01-REVIEW.md). For
+        Windows compatibility when spawning `pnpm` / `tsc` / `tsx` with
+        `shell: false`, route through `process.execPath` and the binary's
+        JS entry, not the `.cmd` shim (CVE-2024-27980).
+
+    # ───────────────────────── Planning artifacts ─────────────────────────
+    - path: ".planning/**/*.md"
+      instructions: |
+        Planning artifacts (PLAN.md, SUMMARY.md, VERIFICATION.md,
+        SECURITY.md, VALIDATION.md, UAT.md, REVIEW.md). Lighter review —
+        these are project state, not source code. Flag only: inconsistencies
+        between SUMMARY.md frontmatter and committed artifacts; secrets that
+        slipped into a plan body; ADR violations described as "auto-fixed"
+        without operator approval; deviations from the locked stack table.
+        Do NOT bikeshed prose or grammar. Do NOT suggest restructuring the
+        GSD workflow.
+
+    - path: "BLUEPRINT.md"
+      instructions: |
+        Frozen FOUNDRY-stage architecture doc. Per CLAUDE.md the live source
+        is `.planning/PROJECT.md`. Flag any edit to BLUEPRINT.md — should be
+        read-only at this stage. Edits belong in PROJECT.md `<decisions>`
+        block with a new ADR.
+
+    - path: ".planning/PROJECT.md"
+      instructions: |
+        Live architecture + locked decisions. The `<decisions>` block holds
+        ADR-001 .. ADR-022 — flag any direct edit to existing ADRs (must be
+        superseded by a new ADR, never modified in place). New ADRs must
+        include: title, date, rationale, and explicit supersession if
+        relevant.
+
+    # ───────────────────────── Migrations ─────────────────────────
+    - path: "drizzle.config.ts"
+      instructions: |
+        Migration entry point. Schema path must be `lib/db/schema.ts`.
+        Connection MUST be the Supabase Transaction pooler (port 6543) per
+        D-06.
+
+    - path: "drizzle/**/*.sql"
+      instructions: |
+        Generated migration SQL — review surface for destructive schema
+        changes. ADR-018 + CLAUDE.md NEVER #5 (acknowledgments append-only):
+        flag any `DROP TABLE acknowledgments`, `ALTER TABLE acknowledgments
+        DROP COLUMN ...`, `ALTER TABLE acknowledgments ALTER COLUMN ... TYPE
+        ...` (when the change is destructive), `DELETE FROM acknowledgments`,
+        `TRUNCATE acknowledgments`, or any rename/drop of a column the audit
+        trail relies on (`user_id`, `policy_version_id`, `acknowledged_at`,
+        `org_id`). Additive migrations (CREATE TABLE, ADD COLUMN with
+        nullable default, CREATE INDEX) are fine. The same rule applies to
+        any other append-only audit table introduced in later phases (e.g.
+        `ai_generations`, `stripe_events`) — flag destructive ops there too.
+        Per Phase 1 D-12 the `drizzle/` output dir is gitignored; once Phase
+        2 commits real SQL migrations, this rule starts firing.
+
+    # ───────────────────────── Env templates ─────────────────────────
+    - path: ".env.local.example"
+      instructions: |
+        Template only. EVERY value must be empty (key + `=` + nothing).
+        Flag any non-empty value — operator rule `secrets-never-in-chat`.
+        Adding new keys requires a new ADR or D-NN if it changes Phase scope.
+
+  finishing_touches:
+    # Auto-generate docstrings on net-new TS files
+    docstrings:
+      enabled: true
+    # Unit tests are DEFERRED to Phase 2+ per D-13 + D-14. Do NOT auto-generate
+    # tests in Phase 1 — Phase 1 coverage is the verify-script pattern
+    # (scripts/check-foundation.ts + scripts/check-artifacts.ts + check-db.ts).
+    unit_tests:
+      enabled: false
+
+  abort_on_close: true
+
+  tools:
+    # ────── Secret scanners — non-negotiable for SaaS handling Clerk/Stripe/Supabase keys ──────
+    gitleaks:
+      enabled: true
+    trufflehog:
+      enabled: true
+
+    # ────── Static + style ──────
+    eslint:
+      enabled: true
+    biome:
+      enabled: false   # eslint is the project's linter (Plan 01-01 wired eslint-config-next)
+    ast-grep:
+      packages: []     # add custom rules in future phases
+
+    # ────── Security-focused SAST ──────
+    semgrep:
+      enabled: true
+    opengrep:
+      enabled: false   # semgrep is sufficient; running both = noise
+
+    # ────── Markdown / YAML / Actions ──────
+    markdownlint:
+      enabled: true
+    yamllint:
+      enabled: true
+    actionlint:
+      enabled: true    # ready for .github/workflows/ (none yet; Phase 7+)
+
+    # ────── Disable noisy / irrelevant tools for this stack ──────
+    ruff:
+      enabled: false   # no Python
+    pylint:
+      enabled: false
+    flake8:
+      enabled: false
+    rubocop:
+      enabled: false
+    brakeman:
+      enabled: false
+    phpstan:
+      enabled: false
+    phpmd:
+      enabled: false
+    phpcs:
+      enabled: false
+    golangci-lint:
+      enabled: false
+    buf:
+      enabled: false
+    swiftlint:
+      enabled: false
+    detekt:
+      enabled: false
+    luacheck:
+      enabled: false
+    psscriptanalyzer:
+      enabled: false
+    clippy:
+      enabled: false
+    hadolint:
+      enabled: false   # no Dockerfile yet (Railway worker phase 7+)
+    checkov:
+      enabled: false   # no IaC yet
+    tflint:
+      enabled: false
+
+    # ────── DB / API ──────
+    sqlfluff:
+      enabled: false   # Drizzle-generated SQL — checked at schema level not raw SQL
+    prismaLint:
+      enabled: false   # not using Prisma
+
+    # ────── HTML / CSS ──────
+    htmlhint:
+      enabled: false   # JSX, not HTML
+    stylelint:
+      enabled: false   # Tailwind, not stylesheets
+
+    # ────── Misc ──────
+    languagetool:
+      enabled: false   # turn on later if marketing copy reviews matter
+
+chat:
+  art: false
+  allow_non_org_members: false
+  auto_reply: true
+
+knowledge_base:
+  # Operator preference: keep learnings local to this repo. Do not propagate
+  # PolicyPilot patterns to other org repos (different stacks, different rules).
+  learnings:
+    scope: local
+  issues:
+    scope: local
+  pull_requests:
+    scope: local
+
+  web_search:
+    enabled: true
+
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - CLAUDE.md
+      - BLUEPRINT.md
+      - REQUIREMENTS.md
+      - .planning/PROJECT.md
+      - .planning/REQUIREMENTS.md
+      - reference/STACK.md
+      - reference/SCHEMA.md
+      - reference/API-SPEC.md
+      - reference/TIER-LIMITS.md
+      - reference/PROMPTS.md
+
+  # MCP integration disabled — McpInject (Feb–May 2026 npm attack family) targets
+  # Claude Code / Cursor / VS Code Continue / Windsurf via malicious MCP servers.
+  # CodeRabbit pulling from external MCP increases the attack surface without
+  # adding value for a single-developer SaaS project. Re-evaluate before Phase 5+.
+  mcp:
+    usage: disabled
+
+code_generation:
+  docstrings:
+    language: en-US
+    path_instructions:
+      - path: "lib/**/*.{ts,tsx}"
+        instructions: |
+          Default to no comments per CLAUDE.md style. Only add a docstring
+          when WHY is non-obvious: hidden constraint, subtle invariant,
+          workaround for a specific bug, behavior that would surprise a
+          reader. Never explain WHAT — well-named identifiers cover that.
+          Never reference current tasks ("used by X", "added for Y flow",
+          "handles issue #123") — those belong in the PR description.
+      - path: "app/**/*.{ts,tsx}"
+        instructions: |
+          Same as lib/**. Server Components shouldn't need docstrings for
+          rendering logic; only the non-obvious data-fetching or middleware-
+          interaction shape.
+  unit_tests:
+    path_instructions: []   # tests deferred to Phase 2+
+
+issue_enrichment:
+  auto_enrich:
+    enabled: false
+  planning:
+    enabled: false   # GSD handles planning; CodeRabbit issue-plans would duplicate
