@@ -78,6 +78,16 @@ reviews:
         port 6543) with `prepare: false`. `import "server-only"` at the top of
         every file in `lib/db/`.
 
+        ADR-018 + CLAUDE.md NEVER #5 (acknowledgments append-only): in ANY
+        file under `lib/db/`, flag every `db.delete(acknowledgments)`,
+        `db.update(acknowledgments)`, any raw `DELETE FROM acknowledgments` /
+        `UPDATE acknowledgments` / `TRUNCATE acknowledgments`, and any query
+        builder that targets the `acknowledgments` table for mutation other
+        than `db.insert(...)`. The filename-scoped rule below
+        (`**/acknowledgments*.{ts,tsx}`) does NOT catch e.g.
+        `lib/db/queries/policy-lifecycle.ts` that mutates acknowledgments
+        from a non-acknowledgments-named module — this rule does.
+
     - path: "app/**/*.{ts,tsx}"
       instructions: |
         App Router only (ADR-008, ADR-010). Server Components by default;
@@ -86,6 +96,16 @@ reviews:
         server actions, route handlers). Never call Claude API client-side
         (CLAUDE.md NEVER #2). The `SUPABASE_SERVICE_ROLE_KEY` must NEVER
         reach a Client Component — bypass-RLS leak.
+
+        ADR-018 + CLAUDE.md NEVER #5 (acknowledgments append-only): flag any
+        `db.delete(acknowledgments)`, `db.update(acknowledgments)`, raw
+        `DELETE FROM acknowledgments` / `UPDATE acknowledgments` /
+        `TRUNCATE acknowledgments`, or mutation of the `acknowledgments`
+        table by any other means from server actions or route handlers,
+        regardless of the file's name. Only `db.insert(acknowledgments)` is
+        legal. On policy update, prior acks remain untouched; a "requires
+        re-acknowledgment" flag is surfaced against the new
+        `policy_version_id`.
 
     # ───────────────────────── Auth + middleware ─────────────────────────
     - path: "middleware.ts"
@@ -213,6 +233,22 @@ reviews:
         Migration entry point. Schema path must be `lib/db/schema.ts`.
         Connection MUST be the Supabase Transaction pooler (port 6543) per
         D-06.
+
+    - path: "drizzle/**/*.sql"
+      instructions: |
+        Generated migration SQL — review surface for destructive schema
+        changes. ADR-018 + CLAUDE.md NEVER #5 (acknowledgments append-only):
+        flag any `DROP TABLE acknowledgments`, `ALTER TABLE acknowledgments
+        DROP COLUMN ...`, `ALTER TABLE acknowledgments ALTER COLUMN ... TYPE
+        ...` (when the change is destructive), `DELETE FROM acknowledgments`,
+        `TRUNCATE acknowledgments`, or any rename/drop of a column the audit
+        trail relies on (`user_id`, `policy_version_id`, `acknowledged_at`,
+        `org_id`). Additive migrations (CREATE TABLE, ADD COLUMN with
+        nullable default, CREATE INDEX) are fine. The same rule applies to
+        any other append-only audit table introduced in later phases (e.g.
+        `ai_generations`, `stripe_events`) — flag destructive ops there too.
+        Per Phase 1 D-12 the `drizzle/` output dir is gitignored; once Phase
+        2 commits real SQL migrations, this rule starts firing.
 
     # ───────────────────────── Env templates ─────────────────────────
     - path: ".env.local.example"
