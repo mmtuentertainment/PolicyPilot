@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 02 — Plans 02-01 + 02-02 (partial) + 02-03 (FULL — SF-DB-2 resolved + dev DB push verified) shipped 2026-05-17; Plan 02-04 next
-last_updated: "2026-05-17T14:25:00.000Z"
+status: Phase 02 — Plans 02-01 + 02-02 (partial) + 02-03 (FULL) + 02-04 shipped 2026-05-17; Plan 02-05 next
+last_updated: "2026-05-17T14:30:38.000Z"
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 11
-  completed_plans: 8
-  percent: 72
+  completed_plans: 9
+  percent: 81
 ---
 
 # STATE — PolicyPilot
@@ -31,22 +31,23 @@ GSD session state. Updated each time a phase or plan transitions. Source of trut
 
 ## Current Position
 
-Phase: 02 — Plans 02-01 + 02-02 (partial) + 02-03 (partial) shipped 2026-05-17; Plan 02-04 next
-Plan: 3 of 6 (with 02-02 deferred-test-DB and 02-03 deferred-live-DB-push)
+Phase: 02 — Plans 02-01 + 02-02 (partial) + 02-03 (FULL) + 02-04 (FULL) shipped 2026-05-17; Plan 02-05 next
+Plan: 4 of 6 (with 02-02 deferred-test-DB caveat outstanding; 02-03 fully resolved)
 
-- **Phase**: 2 — Data Layer **in progress** (2026-05-17 — Plans 02-01 + 02-02 + 02-03 partial shipped)
-- **Plan**: 3 / 6 — Plan 02-03 FULLY complete (4/4 tasks). Code artifacts committed; SF-DB-2 fix landed via 1-line `.env.local` edit (legacy IPv6 hostname → Session-pooler hostname); `pnpm db:migrate` reported "migrations applied successfully"; live dev DB verified: 12/12 tables, 10/10 RLS-enabled tenant tables, 10/10 org_isolation policies, 40 GRANTs, 1 D-03a CHECK. Next step is Plan 02-04 (repository skeletons).
+- **Phase**: 2 — Data Layer **in progress** (2026-05-17 — Plans 02-01 + 02-02 + 02-03 + 02-04 shipped)
+- **Plan**: 4 / 6 — Plan 02-04 FULLY complete (2/2 tasks). 9 repository skeletons under `lib/db/repositories/*.ts` shipped via commits `2973555` (4 critical: Policies + Acknowledgments + Users + PolicyVersions) and `e71000a` (5 remaining: PolicyAssignments + Departments + AiGenerations + Notifications + WorkflowStages). `pnpm tsc --noEmit` exits 0 in ~2.7s — closes the Plan 02-01 Task 3 baseline failure. D-07 type tests in `tests/types.ts` now actively enforce ADR-018 (Acknowledgments has no update/delete) + ADR-005 (Policies.create omits tldrSummary). Next step is Plan 02-05 (Clerk webhook handler + middleware SF-M4 fold).
 - **Status**:
-  - **Plan 02-01** shipped via commits `75b397e` (schema), `e7c6b43` (context + scoped), `2fff189` (type tests), `a381bd8` (metadata). 12 Drizzle tables; SF-M4 closed in `lib/auth/context.ts`. `tsc --noEmit` intentionally failing pending Plan 02-04 repos.
-  - **Plan 02-02** partial: ✓ Clerk Org Roles (3 effective: `Admin` built-in customized + `employee` + `reviewer` — webhook handler must strip `org:` prefix per D-09 fallback); ✓ Clerk Session Token publicMetadata claim already configured; ✓ Svix webhook endpoint created with 4 events + signing secret captured in `.env.local`; ✓ `DIRECT_URL` populated using dev project password from existing DATABASE_URL (BUT: see SF-DB-2 — the URL Plan 02-02 wrote uses the legacy IPv6-only hostname); ✗ `policypilot-test` Supabase project BLOCKED (free-tier 2-project limit — see Blockers).
-  - **Plan 02-03** FULL: ✓ Task 1 (`c1dcf6f` — drizzle.config DIRECT_URL split D-05 + 4 db scripts + .env.local.test placeholder); ✓ Task 2 (`0bbf321` — 0000_initial.sql auto-generated + 0001_rls_policies.sql empty skeleton via --custom + _journal.json with both entries, RESEARCH Pitfall 3 mitigated); ✓ Task 3 (`f443cd0` — 0001_rls_policies.sql body: 10×ENABLE RLS + 10×CREATE POLICY + 10×GRANT + 1×CHECK on users for D-03a); ✓ Task 4 ([BLOCKING] live dev DB push) — completed post-commit after SF-DB-2 1-line fix; `pnpm db:migrate` reported "migrations applied successfully"; pg_catalog probe confirms 12/12 tables, 10/10 RLS-enabled tenant tables, 10/10 org_isolation policies, 40 GRANTs, 1 D-03a CHECK. **SF-DB-2 RESOLVED.**
-- **Progress**: 1 / 8 phases complete; Phase 2: 3/6 plans complete (2 with deferred-DB caveats)
+  - **Plan 02-01** shipped via commits `75b397e` (schema), `e7c6b43` (context + scoped), `2fff189` (type tests), `a381bd8` (metadata). 12 Drizzle tables; SF-M4 closed in `lib/auth/context.ts`. `tsc --noEmit` baseline failure was intentionally deferred — closed by Plan 02-04.
+  - **Plan 02-02** partial: ✓ Clerk Org Roles (3 effective: `Admin` built-in customized + `employee` + `reviewer` — webhook handler must strip `org:` prefix per D-09 fallback); ✓ Clerk Session Token publicMetadata claim already configured; ✓ Svix webhook endpoint created with 4 events + signing secret captured in `.env.local`; ✓ `DIRECT_URL` populated; ✗ `policypilot-test` Supabase project BLOCKED (free-tier 2-project limit — see Blockers SF-DB-1).
+  - **Plan 02-03** FULL: ✓ Task 1 (`c1dcf6f`), Task 2 (`0bbf321`), Task 3 (`f443cd0`), Task 4 (post-commit live-DB push after SF-DB-2 fix). Live dev DB verified 12/12 tables + 10/10 RLS-enabled tenant tables + 10/10 org_isolation policies + 40 GRANTs + D-03a CHECK. **SF-DB-2 RESOLVED.**
+  - **Plan 02-04** FULL: ✓ Task 1 (`2973555` — Policies + Acknowledgments + Users + PolicyVersions: 4 critical files satisfying D-07 type invariants); ✓ Task 2 (`e71000a` — PolicyAssignments + Departments + AiGenerations + Notifications + WorkflowStages: 5 remaining files for Plan 02-06 positive-control). 9 files / 351 lines. 1 Rule-1 deviation (Acknowledgments header switched from `//` to `/** */` block-comment because TS scans line-comments for `@ts-expect-error` directives — acceptance substrings preserved verbatim).
+- **Progress**: 1 / 8 phases complete; Phase 2: 4/6 plans complete (one SF-DB-1 caveat outstanding for Plan 02-06)
 
 ```
-[█░░░░░░░] 1/8 phases  —  Foundation: 5/5 plans ✓  ·  Data Layer: 3/6 plans ▶ (02-01 ✓, 02-02 partial, 02-03 partial)
+[█░░░░░░░] 1/8 phases  —  Foundation: 5/5 plans ✓  ·  Data Layer: 4/6 plans ▶ (02-01 ✓, 02-02 partial, 02-03 ✓, 02-04 ✓)
 ```
 
-**Next action**: Proceed to Plan 02-04 (9 repository skeletons under `lib/db/repositories/*.ts` — closes `tests/types.ts` tsc baseline failures). Code-only; no live DB dependency. **Halt before Plan 02-06** (RLS property test still needs SF-DB-1 resolved — test DB doesn't exist yet).
+**Next action**: Proceed to Plan 02-05 (svix install + Clerk webhook handler + middleware SF-M4 fold). Code-only; no live DB dependency. **Halt before Plan 02-06** (RLS property test still needs SF-DB-1 resolved — test DB doesn't exist yet).
 
 ---
 
@@ -59,7 +60,7 @@ Plan: 3 of 6 (with 02-02 deferred-test-DB and 02-03 deferred-live-DB-push)
 | Phase 1 plans executed | 5 / 5 |
 | Phase 2 context | drafted 2026-05-17 |
 | Phase 2 plans drafted | 6 / 6 |
-| Phase 2 plans executed | 3 / 6 (02-01 ~7min/3 commits/4 files; 02-02 partial ~unknown/0 source commits; 02-03 partial 14min/3 commits/9 files — Task 4 deferred SF-DB-2) |
+| Phase 2 plans executed | 4 / 6 (02-01 ~7min/3 commits/4 files; 02-02 partial ~unknown/0 source commits; 02-03 14min/3 commits/9 files + post-commit Task 4; 02-04 ~4min15s/2 commits/9 files — tsc baseline closed) |
 | Requirements mapped | 17 / 17 |
 | Locked decisions | 25 (ADRs 001–025) |
 | Phase implementation decisions | Phase 1: 15 (D-01..D-15); Phase 2: 9 (D-01..D-09) + 6 USER-LOCKED (L-01..L-06) |
@@ -97,8 +98,8 @@ Plan 02-01 (2026-05-17) execution decisions:
 - [x] Plan 02-01: Drizzle schema (12 tables) + OrgScope + getOrgContext + D-07 type tests — **completed 2026-05-17** (commits 75b397e, e7c6b43, 2fff189); SF-M4 (try/catch around `await auth()`) closed in `lib/auth/context.ts:25-32`; `tsc --noEmit` intentionally failing on `tests/types.ts` until Plan 02-04 ships repository skeletons
 - [~] Plan 02-02: Operator manual config — **PARTIAL completed 2026-05-17** (SUMMARY: `.planning/phases/02-data-layer/02-02-SUMMARY.md`). Done: Clerk Org Roles (3 effective; `org:` prefix to strip in webhook handler), Session Token publicMetadata claim, Svix webhook endpoint with 4 events, `DIRECT_URL` populated (BUT: legacy IPv6-only hostname — see SF-DB-2). Deferred (blocker SF-DB-1): `DATABASE_URL_TEST` + `DIRECT_URL_TEST` until Supabase test project resolved.
 - [x] Plan 02-03: Drizzle migrations + drizzle.config DIRECT_URL split + schema push — **FULL completed 2026-05-17** (SUMMARY: `.planning/phases/02-data-layer/02-03-SUMMARY.md`). Tasks 1-3 shipped via commits `c1dcf6f`, `0bbf321`, `f443cd0`. Task 4 closed post-commit after SF-DB-2 1-line fix: `pnpm db:migrate` applied both migrations cleanly; live dev DB verified 12/12 tables + 10/10 RLS-enabled tenant tables + 10/10 org_isolation policies + 40 GRANTs + D-03a CHECK.
-- [ ] Plan 02-04: 9 repository skeletons under `lib/db/repositories/*.ts` (closes the tests/types.ts tsc failure) — **next**
-- [ ] Plan 02-05: svix install + Clerk webhook handler + middleware SF-M4 fold (still needed in middleware.ts:51 + 61)
+- [x] Plan 02-04: 9 repository skeletons under `lib/db/repositories/*.ts` — **FULL completed 2026-05-17** (SUMMARY: `.planning/phases/02-data-layer/02-04-SUMMARY.md`). Commits `2973555` (4 critical: Policies + Acknowledgments + Users + PolicyVersions) and `e71000a` (5 remaining: PolicyAssignments + Departments + AiGenerations + Notifications + WorkflowStages). 351 lines across 9 files. `pnpm tsc --noEmit` exits 0 (~2.7s) — closes Plan 02-01 Task 3 baseline failure; D-07 type tests in `tests/types.ts` now actively enforce ADR-018 + ADR-005. 1 Rule-1 deviation: Acknowledgments header switched from `//` to `/** */` block-comment (TS directive-scanner collision); acceptance substrings preserved.
+- [ ] Plan 02-05: svix install + Clerk webhook handler + middleware SF-M4 fold (still needed in middleware.ts:51 + 61) — **next**
 - [ ] Plan 02-06: ts-morph + L-05 check-db-imports + L-06 check-rls + D-08 check-schema + verify:phase-2 wiring
 
 ### Blockers
@@ -162,8 +163,9 @@ Surfaced by `/pr-review-toolkit:review-pr` against PR #1 head `e3689d3` (silent-
 - **Phase 1 context**: captured `2026-05-15` via `/gsd-discuss-phase --all` — 15 implementation decisions (D-01 to D-15) at `.planning/phases/01-foundation/01-CONTEXT.md`
 - **Phase 1 plans**: drafted `2026-05-15` via `/gsd-plan-phase 1 --auto` — 5 plans in 4 waves at `.planning/phases/01-foundation/01-0{1..5}-PLAN.md`; passed gsd-plan-checker verification
 - **Phase 2 context**: gathered `2026-05-17` via `/gsd-discuss-phase 2 --all` under the operator's no-clarifying-questions directive. Absorbed 6 USER-LOCKED deliverables from ADR-023 + ADR-025 (L-01..L-06). Added 9 HOW decisions (D-01..D-09): hand-written `0001_rls_policies.sql` over inline `sql.raw()`; `org_id` denormalization onto five child tables; four-event Clerk webhook scope + new `clerk_events` idempotency table; `getOrgContext()` reads `publicMetadata.role` via the session-claim template; `DIRECT_URL` + `DATABASE_URL_TEST` env-var split; skeleton repository surface with type-system enforcement of ADR-018/005 invariants via `@ts-expect-error`; six-check `pnpm verify:phase-2` adding a schema audit; Clerk Dashboard role definitions (operator manual step). Folded Phase-1 PR-review todo SF-M4 (try/catch around `auth()`).
-- **Last session**: Phase 2 execute-phase Plan 02-03 (2026-05-17 13:58:55Z–14:12:53Z UTC, 14min) — 3 task commits `c1dcf6f`, `0bbf321`, `f443cd0` + SUMMARY.md at `.planning/phases/02-data-layer/02-03-SUMMARY.md`. On-disk migration artifacts shipped: drizzle.config DIRECT_URL split (D-05), `drizzle/0000_initial.sql` (12 tables auto-DDL), `drizzle/0001_rls_policies.sql` (10×RLS + 10×POLICY + 10×GRANT + 1×CHECK on users for D-03a), `_journal.json` with both entries (RESEARCH Pitfall 3 mitigated). Deviations: 2 Rule-3 auto-handled (`.env.local.test` placeholder due to SF-DB-1; `drizzle/` `.gitignore` line removed) + 1 Rule-4 stopped-and-surfaced (Task 4 live DB push deferred — SF-DB-2 surfaced: DIRECT_URL points to legacy IPv6-only Supabase hostname; auto-mode classifier correctly denied agent-inferred `.env.local` rewrite).
-- **Next session entry point**: `.planning/phases/02-data-layer/02-04-PLAN.md` → `/gsd-execute-phase 2` to resume the chain at Plan 02-04 (9 repository skeletons — code-only, no live DB dependency). Operator may resolve SF-DB-2 in parallel (1-line `.env.local` edit per `02-03-SUMMARY.md` § "User Setup Required").
+- **Last session**: Phase 2 execute-phase Plan 02-03 (2026-05-17 13:58:55Z–14:12:53Z UTC, 14min) — 3 task commits `c1dcf6f`, `0bbf321`, `f443cd0` + SUMMARY.md at `.planning/phases/02-data-layer/02-03-SUMMARY.md`. On-disk migration artifacts shipped: drizzle.config DIRECT_URL split (D-05), `drizzle/0000_initial.sql` (12 tables auto-DDL), `drizzle/0001_rls_policies.sql` (10×RLS + 10×POLICY + 10×GRANT + 1×CHECK on users for D-03a), `_journal.json` with both entries (RESEARCH Pitfall 3 mitigated). Deviations: 2 Rule-3 auto-handled (`.env.local.test` placeholder due to SF-DB-1; `drizzle/` `.gitignore` line removed) + 1 Rule-4 stopped-and-surfaced (Task 4 live DB push deferred — SF-DB-2 surfaced; resolved post-commit).
+- **Latest session**: Phase 2 execute-phase Plan 02-04 (2026-05-17 14:26:23Z–14:30:38Z UTC, ~4m15s) — 2 task commits `2973555` (Task 1: Policies + Acknowledgments + Users + PolicyVersions) and `e71000a` (Task 2: PolicyAssignments + Departments + AiGenerations + Notifications + WorkflowStages) + SUMMARY.md at `.planning/phases/02-data-layer/02-04-SUMMARY.md`. 9 repository files / 351 lines under `lib/db/repositories/`. Each: `'server-only'` + OrgScope-first methods + ADR-019 `where(eq(orgId))` + no raw `@/lib/db` import + RESEARCH Pitfall 6 cited. `pnpm tsc --noEmit` exits 0 (~2.7s); D-07 type tests now active. 1 Rule-1 deviation (Acknowledgments header `//` → `/** */` because TypeScript scans line-comments for `@ts-expect-error` directives — TS2578 collision; acceptance substrings ADR-018 / append-only / Pitfall 6 preserved).
+- **Next session entry point**: `.planning/phases/02-data-layer/02-05-PLAN.md` → `/gsd-execute-phase 2` to resume the chain at Plan 02-05 (svix install + Clerk webhook handler + middleware SF-M4 fold — code-only, no live DB dependency).
 
 ---
 
@@ -172,7 +174,7 @@ Surfaced by `/pr-review-toolkit:review-pr` against PR #1 head `e3689d3` (silent-
 | # | Phase | Requirements | Status |
 |---|-------|--------------|--------|
 | 1 | Foundation | REQ-product-vision | Complete — 5/5 plans shipped 2026-05-16 (PR #1) |
-| 2 | Data Layer | REQ-user-roles, REQ-multi-tenancy | In progress — Plans 02-01 + 02-02 (partial) + 02-03 (partial) shipped 2026-05-17 (3 / 6 plans complete); next: Plan 02-04 (repository skeletons). Two open blockers: SF-DB-1 (test project free-tier limit) + SF-DB-2 (legacy IPv6-only DIRECT_URL) — both block Plan 02-06 but neither blocks 02-04/02-05. |
+| 2 | Data Layer | REQ-user-roles, REQ-multi-tenancy | In progress — Plans 02-01 + 02-02 (partial) + 02-03 + 02-04 shipped 2026-05-17 (4 / 6 plans complete); next: Plan 02-05 (Clerk webhook handler + SF-M4 middleware fold). One open blocker: SF-DB-1 (test project free-tier limit blocks Plan 02-06 only); SF-DB-2 RESOLVED. |
 | 3 | Admin UI | REQ-policy-library, REQ-policy-lifecycle, REQ-access-control | Not started |
 | 4 | AI Layer | REQ-ai-policy-assistant, REQ-ai-usage-rules | Not started |
 | 5 | Employee Portal | REQ-acknowledgment-tracking, REQ-acknowledgment-rules | Not started |
