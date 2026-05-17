@@ -93,4 +93,9 @@ async function main(): Promise<void> {
   process.exit(1);
 }
 
-void main();
+main().catch((err: unknown) => {
+  console.error(
+    err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+  );
+  process.exit(1);
+});

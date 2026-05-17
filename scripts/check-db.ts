@@ -33,4 +33,9 @@ async function main(): Promise<void> {
   }
 }
 
-void main();
+main().catch((err: unknown) => {
+  console.error(
+    err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+  );
+  process.exit(1);
+});

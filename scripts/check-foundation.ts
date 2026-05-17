@@ -79,7 +79,10 @@ async function checkHttp(
   bodyAssertion?: (body: string) => boolean,
 ): Promise<Result> {
   try {
-    const res = await fetch(`${APP_URL}${path}`, { redirect: "manual" });
+    const res = await fetch(`${APP_URL}${path}`, {
+      redirect: "manual",
+      signal: AbortSignal.timeout(30_000),
+    });
     if (res.status !== expectedStatus) {
       return {
         ok: false,
@@ -104,7 +107,7 @@ async function checkHttp(
       label,
       detail:
         err instanceof Error
-          ? err.message
+          ? `${err.name}: ${err.message}`
           : "fetch failed (is `pnpm dev` running?)",
     };
   }
@@ -116,7 +119,10 @@ async function checkRedirect(
   label: string,
 ): Promise<Result> {
   try {
-    const res = await fetch(`${APP_URL}${path}`, { redirect: "manual" });
+    const res = await fetch(`${APP_URL}${path}`, {
+      redirect: "manual",
+      signal: AbortSignal.timeout(30_000),
+    });
     if (res.status !== 307 && res.status !== 308 && res.status !== 302) {
       return {
         ok: false,
@@ -137,7 +143,8 @@ async function checkRedirect(
     return {
       ok: false,
       label,
-      detail: err instanceof Error ? err.message : "fetch failed",
+      detail:
+        err instanceof Error ? `${err.name}: ${err.message}` : "fetch failed",
     };
   }
 }
@@ -271,4 +278,9 @@ async function main(): Promise<void> {
   process.exit(0);
 }
 
-void main();
+main().catch((err: unknown) => {
+  console.error(
+    err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+  );
+  process.exit(1);
+});
