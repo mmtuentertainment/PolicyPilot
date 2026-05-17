@@ -58,7 +58,7 @@ Test surface after this audit:
 |---|---|---|
 | `pnpm tsc --noEmit` | `tsc` | ROADMAP success criterion 1 (zero type errors) |
 | `pnpm check:db` | `tsx --conditions=react-server --env-file=.env.local scripts/check-db.ts` | ROADMAP success criterion 4 (Supabase `select 1` via Drizzle pooler) |
-| `pnpm check:artifacts` | `tsx scripts/check-artifacts.ts` | **NEW.** 114 static-artifact assertions covering every plan's `<verify><automated>` block + 5 security-side guards (T-01-01, T-01-02, T-02-01, T-03-05, T-04-02, T-04-03, T-04-07, T-05-01) — operator-machine-aware (`.env.local` sentinels only when file is present; never reads or echoes secret values). |
+| `pnpm check:artifacts` | `tsx scripts/check-artifacts.ts` | **NEW.** 114 static-artifact assertions covering every plan's `<verify><automated>` block + 8 security-side guards (T-01-01, T-01-02, T-02-01, T-03-05, T-04-02, T-04-03, T-04-07, T-05-01) — operator-machine-aware (`.env.local` sentinels only when file is present; never reads or echoes secret values). |
 | `pnpm verify:phase-1` | `tsx --env-file=.env.local scripts/check-foundation.ts && pnpm check:artifacts` | **The single Phase 1 gate.** Runs ROADMAP criteria 1-5 (the 6 HTTP/DB sub-checks from `check-foundation.ts`) THEN the 114 artifact regression assertions. Exit 0 only if both halves pass. |
 
 All four scripts use **only** Node 22 stdlib + the `tsx` runner +
@@ -228,7 +228,7 @@ test(01): add Nyquist validation tests for Phase 1 static-artifact regression
 
 - scripts/check-artifacts.ts: 114 static-artifact assertions covering
   every plan-level <verify><automated> block from Plans 01-01..01-05
-  plus 5 security-side guards (T-01-01/02, T-02-01/04, T-03-05,
+  plus 9 security-side guards (T-01-01/02, T-02-01/04, T-03-05,
   T-04-01/02/03/07, T-05-01).
 - package.json: chain `pnpm check:artifacts` into `pnpm verify:phase-1`
   so the existing single-command gate now catches both ROADMAP

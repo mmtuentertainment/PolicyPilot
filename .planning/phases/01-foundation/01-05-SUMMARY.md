@@ -2,10 +2,10 @@
 phase: 01-foundation
 plan: 05
 subsystem: verification-gate
-tags: [verify, smoke-check, e2e-gate, phase-1-completion, checkpoint-pending]
+tags: [verify, smoke-check, e2e-gate, phase-1-completion, checkpoint-approved]
 one_liner: "Single-script Phase 1 verification gate at scripts/check-foundation.ts — wires all 5 ROADMAP success criteria to `pnpm verify:phase-1`; both tasks complete, operator returned `all approved` 2026-05-16"
 status: complete
-tags_change: [checkpoint-pending → checkpoint-approved]
+tags_change: "checkpoint-pending → checkpoint-approved"
 dependency_graph:
   requires:
     - 01-01  # verify:phase-1 script slot reserved + tsx installed
@@ -36,7 +36,7 @@ decisions:
   - "All Result.detail values strip stderr/stdout to the first non-empty line. Acceptance criteria for T-05-02 (information disclosure via verifier logs) — postgres-js error messages include host:port but not the password fragment of the connection URI, and trimming to one line keeps a hypothetical multi-line stack from leaking other env values."
 metrics:
   duration_minutes: ~12
-  tasks_completed: 1  # Task 1 only — Task 2 is the operator checkpoint
+  tasks_completed: 2  # Task 1 (auto) + Task 2 (operator checkpoint, approved 2026-05-16)
   files_touched: 2  # 1 created + 1 modified
   commits: 2  # Task 1 commit + initial SUMMARY commit; operator-approval addendum adds one more
 completed: 2026-05-16

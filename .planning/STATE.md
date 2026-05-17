@@ -59,9 +59,9 @@ Plan: 5 of 5
 
 | Metric | Value |
 |--------|-------|
-| Phases complete | 0 / 8 |
+| Phases complete | 1 / 8 |
 | Phase 1 plans drafted | 5 / 5 |
-| Phase 1 plans executed | 4 / 5 |
+| Phase 1 plans executed | 5 / 5 |
 | Requirements mapped | 17 / 17 |
 | Locked decisions | 21 |
 | Constraints (SPEC) extracted | 28 |
@@ -83,7 +83,7 @@ Phase 1 added 15 implementation decisions (D-01 to D-15) at `.planning/phases/01
 - [x] Plan 01-02: Operator creates Clerk dev app + Supabase project + populates .env.local — **completed 2026-05-16** (no source commits — `.env.local` is gitignored; only SUMMARY committed in 72ea3b8)
 - [x] Plan 01-03: App shell (ClerkProvider + marketing landing + pricing stub + Clerk auth pages) — **completed 2026-05-16** (commits bd12768, 479b06c, b20a6ff)
 - [x] Plan 01-04: middleware.ts + Drizzle skeleton + scripts/check-db.ts — **completed 2026-05-16** (commits 49e2826, 6dcd38a, ca568ce)
-- [ ] Plan 01-05: scripts/check-foundation.ts + verify:phase-1 implementation + operator human-verify
+- [x] Plan 01-05: scripts/check-foundation.ts + verify:phase-1 implementation + operator human-verify — **completed 2026-05-16** (commit b43ed8c; operator approved 6/6 + 5 visual checks)
 - [x] Verify `.env.local.example` is complete before Phase 1 plan execution — **folded D-11**: keys complete except `DATABASE_URL` (added by Plan 01-01)
 - [x] Confirm pnpm vs npm package manager preference before Phase 1 init — **folded D-01**: pnpm
 
@@ -120,7 +120,7 @@ None.
 
 | # | Phase | Requirements | Status |
 |---|-------|--------------|--------|
-| 1 | Foundation | REQ-product-vision | Executing — 4/5 plans complete (01-01, 01-02, 01-03, 01-04 done) |
+| 1 | Foundation | REQ-product-vision | Complete — 5/5 plans shipped 2026-05-16 (PR #1) |
 | 2 | Data Layer | REQ-user-roles, REQ-multi-tenancy | Not started |
 | 3 | Admin UI | REQ-policy-library, REQ-policy-lifecycle, REQ-access-control | Not started |
 | 4 | AI Layer | REQ-ai-policy-assistant, REQ-ai-usage-rules | Not started |

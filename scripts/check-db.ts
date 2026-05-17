@@ -22,14 +22,13 @@ async function main(): Promise<void> {
       typeof first.ok !== "number" ||
       first.ok !== 1
     ) {
-      console.error("Unexpected result from `select 1`:", rows);
+      console.error("Unexpected result from `select 1`");
       process.exit(1);
     }
     console.log("OK");
     process.exit(0);
-  } catch (err) {
-    console.error("Drizzle smoke check failed:");
-    console.error(err instanceof Error ? err.message : err);
+  } catch {
+    console.error("Drizzle smoke check failed");
     process.exit(1);
   }
 }

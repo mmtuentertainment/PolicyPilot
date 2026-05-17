@@ -67,7 +67,7 @@ ROADMAP criterion 3 has an interactive half ("Clerk sign-in flow successfully co
 
 | Artifact | Commit | Status |
 |----------|--------|--------|
-| `01-VERIFICATION.md` (gsd-verifier goal-backward audit) | `7dcfeae` | PASS — all 5 success criteria observable in codebase |
+| `VERIFICATION.md` (gsd-verifier goal-backward audit) | `7dcfeae` | PASS — all 5 success criteria observable in codebase |
 | `01-SECURITY.md` (gsd-security-auditor threat verification) | `370f8b7` | 29/29 threats CLOSED |
 | `01-VALIDATION.md` (gsd-nyquist-auditor coverage audit) | `e8f5172` | 17/19 gaps filled (2 locked by D-13/D-14) |
 | `scripts/check-artifacts.ts` (114 static-artifact regression assertions) | `14bc69a` | All 114 green |

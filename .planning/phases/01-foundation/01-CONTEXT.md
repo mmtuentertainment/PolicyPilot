@@ -36,7 +36,7 @@ A deployable Next.js 15 shell exists, with Clerk auth and Supabase wired, that c
 - **D-01: pnpm** is the package manager.
   - **Why:** BLUEPRINT.md §5 references "fresh `pnpm install`" in the verify step. STATE.md explicitly flagged this as needing confirmation; pnpm chosen over npm for faster installs, smaller `node_modules`, strict peer-dep resolution. Bun rejected — too new for the Next.js 15 + Drizzle + Clerk surface to be guaranteed-stable.
   - **Lock file:** `pnpm-lock.yaml` committed.
-  - **Node engine:** pin to Node 20 LTS in `package.json` engines field (Vercel default).
+  - **Node engine:** pin to Node 22 LTS in `package.json` engines field (per ADR-022, which supersedes the original D-01 Node 20 pin; Vercel still supports Node 22 as Active LTS).
 
 ### Scaffolding command
 - **D-02:** `pnpm create next-app@latest policypilot --typescript --tailwind --app --eslint --src-dir=false --import-alias='@/*'`

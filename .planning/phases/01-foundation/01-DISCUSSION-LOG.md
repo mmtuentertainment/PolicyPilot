@@ -19,7 +19,7 @@
 | bun | Fastest but bleeding-edge; Next.js 15 + Drizzle + Clerk surface not guaranteed-stable | |
 
 **Selected:** pnpm.
-**Notes:** Explicitly flagged in STATE.md as a pending todo. BLUEPRINT.md §5 Phase 1 verify references "fresh `pnpm install`" — locking in that signal. Node 20 LTS pinned in `engines`.
+**Notes:** Explicitly flagged in STATE.md as a pending todo. BLUEPRINT.md §5 Phase 1 verify references "fresh `pnpm install`" — locking in that signal. Engines pin is `>=22.0.0 <23.0.0` per ADR-022 (Node 22 Active LTS), which supersedes the original D-01 Node 20 LTS pin (commit e324e19 / PROJECT.md `<decisions>`).
 
 ---
 

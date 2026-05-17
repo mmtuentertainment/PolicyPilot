@@ -71,6 +71,8 @@ A buildable Next.js 15 App Router workspace with pnpm package management, all fi
 
 ## Environment
 
+> **Historical, pre-ADR-022 state.** This block records the plan-time state at 2026-05-15: Node 22.12.0 running while `engines` pinned 20.x per D-01. ADR-022 (Node 22 Active LTS, commit `e324e19`) supersedes D-01 and `engines` was later bumped to `>=22.0.0 <23.0.0`. Flagged as a deviation from the locked stack table at the time of writing; the post-ADR-022 state is the authoritative one.
+
 - **Node**: v22.12.0 (D-01 specifies >=20 <21; Node 22 is what's installed locally — `engines` field in package.json pins 20.x for Vercel deployment as planned).
 - **pnpm**: 9.15.0 via Corepack. Latest pnpm (11.x) requires Node v22.13+, so pinned to 9.15.0 to match Node 22.12.0 local runtime. `packageManager` field in package.json reflects this.
 - **Tailwind**: v4.3.0 (whatever `create-next-app@15.5.0` emitted, per D-15). Uses `@tailwindcss/postcss` PostCSS plugin and the new v4 `@import "tailwindcss"` CSS directive.

@@ -29,6 +29,7 @@ reviews:
       - main
       - "^gsd/.*$"   # phase branches (e.g. gsd/phase-2-data-layer) target main
     auto_incremental_review: true
+    auto_pause_after_reviewed_commits: 5
 
   # Exclusions: generated, vendored, lockfiles, snapshots, secrets-shaped
   # files. .env.local is gitignored so should never appear, but the filter
@@ -223,7 +224,6 @@ reviews:
       enabled: false
 
   abort_on_close: true
-  auto_pause_after_reviewed_commits: 5
 
   tools:
     # ────── Secret scanners — non-negotiable for SaaS handling Clerk/Stripe/Supabase keys ──────
@@ -238,7 +238,6 @@ reviews:
     biome:
       enabled: false   # eslint is the project's linter (Plan 01-01 wired eslint-config-next)
     ast-grep:
-      enabled: true
       packages: []     # add custom rules in future phases
 
     # ────── Security-focused SAST ──────

@@ -771,7 +771,7 @@ function checkServerOnlyBoundary(): Check[] {
        walk('.');
        console.log(hits.join('\\n'));`,
     ],
-    { encoding: "utf8", cwd: REPO_ROOT },
+    { encoding: "utf8", cwd: REPO_ROOT, shell: false },
   );
   if (result.status !== 0) {
     out.push(
