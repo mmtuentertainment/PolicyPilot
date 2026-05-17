@@ -47,3 +47,4 @@ drizzle/
 .pnpm-store/
 .next/cache/
 
+.tmp/
