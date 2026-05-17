@@ -48,7 +48,21 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   }
 
   if (isAdminRoute(req)) {
-    const { sessionClaims } = await auth();
+    let sessionClaims;
+    try {
+      // SF-M4 fold (Phase 2): wrap auth() in try/catch — fail-closed
+      // (return 404 to keep the admin gate's "advertise nothing" behavior
+      // from D-10 — surfacing 401/redirect would confirm the route exists).
+      // Mirrors the SF-M4 fold already applied in lib/auth/context.ts
+      // (Plan 02-01 Task 2) so both auth() call sites share one shape.
+      const session = await auth();
+      sessionClaims = session.sessionClaims;
+    } catch (err) {
+      const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+      console.error(`[middleware] auth() failed in admin gate: ${detail}`);
+      // D-10: 404, not 401 — don't advertise the route exists.
+      return new NextResponse(null, { status: 404 });
+    }
     const role = (sessionClaims?.publicMetadata as { role?: string } | undefined)?.role;
     if (role !== "admin") {
       // D-10: 404 instead of 403 — surfacing 403 would advertise that the
@@ -58,7 +72,25 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
     return NextResponse.next();
   }
 
-  const { userId } = await auth();
+  let userId: string | null;
+  try {
+    // SF-M4 fold (Phase 2): wrap auth() in try/catch — fail-closed
+    // (redirect to /sign-in, same as the unauthenticated branch — the
+    // user gets a sign-in prompt and the failure is recoverable).
+    // Mirrors the SF-M4 fold in lib/auth/context.ts (Plan 02-01).
+    const session = await auth();
+    userId = session.userId;
+  } catch (err) {
+    const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+    console.error(`[middleware] auth() failed at chokepoint: ${detail}`);
+    // Fail-closed: redirect to sign-in. The user is unauthenticated
+    // in practice (auth() failed); treating them as such is correct.
+    // No redirect_url here — the request URL may itself be the cause
+    // of the auth failure (e.g., malformed cookie + nextUrl); a redirect
+    // loop is worse than landing the user on a clean /sign-in.
+    const signInUrl = new URL("/sign-in", req.url);
+    return NextResponse.redirect(signInUrl);
+  }
   if (!userId) {
     const signInUrl = new URL("/sign-in", req.url);
     // WR-01: pass only path+query — never the full URL. `req.url` would leak
