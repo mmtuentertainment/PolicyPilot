@@ -52,7 +52,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
   4. Every application-layer DB query in `lib/db/*` includes `org_id` in its WHERE clause — verified by code inspection / grep audit.
   5. A direct cross-org Postgres query (impersonating Org A's JWT) returning Org B rows is blocked by RLS — verified with a service-role-bypassed test.
 **Plans**: 6 plans
-- [ ] 02-01-PLAN.md — Drizzle schema (12 tables, D-02 denormalization, D-03a nullable users.org_id, D-03b clerk_events) + OrgScope/getOrgContext (L-01, L-02, D-04, SF-M4 fold) + D-07 type tests
+- [x] 02-01-PLAN.md — Drizzle schema (12 tables, D-02 denormalization, D-03a nullable users.org_id, D-03b clerk_events) + OrgScope/getOrgContext (L-01, L-02, D-04, SF-M4 fold) + D-07 type tests ✓ (2026-05-17; commits 75b397e, e7c6b43, 2fff189)
 - [ ] 02-02-PLAN.md — Operator manual config: Clerk org roles (D-09) + session token customization (D-04) + webhook endpoint + signing secret (D-03) + Supabase test project (D-05) + .env.local amendments
 - [ ] 02-03-PLAN.md — Drizzle migrations (0000_initial generate + 0001_rls_policies hand-written 10×RLS + 10×POLICY + 10×GRANT + D-03a CHECK) + drizzle.config DIRECT_URL split + [BLOCKING] schema push to dev + test
 - [ ] 02-04-PLAN.md — 9 repository skeletons (OrgScope-first; ADR-018 no update/delete on acks; ADR-005 Policies.create omits tldrSummary; D-06)
@@ -148,7 +148,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 5/5 | Complete | 2026-05-16 |
-| 2. Data Layer | 0/6 | Planned 2026-05-17 | - |
+| 2. Data Layer | 1/6 | In Progress | - |
 | 3. Admin UI | 0/0 | Not started | - |
 | 4. AI Layer | 0/0 | Not started | - |
 | 5. Employee Portal | 0/0 | Not started | - |
