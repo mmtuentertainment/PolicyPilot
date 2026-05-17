@@ -1,8 +1,5 @@
-// Validates .coderabbit.yaml against the official CodeRabbit JSON Schema
-// (https://coderabbit.ai/integrations/schema.v2.json). Invoked by
-// `pnpm check:coderabbit-config`. Exits 0 on valid, 1 on schema violation
-// or network failure. Schema is fetched live (lightweight, ~73 KB) so the
-// check always sees the current contract — no committed snapshot to rot.
+// pnpm check:coderabbit-config — validates .coderabbit.yaml against the
+// live schema.v2.json (no committed snapshot to rot).
 import fs from "node:fs/promises";
 import path from "node:path";
 import yaml from "js-yaml";

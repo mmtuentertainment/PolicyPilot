@@ -1,43 +1,13 @@
-// pnpm verify:phase-1 — runs all 5 ROADMAP Phase 1 success criteria.
-//
-// Invoked with `tsx --env-file=.env.local scripts/check-foundation.ts`. The
-// `--env-file` flag populates process.env from .env.local so APP_URL and any
-// other server-only values are visible here.
-//
-// Note on the Drizzle smoke check (criterion 4): rather than importing
-// `@/lib/db` directly (which would force this script to also pass
-// `--conditions=react-server` to defeat the `server-only` guard — see Plan
-// 01-04 SUMMARY for the full story), we spawn `pnpm check:db` as a child
-// process. That command was wired in Plan 01-04 specifically for this kind
-// of out-of-Next.js context and already runs the `select 1` round-trip
-// against the Supabase pooler. Reusing it keeps responsibilities crisp —
-// `check:db` owns the DB-connectivity gate; this script orchestrates.
-//
-// USAGE
-//   Terminal 1: pnpm dev               (waits until "Ready in …ms" on :3000)
-//   Terminal 2: pnpm verify:phase-1
-//
-// The script runs all checks sequentially and exits 0 only if every one
-// passes. Failures are accumulated and printed in a summary at the end so
-// the operator sees the full failure set, not just the first.
+// pnpm verify:phase-1 — runs all ROADMAP Phase 1 success criteria.
+// Failures are accumulated; the summary prints the full failure set.
 import { spawnSync } from "node:child_process";
 import { resolve as resolvePath } from "node:path";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
-// IN-02 (01-REVIEW) — direct-Node spawn helpers (shell:false).
-//
-// `spawnSync('pnpm', [...], {shell:true})` works on Windows but joins argv
-// into a single shell-interpreted command, leaving a future-injection
-// footgun if anyone later parameterizes the args. The naive fix
-// `spawnSync('pnpm.cmd', [...], {shell:false})` triggers `EINVAL` on
-// Node 20.12.2+ / 22.x per CVE-2024-27980 — Windows refuses to spawn
-// .cmd/.bat without a shell.
-//
-// The portable solution: skip pnpm entirely and spawn the underlying
-// Node tools (tsc, tsx) via the current Node binary (`process.execPath`)
-// with their resolved JS entry points. The args remain static literals,
-// `shell:false` holds, and the .cmd-resolution problem disappears.
+// CVE-2024-27980: spawning .cmd/.bat with `shell:false` errors on Node
+// 20.12.2+. Route through `process.execPath` + the tool's JS entry so
+// argv stays static and `shell:false` holds.
 const NODE_BIN = process.execPath;
 const TSC_ENTRY = resolvePath(process.cwd(), "node_modules/typescript/bin/tsc");
 const TSX_ENTRY = resolvePath(process.cwd(), "node_modules/tsx/dist/cli.mjs");
@@ -51,10 +21,6 @@ function logResult(idx: number, total: number, r: Result): void {
 }
 
 function checkTypecheck(): Result {
-  // IN-02 (01-REVIEW) fix: invoke `tsc` directly via Node (`process.execPath`
-  // + node_modules/typescript/bin/tsc) instead of `pnpm tsc` through a shell.
-  // shell:false removes the future-injection footgun without falling into
-  // CVE-2024-27980's .cmd-spawn restriction. Static argv invariant preserved.
   const result = spawnSync(NODE_BIN, [TSC_ENTRY, "--noEmit"], {
     encoding: "utf8",
     shell: false,
@@ -150,22 +116,9 @@ async function checkRedirect(
 }
 
 function checkSelectOne(): Result {
-  // Spawn `pnpm check:db` — the Plan 01-04 gate. It runs
-  // `tsx --conditions=react-server --env-file=.env.local scripts/check-db.ts`
-  // which executes `await db.execute(sql\`select 1 as ok\`)` and prints "OK"
-  // on success / a single-line error and process.exit(1) on failure.
-  //
-  // Reusing this child process is intentional: it sidesteps the
-  // `server-only` guard on `lib/db/index.ts` without forcing this script
-  // (the orchestrator) to also opt into `--conditions=react-server`. The
-  // surface contract — `select 1` round-trips — is the same; the gate is
-  // just one process boundary away.
-  //
-  // IN-02 (01-REVIEW) fix: invoke `tsx` directly via Node (same pattern as
-  // checkTypecheck above) and inline the flags that `pnpm check:db` passes —
-  // see package.json: "check:db": "tsx --conditions=react-server
-  // --env-file=.env.local scripts/check-db.ts". The contract is identical;
-  // we just drop the shell-mediated pnpm layer. Static argv preserved.
+  // Delegate to `scripts/check-db.ts` so the `server-only` guard on
+  // `lib/db/index.ts` stays intact — `--conditions=react-server` is
+  // applied in the child only.
   const result = spawnSync(
     NODE_BIN,
     [
@@ -206,12 +159,10 @@ async function main(): Promise<void> {
 
   const results: Result[] = [];
 
-  // Criterion 1: tsc --noEmit zero errors.
   const c1 = checkTypecheck();
   results.push(c1);
   logResult(1, 6, c1);
 
-  // Criterion 2: landing page loads with the D-03 hero copy.
   const c2 = await checkHttp(
     "/",
     200,
@@ -224,7 +175,6 @@ async function main(): Promise<void> {
   results.push(c2);
   logResult(2, 6, c2);
 
-  // Criterion 3a: /sign-in renders (Clerk SignIn mount).
   const c3a = await checkHttp(
     "/sign-in",
     200,
@@ -233,9 +183,6 @@ async function main(): Promise<void> {
   results.push(c3a);
   logResult(3, 6, c3a);
 
-  // Criterion 3b: /sign-up renders (Clerk SignUp mount).
-  // Logged as supplemental to criterion 3 — the interactive half (completing
-  // a sign-up) is the operator's checkpoint (Task 2 of Plan 01-05).
   const c3b = await checkHttp(
     "/sign-up",
     200,
@@ -244,15 +191,10 @@ async function main(): Promise<void> {
   results.push(c3b);
   logResult(4, 6, c3b);
 
-  // Criterion 4: Drizzle `select 1` round-trip against Supabase pooler
-  // (delegated to `pnpm check:db` — see checkSelectOne above).
   const c4 = checkSelectOne();
   results.push(c4);
   logResult(5, 6, c4);
 
-  // Criterion 5: middleware redirects a private route to /sign-in for
-  // unauthenticated visitors. `/sign-in-success` is the canonical private
-  // placeholder (D-09); reaching it without a session must redirect.
   console.log("");
   console.log("─── Criterion 5 (middleware redirect) ───");
   const c5 = await checkRedirect(

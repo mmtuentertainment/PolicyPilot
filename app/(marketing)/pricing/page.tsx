@@ -11,11 +11,6 @@ import {
 
 // Tile CTAs render `buttonVariants({...})` applied to `<Link>` because the
 // shadcn `base-nova` preset's `<Button>` does not expose `asChild`.
-//
-// IN-01 (01-REVIEW) fix: dropped the `void Button;` workaround. The Plan 01-03
-// `key_links` contract requires only the substring `from "@/components/ui/button"`
-// — `buttonVariants` is imported from the same module, so the static-artifact
-// gate stays green without forcing an unused `Button` symbol on this file.
 
 type Tier = {
   name: string;
@@ -27,10 +22,6 @@ type Tier = {
   highlighted: boolean;
 };
 
-// Prices written as literal strings so source contains `$79`, `$199`, `$449`
-// substrings (per Plan 01-03 acceptance criteria). Phase 6 will replace this
-// hardcoded list with a typed import from `lib/stripe/products.ts` once Stripe
-// products are configured — see threat T-03-01 in 01-03-PLAN.md.
 const tiers: ReadonlyArray<Tier> = [
   {
     name: "Starter",
