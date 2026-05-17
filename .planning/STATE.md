@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 02 — Plan 02-01 shipped (schema + OrgScope + getOrgContext + type tests); Plan 02-02 (operator manual config) is next
-last_updated: "2026-05-17T08:36:30.438Z"
+status: Phase 02 — Plans 02-01 + 02-02 (partial) shipped; proceeding to Plan 02-03; Plan 02-06 BLOCKED on Supabase test project (free-tier 2-project limit)
+last_updated: "2026-05-17T08:40:00.000Z"
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 11
-  completed_plans: 6
-  percent: 55
+  completed_plans: 7
+  percent: 63
 ---
 
 # STATE — PolicyPilot
@@ -31,19 +31,21 @@ GSD session state. Updated each time a phase or plan transitions. Source of trut
 
 ## Current Position
 
-Phase: 02 — Plan 02-01 shipped 2026-05-17; Plan 02-02 (operator manual config) is next
-Plan: 1 of 6
+Phase: 02 — Plans 02-01 + 02-02 (partial) shipped 2026-05-17; Plan 02-03 next
+Plan: 2 of 6 (with 02-02 deferred-test-DB)
 
-- **Phase**: 2 — Data Layer **in progress** (2026-05-17 — Plan 02-01 shipped)
-- **Plan**: 1 / 6 — Plan 02-01 shipped ✓; next step is Plan 02-02 (operator manual config — Clerk roles + session token + webhook endpoint + Supabase test project + .env.local amendments)
-- **Status**: Phase 2 Plan 02-01 (Schema + OrgScope + getOrgContext + D-07 type tests) shipped via commits `75b397e` (schema), `e7c6b43` (context + scoped), `2fff189` (type tests). All 12 Drizzle tables exist with D-02 denormalization + D-03a nullable users.orgId + D-03b clerk_events. `lib/db/scoped.ts` carries the load-bearing `is_local=true` arg with Pitfall-2 citation. `lib/auth/context.ts` closes SF-M4 (try/catch around `await auth()`). `tests/types.ts` encodes 3 `@ts-expect-error` invariants (ADR-018 + ADR-005). `tsc --noEmit` is INTENTIONALLY FAILING with "Cannot find module '@/lib/db/repositories/*'" — closed by Plan 02-04 (repository skeletons).
-- **Progress**: 1 / 8 phases complete; Phase 2: 1/6 plans complete
+- **Phase**: 2 — Data Layer **in progress** (2026-05-17 — Plans 02-01 + 02-02 partial shipped)
+- **Plan**: 2 / 6 — Plan 02-02 PARTIAL complete (3/4 tasks); Task 3 (Supabase policypilot-test project) blocked. Next step is Plan 02-03 (Drizzle migrations + dev DB push).
+- **Status**:
+  - **Plan 02-01** shipped via commits `75b397e` (schema), `e7c6b43` (context + scoped), `2fff189` (type tests), `a381bd8` (metadata). 12 Drizzle tables; SF-M4 closed in `lib/auth/context.ts`. `tsc --noEmit` intentionally failing pending Plan 02-04 repos.
+  - **Plan 02-02** partial: ✓ Clerk Org Roles (3 effective: `Admin` built-in customized + `employee` + `reviewer` — webhook handler must strip `org:` prefix per D-09 fallback); ✓ Clerk Session Token publicMetadata claim already configured; ✓ Svix webhook endpoint created with 4 events + signing secret captured in `.env.local`; ✓ `DIRECT_URL` populated using dev project password from existing DATABASE_URL; ✗ `policypilot-test` Supabase project BLOCKED (free-tier 2-project limit — see Blockers).
+- **Progress**: 1 / 8 phases complete; Phase 2: 2/6 plans complete (1 with deferred-test-DB caveat)
 
 ```
-[█░░░░░░░] 1/8 phases  —  Foundation: 5/5 plans ✓  ·  Data Layer: 1/6 plans ▶ (02-01 ✓)
+[█░░░░░░░] 1/8 phases  —  Foundation: 5/5 plans ✓  ·  Data Layer: 2/6 plans ▶ (02-01 ✓, 02-02 partial)
 ```
 
-**Next action**: Proceed to Plan 02-02 (operator manual config — checkpoint:human-action). Plan 02-02 has no code dependencies on 02-01 outputs but DOES need the operator to configure Clerk Roles + session token customization + webhook endpoint before Plan 02-03's migrations can be applied and Plan 02-05's webhook handler can verify svix signatures. The remaining tsc errors in `tests/types.ts` resolve when Plan 02-04 ships the 9 repository skeletons.
+**Next action**: Proceed to Plan 02-03 (Drizzle migrations + RLS policies SQL + dev DB push). Uses `DIRECT_URL` (populated) for migrations + `DATABASE_URL` (unchanged from Phase 1) for runtime. Does not need test DB. Plans 02-04 + 02-05 also unblocked. **Halt before Plan 02-06** (RLS property test needs `DATABASE_URL_TEST` + `DIRECT_URL_TEST`).
 
 ---
 
@@ -92,15 +94,19 @@ Plan 02-01 (2026-05-17) execution decisions:
 - [x] Verify `.env.local.example` is complete before Phase 1 plan execution — **folded D-11**: keys complete except `DATABASE_URL` (added by Plan 01-01)
 - [x] Confirm pnpm vs npm package manager preference before Phase 1 init — **folded D-01**: pnpm
 - [x] Plan 02-01: Drizzle schema (12 tables) + OrgScope + getOrgContext + D-07 type tests — **completed 2026-05-17** (commits 75b397e, e7c6b43, 2fff189); SF-M4 (try/catch around `await auth()`) closed in `lib/auth/context.ts:25-32`; `tsc --noEmit` intentionally failing on `tests/types.ts` until Plan 02-04 ships repository skeletons
-- [ ] Plan 02-02: Operator manual config (Clerk roles + session token + webhook endpoint + Supabase test project + .env.local amendments) — **next** (checkpoint:human-action)
-- [ ] Plan 02-03: Drizzle migrations (0000_initial generate + 0001_rls_policies hand-written) + drizzle.config DIRECT_URL split + schema push
+- [~] Plan 02-02: Operator manual config — **PARTIAL completed 2026-05-17** (SUMMARY: `.planning/phases/02-data-layer/02-02-SUMMARY.md`). Done: Clerk Org Roles (3 effective; `org:` prefix to strip in webhook handler), Session Token publicMetadata claim, Svix webhook endpoint with 4 events, `DIRECT_URL` populated. Deferred (blocker SF-DB-1): `DATABASE_URL_TEST` + `DIRECT_URL_TEST` until Supabase test project resolved.
+- [ ] Plan 02-03: Drizzle migrations (0000_initial generate + 0001_rls_policies hand-written) + drizzle.config DIRECT_URL split + schema push — **next**
 - [ ] Plan 02-04: 9 repository skeletons under `lib/db/repositories/*.ts` (closes the tests/types.ts tsc failure)
 - [ ] Plan 02-05: svix install + Clerk webhook handler + middleware SF-M4 fold (still needed in middleware.ts:51 + 61)
 - [ ] Plan 02-06: ts-morph + L-05 check-db-imports + L-06 check-rls + D-08 check-schema + verify:phase-2 wiring
 
 ### Blockers
 
-None.
+- **SF-DB-1**: Plan 02-06 (RLS property test via `scripts/check-rls.ts` + schema audit via `scripts/check-schema.ts`) blocked on missing `DATABASE_URL_TEST` + `DIRECT_URL_TEST` env vars. Root cause: operator Supabase free-tier account at 2-project limit (`policypilot-dev` + `realestate`). Resolution options:
+  - **A (recommended):** Pause `realestate` project in Supabase Dashboard (data retained 90 days, restorable with one click), create `policypilot-test`, run Plan 02-06, then unpause `realestate`.
+  - **B:** Upgrade Supabase organization to Pro (~$25/mo, removes the project-count limit).
+  Plans 02-03, 02-04, 02-05 proceed unblocked. Halt before Plan 02-06 until A or B chosen.
+- **SF-WHSEC-1**: The Clerk webhook signing secret (`whsec_...`) was pasted into the chat transcript during Plan 02-02 checkpoint resolution. Recommend rotating it via Svix Dashboard before Plan 02-05 testing reaches a real dev tunnel. One-click rotation; no code change required. Closed once rotation done.
 
 ### Phase 2 follow-ups (deferred — opportunistic cleanup)
 
