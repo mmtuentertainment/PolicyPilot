@@ -91,6 +91,35 @@ Phase 1 added 15 implementation decisions (D-01 to D-15) at `.planning/phases/01
 
 None.
 
+### Phase 1 PR-review follow-ups (deferred — opportunistic cleanup)
+
+Surfaced by `/pr-review-toolkit:review-pr` against PR #1 head `e3689d3` (silent-failure-hunter + comment-analyzer + code-reviewer). SF-H4, SF-M3, and the phase-reference comment rot were addressed in `2438f42` and `723ca58`. The items below are real findings that were intentionally deferred — none block Phase 1, none touch production code paths in ways that affect ROADMAP success criteria. Pick up when convenient (e.g. on a `/gsd-quick` between phases) or fold into the relevant phase plan if you're already touching the file.
+
+**Silent-failure hardening** (verify scripts — operator-UX, not Phase-1-criterion gaps):
+
+- **SF-H1** `scripts/check-foundation.ts:62-73, 178-192` — when `spawnSync` sets `result.error` (ENOENT, EACCES), both stdout/stderr are empty; current code reports the generic literal `"tsc failed"`. Branch on `result.error` first, surface `code` + `message`.
+- **SF-H2** `scripts/check-foundation.ts:175, 191` — `result.status === null` (signal-killed, e.g. OOM/SIGTERM) is currently masked as `"unknown"`. Surface `result.signal` explicitly.
+- **SF-H3** `scripts/check-artifacts.ts:776-784` — server-only walker doesn't try/catch `readdirSync`/`readFileSync` and doesn't skip symlinks. A permission flip mid-walk crashes the whole gate; a symlink loop hangs. Wrap each fs call + use `entry.isSymbolicLink()`; print files-walked count so near-zero is obvious.
+- **SF-M1** `scripts/check-db.ts:30-33` — surface `err.constructor.name` (e.g. `PostgresError` / `AbortError`) on the catch path. Single-word diagnostic with zero secret content; distinguishes DNS / auth / TLS failures.
+- **SF-M4** `middleware.ts:74, 85` — no try/catch around `await auth()`. Real production gap, but observability is acknowledged as a Phase-2+ concern (no logger wired). Fold into Phase 2 logging work, not now.
+- **SF-M5** `scripts/check-artifacts.ts:28-30` — `read()` has no try/catch; TOCTOU between `exists()` and `read()` could nuke all 114 assertions on one transient FS hiccup. Wrap in try/catch, push a `fail()` Check, continue.
+- **SF-L1** `scripts/check-foundation.ts:127` — `res.headers.get("location") ?? ""` ambiguates missing-header vs empty-header. Surface "Location header absent" explicitly.
+- **SF-L2** `package.json:15` — `verify:phase-1` chain has `pnpm` shell invocation on the second half (`&& pnpm check:artifacts`), inconsistent with the IN-02 / `process.execPath` hardening on the first half. Cosmetic.
+
+**Comment cleanup** (lower priority; existing comments are misleading but the underlying code is correct):
+
+- `scripts/check-artifacts.ts:96-100, 790-798` — Plan-01-NN references ("Plan 01-05 strict regex, relaxed to substring", "scripts/check-artifacts.ts (this file) contains the needle…") explain WHAT + reference plan numbers. Trim. Keep raw `D-NN` / `ADR-NNN` / `T-NN-NN` tokens (stable citations).
+- `scripts/check-artifacts.ts:563-567` — comment-stripped any-detection rationale mentions Plan 01-04 verify-block. Keep the CLAUDE.md NEVER #4 mention, drop the Plan reference.
+- `scripts/check-artifacts.ts:1-19` — 19-line USAGE header could trim to one line. Lower priority than the source-tree comments (this file isn't read often by humans).
+
+**Code-reviewer nits** (low-confidence, can defer indefinitely):
+
+- `middleware.ts:75` — `as { role?: string } | undefined` cast on `sessionClaims?.publicMetadata`. Mirroring the `in/typeof` guard pattern from `scripts/check-db.ts` would be cleaner but the branch is dead in Phase 1. Defer to Phase 3 admin-matcher rewrite.
+- `app/(marketing)/layout.tsx:28` — hardcoded `© 2026` footer. Bump annually or wire `new Date().getFullYear()`. Trivial.
+- `app/(marketing)/pricing/page.tsx:73` — "Annual save 20%" reads ambiguously ("Save 20% annually"). Visible-to-users grammar nit.
+
+---
+
 ### Phase 1 plan-checker findings (informational — not blocking)
 
 1. **WARNING** — Plan 01-04 admin matcher pattern `/(admin)/(.*)` is dead code (route groups never appear in URLs). Acknowledged in code comment; Phase 3 will rewrite when real admin routes (`/dashboard`, `/policies`) land.
