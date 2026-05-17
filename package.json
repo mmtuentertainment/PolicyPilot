@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "verify:phase-1": "tsx --env-file=.env.local scripts/check-foundation.ts && pnpm check:artifacts",
     "check:db": "tsx --conditions=react-server --env-file=.env.local scripts/check-db.ts",
-    "check:artifacts": "tsx scripts/check-artifacts.ts"
+    "check:artifacts": "tsx scripts/check-artifacts.ts",
+    "check:coderabbit-config": "tsx scripts/check-coderabbit-config.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
@@ -35,12 +36,15 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "ajv": "^8.20.0",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "15.5.18",
+    "js-yaml": "^4.1.1",
     "tailwindcss": "^4",
     "tsx": "^4.22.0",
     "typescript": "^5"
