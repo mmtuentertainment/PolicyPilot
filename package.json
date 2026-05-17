@@ -51,6 +51,7 @@
     "eslint-config-next": "15.5.18",
     "js-yaml": "^4.1.1",
     "tailwindcss": "^4",
+    "ts-morph": "28.0.0",
     "tsx": "^4.22.0",
     "typescript": "^5"
   },
