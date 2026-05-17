@@ -213,7 +213,7 @@ A deployable Next.js 15 shell exists, with Clerk auth and Supabase wired, that c
 <deferred>
 ## Deferred Ideas
 
-- **Sentry + PostHog instrumentation** — present in `.env.local.example` but out of stack. Park for pre-launch decision (after Phase 8). If kept, add ADR-022.
+- **Sentry + PostHog instrumentation** — present in `.env.local.example` but out of stack. Park for pre-launch decision (after Phase 8). If kept, requires a new ADR (note: the original D-13 / discussion-log text referenced "ADR-022" speculatively before that ID was claimed by Node 22 Active LTS; the next telemetry decision needs a fresh ADR number).
 - **Production Clerk app + production Supabase project** — Phase 8 / deploy phase. Phase 1 ships dev-only.
 - **GitHub remote setup + Vercel project linking** — pre-deploy, not Phase 1.
 - **Custom email domain (`noreply@policypilot.com`)** — Phase 7 (when Resend is wired up).

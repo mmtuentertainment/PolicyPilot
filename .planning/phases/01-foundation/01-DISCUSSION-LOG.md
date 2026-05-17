@@ -174,7 +174,7 @@
 | Remove from `.env.local.example` | Loses the placeholder; revisiting is harder | |
 
 **Selected:** Defer — leave env-var placeholders blank, revisit pre-launch.
-**Notes:** Not in CLAUDE.md stack table. ADR-022 would be required to add.
+**Notes:** Not in CLAUDE.md stack table. A new ADR would be required to add (the speculative "ADR-022" reference here predates the actual ADR-022 / Node 22 Active LTS, which now occupies that slot — telemetry would need a fresh ADR number).
 
 ---
 
