@@ -2,11 +2,11 @@
 phase: 02-data-layer
 plan: 03
 type: execute
-status: partial
-completed_tasks: 3
+status: complete
+completed_tasks: 4
 total_tasks: 4
-deferred_tasks: 1
-deferred_until: "operator updates DIRECT_URL in .env.local to Session-pooler hostname (SF-DB-2)"
+deferred_tasks: 0
+deferred_until: "n/a — SF-DB-2 resolved post-commit; Task 4 live push completed 2026-05-17"
 subsystem: database
 tags: [drizzle, drizzle-kit, postgres, rls, migrations, multi-tenancy, supabase, ddl, ipv4, session-pooler]
 
@@ -288,4 +288,23 @@ To unblock `pnpm db:migrate`:
 ---
 
 *Phase: 02-data-layer*
-*Completed: 2026-05-17 (partial — Task 4 deferred on SF-DB-2)*
+*Completed: 2026-05-17 (Task 4 resolved post-commit via SF-DB-2 fix; all 4 tasks done)*
+
+---
+
+## POST-COMMIT UPDATE — Task 4 RESOLVED (2026-05-17)
+
+**SF-DB-2 fix landed.** `DIRECT_URL` in `.env.local` updated from legacy IPv6-only `db.kdoahaxhmaftxaiwbtdw.supabase.co:5432` to Session-pooler form `aws-1-us-east-1.pooler.supabase.com:5432` (same hostname as `DATABASE_URL`, port 5432 instead of 6543; user pattern `postgres.<project_ref>`). Sentinel-verified the legacy hostname is gone and the Session-pooler hostname + port are present.
+
+**Live dev DB push completed.** `pnpm db:migrate` reported "migrations applied successfully". Verification probe (`.tmp/verify-dev-db.ts`) confirms against the live dev DB:
+
+| Check | Result |
+|-------|--------|
+| Tables present (12 total: 10 tenant-scoped + 2 service-role) | 12 / 12 |
+| Tenant-scoped tables with RLS enabled | 10 / 10 |
+| Service-only tables WITHOUT RLS (clerk_events + stripe_events) | 2 / 2 |
+| `org_isolation` policies present on tenant-scoped tables | 10 / 10 |
+| Tables with all 4 GRANTs (SELECT/INSERT/UPDATE/DELETE) to `authenticated` | 10 / 10 |
+| D-03a CHECK constraint on `users` (`org_id IS NOT NULL OR created_at > now() - interval '5 minutes'`) | 1 |
+
+**Plan 02-03 is now FULLY complete.** SF-DB-2 is resolved; SF-DB-1 (test DB) remains outstanding for Plan 02-06.
