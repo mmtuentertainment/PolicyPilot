@@ -2,16 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 01 shipped — PR #1
-last_updated: "2026-05-16T23:55:00.000Z"
-shipped:
-  phase_01:
-    pr: 1
-    pr_url: https://github.com/mmtuentertainment/PolicyPilot/pull/1
-    branch: gsd/phase-1-foundation
-    base: main
-    commits: 34
-    shipped_at: 2026-05-16
+status: "Phase 02 context gathered — ready for plan-phase"
+last_updated: "2026-05-17T06:30:00.000Z"
 progress:
   total_phases: 8
   completed_phases: 1
@@ -39,19 +31,19 @@ GSD session state. Updated each time a phase or plan transitions. Source of trut
 
 ## Current Position
 
-Phase: 01 — COMPLETE
-Plan: 5 of 5
+Phase: 02 — context gathered, ready for plan-phase
+Plan: 0 of TBD
 
-- **Phase**: 1 — Foundation **COMPLETE** (2026-05-16, operator-approved)
-- **Plan**: all 5 complete — 01-01 scaffold, 01-02 operator dev keys, 01-03 app shell, 01-04 middleware + Drizzle, 01-05 verification gate
-- **Status**: All 5 ROADMAP success criteria satisfied. `pnpm verify:phase-1` 6/6 OK on live dev server; operator confirmed all 5 visual / Clerk flow checks; gsd-verifier produced VERIFICATION.md PASS (commit `7dcfeae`). **Shipped: PR [#1](https://github.com/mmtuentertainment/PolicyPilot/pull/1) opened 2026-05-16 — branch `gsd/phase-1-foundation` → `main`, 34 commits, awaiting merge.**
-- **Progress**: 1 / 8 phases complete (Phase 1 plans 5 / 5 executed)
+- **Phase**: 2 — Data Layer **context gathered** (2026-05-17)
+- **Plan**: 0 / TBD — next step is `/gsd-plan-phase 2`
+- **Status**: Phase 1 shipped PR #1 (2026-05-16). Phase 2 discuss-phase complete; 9 implementation decisions (D-01..D-09) captured at `.planning/phases/02-data-layer/02-CONTEXT.md` on top of 6 USER-LOCKED deliverables (L-01..L-06) from ADR-023 + ADR-025. CONTEXT.md commit: `a3ab551`.
+- **Progress**: 1 / 8 phases complete (Phase 2 context drafted; planning next)
 
 ```
-[█░░░░░░░] 1/8 phases  —  Foundation: 5/5 plans complete ✓
+[█░░░░░░░] 1/8 phases  —  Foundation: 5/5 plans ✓  ·  Data Layer: context drafted ▶
 ```
 
-**Next action**: Merge PR #1 (wait for CI / self-review). After merge, locally run `git switch main && git pull` to fast-forward main, then start Phase 2 (Data Layer) via `/gsd:discuss-phase 2` → `/gsd:plan-phase 2` → `/gsd:execute-phase 2`. The Drizzle skeleton at `lib/db/{index,schema}.ts` is ready to be populated from `reference/SCHEMA.md`; middleware webhook exemption for `/api/webhooks/clerk` is already wired (Plan 01-04).
+**Next action**: `/clear` then `/gsd-plan-phase 2` to draft Phase-2 plans. CONTEXT.md captures everything plan-phase needs — six pre-locked deliverables, nine HOW decisions including the `org_id` denormalization schema amendment (D-02), the four-event Clerk webhook scope with idempotency table (D-03), the `DIRECT_URL` env split (D-05), and the six-check `pnpm verify:phase-2` shape (D-08). The Drizzle skeleton at `lib/db/{index,schema}.ts` is ready to be populated; middleware webhook exemption for `/api/webhooks/clerk` is already wired (Plan 01-04). Phase-1 PR #1 still awaiting merge — operator can resolve that on its own track without blocking Phase 2 planning.
 
 ---
 
@@ -62,8 +54,10 @@ Plan: 5 of 5
 | Phases complete | 1 / 8 |
 | Phase 1 plans drafted | 5 / 5 |
 | Phase 1 plans executed | 5 / 5 |
+| Phase 2 context | drafted 2026-05-17 |
 | Requirements mapped | 17 / 17 |
-| Locked decisions | 21 |
+| Locked decisions | 25 (ADRs 001–025) |
+| Phase implementation decisions | Phase 1: 15 (D-01..D-15); Phase 2: 9 (D-01..D-09) + 6 USER-LOCKED (L-01..L-06) |
 | Constraints (SPEC) extracted | 28 |
 | Acceptance criteria pending | 8 + 1 meta |
 
@@ -76,6 +70,8 @@ Plan: 5 of 5
 All 21 decisions in `PROJECT.md` `<decisions>` block are LOCKED via ADR-001 through ADR-021. Sourced from `BLUEPRINT.md` (precedence 0) and `reference/STACK.md` (precedence 1). Re-opening any requires a new ADR and operator approval.
 
 Phase 1 added 15 implementation decisions (D-01 to D-15) at `.planning/phases/01-foundation/01-CONTEXT.md`.
+
+Phase 2 added 9 implementation decisions (D-01 to D-09) at `.planning/phases/02-data-layer/02-CONTEXT.md` on top of 6 USER-LOCKED deliverables (L-01..L-06) reflecting ADR-023 + ADR-025. Highlights: two-migration split (schema generate + hand-written RLS+GRANT); `org_id` denormalization onto 5 child tables; 4-event Clerk webhook scope + new `clerk_events` idempotency table; `DIRECT_URL` env-var split for migrations; `@ts-expect-error` type-tests locking the ADR-018/005 invariants.
 
 ### Todos
 
@@ -136,8 +132,9 @@ Surfaced by `/pr-review-toolkit:review-pr` against PR #1 head `e3689d3` (silent-
 - **Roadmap**: created `2026-05-15` — derived directly from ADR-007's 8-phase locked build sequence
 - **Phase 1 context**: captured `2026-05-15` via `/gsd-discuss-phase --all` — 15 implementation decisions (D-01 to D-15) at `.planning/phases/01-foundation/01-CONTEXT.md`
 - **Phase 1 plans**: drafted `2026-05-15` via `/gsd-plan-phase 1 --auto` — 5 plans in 4 waves at `.planning/phases/01-foundation/01-0{1..5}-PLAN.md`; passed gsd-plan-checker verification
-- **Last session**: Phase 1 execute plan 01-04 (2026-05-16) — middleware.ts wired with Clerk public-route policy + webhook/cron exemptions (ADR-009 / D-10), Drizzle skeleton built (lib/db/{index,schema}.ts + drizzle.config.ts) with server-only guard + prepare:false for Supabase pooler, scripts/check-db.ts smoke test round-trips `select 1` against Supabase in ~3.5s. `pnpm tsc --noEmit` exits 0, `pnpm check:db` exits 0 with `OK`. Deviation: tsx --conditions=react-server flag added to `check:db` script to resolve server-only's react-server export condition to empty.js when running outside Next.js.
-- **Next session entry point**: `.planning/phases/01-foundation/01-05-PLAN.md` → execute plan 01-05 (verify scripts + operator human-verify of Clerk flow)
+- **Phase 2 context**: gathered `2026-05-17` via `/gsd-discuss-phase 2 --all` under the operator's no-clarifying-questions directive. Absorbed 6 USER-LOCKED deliverables from ADR-023 + ADR-025 (L-01..L-06). Added 9 HOW decisions (D-01..D-09): hand-written `0001_rls_policies.sql` over inline `sql.raw()`; `org_id` denormalization onto five child tables; four-event Clerk webhook scope + new `clerk_events` idempotency table; `getOrgContext()` reads `publicMetadata.role` via the session-claim template; `DIRECT_URL` + `DATABASE_URL_TEST` env-var split; skeleton repository surface with type-system enforcement of ADR-018/005 invariants via `@ts-expect-error`; six-check `pnpm verify:phase-2` adding a schema audit; Clerk Dashboard role definitions (operator manual step). Folded Phase-1 PR-review todo SF-M4 (try/catch around `auth()`).
+- **Last session**: Phase 2 discuss-phase (2026-05-17) — context committed at `a3ab551`.
+- **Next session entry point**: `.planning/phases/02-data-layer/02-CONTEXT.md` → `/clear` then `/gsd-plan-phase 2`
 
 ---
 
@@ -146,7 +143,7 @@ Surfaced by `/pr-review-toolkit:review-pr` against PR #1 head `e3689d3` (silent-
 | # | Phase | Requirements | Status |
 |---|-------|--------------|--------|
 | 1 | Foundation | REQ-product-vision | Complete — 5/5 plans shipped 2026-05-16 (PR #1) |
-| 2 | Data Layer | REQ-user-roles, REQ-multi-tenancy | Not started |
+| 2 | Data Layer | REQ-user-roles, REQ-multi-tenancy | Context gathered 2026-05-17 — `02-CONTEXT.md` (commit `a3ab551`) |
 | 3 | Admin UI | REQ-policy-library, REQ-policy-lifecycle, REQ-access-control | Not started |
 | 4 | AI Layer | REQ-ai-policy-assistant, REQ-ai-usage-rules | Not started |
 | 5 | Employee Portal | REQ-acknowledgment-tracking, REQ-acknowledgment-rules | Not started |
