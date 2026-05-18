@@ -13,6 +13,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "verify:phase-1": "tsx --env-file=.env.local scripts/check-foundation.ts && pnpm check:artifacts",
+    "verify:phase-2": "tsx --env-file=.env.local scripts/check-data-layer.ts",
     "check:db": "tsx --conditions=react-server --env-file=.env.local scripts/check-db.ts",
     "db:generate": "tsx --env-file=.env.local node_modules/drizzle-kit/bin.cjs generate",
     "db:generate:rls": "tsx --env-file=.env.local node_modules/drizzle-kit/bin.cjs generate --custom --name=rls_policies",

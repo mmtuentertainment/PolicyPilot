@@ -508,17 +508,16 @@ function checkMiddleware(): Check[] {
 function checkDrizzleSkeleton(): Check[] {
   const out: Check[] = [];
 
-  // schema.ts must be the empty placeholder per D-07
+  // schema.ts — Phase 1 D-07 required an empty `export {}` placeholder.
+  // Phase 2 (Plan 02-01) populated it with 12 tables — that's the
+  // expected post-Phase-2 state. checkPhase2Schema() below covers the
+  // populated-schema invariants; this Phase 1 check now only asserts
+  // file existence (the empty-placeholder assertion is intentionally
+  // dropped — Phase 2 superseded it).
   if (!exists("lib/db/schema.ts")) {
     out.push(fail("lib/db/schema.ts exists", "Drizzle schema file missing"));
   } else {
     out.push(ok("lib/db/schema.ts exists"));
-    assert(
-      out,
-      read("lib/db/schema.ts").includes("export {}"),
-      "lib/db/schema.ts is empty placeholder per D-07",
-      "schema populated outside Phase 2",
-    );
   }
 
   // index.ts — server-only, postgres-js, prepare:false, DATABASE_URL
@@ -656,16 +655,24 @@ function checkServerOnlyBoundary(): Check[] {
     [
       "-e",
       // Cross-platform grep replacement using Node fs walker.
+      // Strips // line-comments + /* block */ comments before substring
+      // search so doc/anti-pattern comments mentioning "from '@/lib/db'"
+      // don't false-positive (Plan 02-06 Rule-1 fix). Superseded by L-05
+      // AST check; kept as a regression backstop.
       `const fs = require('node:fs'); const path = require('node:path');
        const SKIP = new Set(['node_modules','.next','.git','.planning','.wiki','docs','reference','drizzle']);
        const hits = [];
+       function stripComments(s) {
+         return s.replace(/\\/\\/[^\\n]*/g, '').replace(/\\/\\*[\\s\\S]*?\\*\\//g, '');
+       }
        function walk(dir) {
          for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
            if (SKIP.has(entry.name)) continue;
            const full = path.join(dir, entry.name);
            if (entry.isDirectory()) { walk(full); continue; }
            if (!/\\.(ts|tsx|js|jsx|mjs|cjs)$/.test(entry.name)) continue;
-           const content = fs.readFileSync(full, 'utf8');
+           const raw = fs.readFileSync(full, 'utf8');
+           const content = stripComments(raw);
            if (content.includes('from "@/lib/db"') || content.includes("from '@/lib/db'")) {
              hits.push(full.replace(/\\\\/g, '/'));
            }
@@ -692,11 +699,23 @@ function checkServerOnlyBoundary(): Check[] {
   // Currently allowed: scripts/check-db.ts (the DB smoke gate). Plus the
   // walker-template substring inside this file itself — not a real import,
   // whitelisted the same way to keep the regex check honest.
+  //
+  // Phase 2 additions (Plan 02-06): lib/db/scoped.ts is the wrapper that
+  // secures the channel (OrgScope + withOrgScope per ADR-025), and
+  // app/api/webhooks/clerk/route.ts is ADR-023 allow-list entry #1.
+  // Both are legitimate raw-db importers; this regex check is now
+  // superseded by scripts/check-db-imports.ts (AST-based, L-05) for
+  // catching unauthorized importers — kept here as a regression
+  // backstop that doesn't false-positive on the legitimate importers.
   const allowed = new Set([
     "scripts/check-db.ts",
     "./scripts/check-db.ts",
     "scripts/check-artifacts.ts",
     "./scripts/check-artifacts.ts",
+    "lib/db/scoped.ts",
+    "./lib/db/scoped.ts",
+    "app/api/webhooks/clerk/route.ts",
+    "./app/api/webhooks/clerk/route.ts",
   ]);
   const unexpected = hits.filter((h) => !allowed.has(h));
   if (unexpected.length === 0) {
@@ -712,6 +731,212 @@ function checkServerOnlyBoundary(): Check[] {
         `unexpected importer(s): ${unexpected.join(", ")}`,
       ),
     );
+  }
+  return out;
+}
+
+// ─── Phase 2 — Drizzle schema populated (Plan 02-01 Task 1) ───────────────
+
+function checkPhase2Schema(): Check[] {
+  const out: Check[] = [];
+  if (!exists("lib/db/schema.ts")) {
+    out.push(fail("lib/db/schema.ts exists", "missing"));
+    return out;
+  }
+  const s = read("lib/db/schema.ts");
+  // Should contain 12 tables after Plan 02-01 (was `export {}` in Phase 1).
+  const tables = ["organizations","users","departments","policies","policyVersions","policyAssignments","acknowledgments","aiGenerations","notifications","workflowStages","stripeEvents","clerkEvents"];
+  for (const t of tables) {
+    assert(out, s.includes(`export const ${t} `), `lib/db/schema.ts exports ${t} (Plan 02-01)`, `missing 'export const ${t} '`);
+  }
+  // D-02: 5 child tables have non-null org_id
+  for (const t of ["policyVersions","policyAssignments","acknowledgments","notifications","workflowStages"]) {
+    const idx = s.indexOf(`export const ${t} `);
+    if (idx === -1) continue;
+    const end = s.indexOf("});", idx);
+    const block = s.slice(idx, end);
+    assert(out, /orgId:\s*uuid\('org_id'\)\.notNull\(\)\.references/.test(block), `lib/db/schema.ts: ${t} has D-02 org_id .notNull().references`, "D-02 denormalization missing");
+  }
+  // D-03a: users.org_id is nullable
+  const usersIdx = s.indexOf("export const users ");
+  if (usersIdx !== -1) {
+    const end = s.indexOf("});", usersIdx);
+    const block = s.slice(usersIdx, end);
+    assert(out, !/orgId:\s*uuid\('org_id'\)\.notNull\(\)/.test(block), "lib/db/schema.ts: users.orgId is nullable (D-03a)", "D-03a violation — users.orgId has .notNull()");
+  }
+  // D-03b: clerk_events present, NO orgId
+  const clerkIdx = s.indexOf("export const clerkEvents ");
+  if (clerkIdx !== -1) {
+    const end = s.indexOf("});", clerkIdx);
+    const block = s.slice(clerkIdx, end);
+    assert(out, !block.includes("orgId"), "lib/db/schema.ts: clerk_events has NO orgId (service-role table)", "anti-pattern: orgId on clerk_events");
+  }
+  return out;
+}
+
+// ─── Phase 2 — OrgScope + getOrgContext (Plan 02-01 Task 2) ───────────────
+
+function checkPhase2ScopedAndContext(): Check[] {
+  const out: Check[] = [];
+  for (const path of ["lib/db/scoped.ts", "lib/auth/context.ts"]) {
+    if (!exists(path)) {
+      out.push(fail(`${path} exists`, "missing"));
+      continue;
+    }
+    out.push(ok(`${path} exists (Plan 02-01)`));
+    const s = read(path);
+    assert(out, s.includes("import 'server-only'"), `${path}: 'server-only' import (top-of-file guard)`, "missing 'server-only'");
+  }
+  const scoped = exists("lib/db/scoped.ts") ? read("lib/db/scoped.ts") : "";
+  assert(out, scoped.includes("SET LOCAL ROLE authenticated"), "lib/db/scoped.ts: SET LOCAL ROLE authenticated (Pitfall 1 mitigation)", "missing role switch");
+  assert(out, scoped.includes("set_config('request.jwt.claims',") && /,\s*\$\{claims\}\s*,\s*true\)|,\s*true\)/.test(scoped), "lib/db/scoped.ts: set_config(..., true) is_local=true (Pitfall 2)", "missing is_local=true");
+  const ctx = exists("lib/auth/context.ts") ? read("lib/auth/context.ts") : "";
+  assert(out, ctx.includes("Role = 'admin' | 'reviewer' | 'employee'") || /Role\s*=\s*['"]admin['"]\s*\|\s*['"]reviewer['"]\s*\|\s*['"]employee['"]/.test(ctx), "lib/auth/context.ts: Role enum (admin|reviewer|employee)", "enum missing");
+  assert(out, /try\s*\{[\s\S]*?await\s+auth\(\)/.test(ctx), "lib/auth/context.ts: try/catch around await auth() (SF-M4 fold)", "SF-M4 fold missing");
+  return out;
+}
+
+// ─── Phase 2 — 9 repository skeletons (Plan 02-04) ────────────────────────
+
+function checkPhase2Repositories(): Check[] {
+  const out: Check[] = [];
+  const repos = ["policies","policy_versions","policy_assignments","acknowledgments","users","departments","ai_generations","notifications","workflow_stages"];
+  for (const r of repos) {
+    const path = `lib/db/repositories/${r}.ts`;
+    if (!exists(path)) {
+      out.push(fail(`${path} exists`, "missing"));
+      continue;
+    }
+    const s = read(path);
+    // Strip comments before regex-matching so doc/anti-pattern mentions
+    // of "from '@/lib/db'" inside JSDoc / // comments don't false-positive
+    // (Plan 02-06 Rule-1 fix).
+    const noComments = s.replace(/\/\/[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    assert(out, s.includes("import 'server-only'"), `${path}: 'server-only' guard`, "missing 'server-only'");
+    assert(out, s.includes("from '@/lib/db/scoped'") || s.includes('from "@/lib/db/scoped"'), `${path}: imports OrgScope from @/lib/db/scoped`, "OrgScope import missing");
+    // Pitfall 6: must NOT import raw `db` (only @/lib/db/scoped, @/lib/db/schema)
+    assert(out, !/from\s+['"]@\/lib\/db['"](?!\/)/.test(noComments), `${path}: NO raw @/lib/db import (Pitfall 6)`, "raw db import detected");
+    // listAll method exists — exception: Acknowledgments uses listForUser
+    // (user-scoped, not org-scoped at the listing level per ADR-018 +
+    // CONTEXT.md L-03 spec). Plan body says "listAll or equivalent".
+    if (r === "acknowledgments") {
+      assert(out, s.includes("listForUser") || s.includes("listAll"), `${path}: listForUser method exists (equivalent to listAll per L-03 — user-scoped)`, "listForUser missing");
+    } else {
+      assert(out, s.includes("listAll"), `${path}: listAll method exists (Plan 02-06 cross-org positive control needs it)`, "listAll missing");
+    }
+  }
+  // ADR-018: Acknowledgments has NO update/delete keys
+  if (exists("lib/db/repositories/acknowledgments.ts")) {
+    const ack = read("lib/db/repositories/acknowledgments.ts");
+    assert(out, !/^\s*update\s*:/m.test(ack), "lib/db/repositories/acknowledgments.ts: NO update key (ADR-018)", "ADR-018 violation: update method present");
+    assert(out, !/^\s*delete\s*:/m.test(ack), "lib/db/repositories/acknowledgments.ts: NO delete key (ADR-018)", "ADR-018 violation: delete method present");
+  }
+  // ADR-005: Policies.create input Omits tldrSummary
+  if (exists("lib/db/repositories/policies.ts")) {
+    const pol = read("lib/db/repositories/policies.ts");
+    assert(out, /Omit<[\s\S]*?\$inferInsert,[\s\S]*?['"]tldrSummary['"]/.test(pol), "lib/db/repositories/policies.ts: Policies.create input Omits tldrSummary (ADR-005)", "ADR-005 violation: Omit pattern missing");
+  }
+  return out;
+}
+
+// ─── Phase 2 — Clerk webhook handler + svix (Plan 02-05) ──────────────────
+
+function checkPhase2WebhookHandler(): Check[] {
+  const out: Check[] = [];
+  const path = "app/api/webhooks/clerk/route.ts";
+  if (!exists(path)) {
+    out.push(fail(`${path} exists`, "missing"));
+    return out;
+  }
+  out.push(ok(`${path} exists (Plan 02-05)`));
+  const s = read(path);
+  assert(out, s.includes("import { Webhook") && s.includes("from 'svix'"), `${path}: imports svix Webhook`, "svix import missing");
+  assert(out, s.includes("await req.text()"), `${path}: awaits req.text() for raw body (Pitfall 4)`, "Pitfall 4 violation: no req.text()");
+  // Pitfall 4 ordering: req.text() before any JSON.parse
+  const textIdx = s.indexOf("await req.text()");
+  const jsonIdx = s.indexOf("JSON.parse(");
+  assert(out, jsonIdx === -1 || jsonIdx > textIdx, `${path}: req.text() before any JSON.parse (Pitfall 4 ordering)`, "Pitfall 4 ordering violation");
+  assert(out, s.includes(".onConflictDoNothing()"), `${path}: idempotency via ON CONFLICT DO NOTHING (D-03b)`, "D-03b idempotency missing");
+  for (const evt of ["organization.created","user.created","organizationMembership.created","organizationMembership.updated"]) {
+    assert(out, s.includes(`'${evt}'`) || s.includes(`"${evt}"`), `${path}: handles ${evt} (D-03)`, `event missing: ${evt}`);
+  }
+  // Package.json has svix
+  const pkg = read("package.json");
+  assert(out, /"svix":\s*"\^?1\.93/.test(pkg), "package.json declares svix@1.93 (Plan 02-05)", "svix dep missing");
+  return out;
+}
+
+// ─── Phase 2 — middleware SF-M4 fold (Plan 02-05) ─────────────────────────
+
+function checkPhase2MiddlewareFold(): Check[] {
+  const out: Check[] = [];
+  if (!exists("middleware.ts")) {
+    out.push(fail("middleware.ts exists", "missing"));
+    return out;
+  }
+  const mw = read("middleware.ts");
+  const tryCount = (mw.match(/\btry\s*\{/g) ?? []).length;
+  assert(out, tryCount >= 2, "middleware.ts: at least 2 try blocks (SF-M4 fold around both auth() calls)", `found ${tryCount} try blocks`);
+  assert(out, mw.includes("SF-M4"), "middleware.ts: SF-M4 fold comment cited", "SF-M4 marker missing");
+  return out;
+}
+
+// ─── Phase 2 — Migrations + drizzle config (Plan 02-03) ───────────────────
+
+function checkPhase2Migrations(): Check[] {
+  const out: Check[] = [];
+  for (const path of ["drizzle/0000_initial.sql", "drizzle/0001_rls_policies.sql", "drizzle/meta/_journal.json"]) {
+    assert(out, exists(path), `${path} exists (Plan 02-03)`, "missing");
+  }
+  if (exists("drizzle/meta/_journal.json")) {
+    const journal = read("drizzle/meta/_journal.json");
+    assert(out, journal.includes("rls_policies"), "drizzle/meta/_journal.json registers 0001_rls_policies (Pitfall 3)", "Pitfall 3 violation: 0001 not registered");
+  }
+  if (exists("drizzle/0001_rls_policies.sql")) {
+    const sql = read("drizzle/0001_rls_policies.sql");
+    const body = sql.replace(/^\s*--[^\n]*\r?\n?/gm, "");
+    const rlsCount = (body.match(/ENABLE ROW LEVEL SECURITY/g) ?? []).length;
+    const policyCount = (body.match(/CREATE POLICY "org_isolation"/g) ?? []).length;
+    const grantCount = (body.match(/GRANT SELECT, INSERT, UPDATE, DELETE ON .+ TO authenticated/g) ?? []).length;
+    const checkCount = (body.match(/CHECK \(org_id IS NOT NULL OR created_at > now\(\) - interval/g) ?? []).length;
+    assert(out, rlsCount === 10, "0001_rls_policies.sql: 10 ENABLE RLS statements", `found ${rlsCount}`);
+    assert(out, policyCount === 10, "0001_rls_policies.sql: 10 CREATE POLICY org_isolation statements", `found ${policyCount}`);
+    assert(out, grantCount === 10, "0001_rls_policies.sql: 10 GRANT to authenticated statements (L-04)", `found ${grantCount}`);
+    assert(out, checkCount === 1, "0001_rls_policies.sql: 1 D-03a CHECK constraint on users", `found ${checkCount}`);
+  }
+  if (exists("drizzle.config.ts")) {
+    const cfg = read("drizzle.config.ts");
+    assert(out, cfg.includes("DIRECT_URL"), "drizzle.config.ts: reads DIRECT_URL (D-05)", "D-05 missing");
+    assert(out, cfg.includes("console.warn"), "drizzle.config.ts: fallback warn (D-05)", "D-05 fallback missing");
+  }
+  return out;
+}
+
+// ─── Phase 2 — Type tests + verify scripts (Plan 02-01 + 02-06) ──────────
+
+function checkPhase2TypeTests(): Check[] {
+  const out: Check[] = [];
+  if (!exists("tests/types.ts")) {
+    out.push(fail("tests/types.ts exists (D-07)", "missing"));
+    return out;
+  }
+  const t = read("tests/types.ts");
+  const expectErrCount = (t.match(/@ts-expect-error/g) ?? []).length;
+  assert(out, expectErrCount >= 3, "tests/types.ts: 3+ @ts-expect-error invariants (D-07)", `found ${expectErrCount}`);
+  assert(out, t.includes("void Acknowledgments.update"), "tests/types.ts: ADR-018 update invariant", "missing");
+  assert(out, t.includes("void Acknowledgments.delete"), "tests/types.ts: ADR-018 delete invariant", "missing");
+  assert(out, t.includes("tldrSummary"), "tests/types.ts: ADR-005 tldrSummary invariant", "missing");
+  return out;
+}
+
+function checkPhase2VerifyScripts(): Check[] {
+  const out: Check[] = [];
+  for (const path of ["scripts/check-db-imports.ts","scripts/check-rls.ts","scripts/check-schema.ts","scripts/check-data-layer.ts"]) {
+    assert(out, exists(path), `${path} exists (Plan 02-06)`, "missing");
+  }
+  const pkg = read("package.json");
+  for (const script of ["db:generate","db:generate:rls","db:migrate","db:migrate:test","verify:phase-2"]) {
+    assert(out, pkg.includes(`"${script}":`), `package.json declares ${script}`, "script missing");
   }
   return out;
 }
@@ -737,6 +962,15 @@ function main(): void {
     ...checkDrizzleSkeleton(),
     ...checkSmokeScripts(),
     ...checkServerOnlyBoundary(),
+    // Phase 2 additions:
+    ...checkPhase2Schema(),
+    ...checkPhase2ScopedAndContext(),
+    ...checkPhase2Repositories(),
+    ...checkPhase2WebhookHandler(),
+    ...checkPhase2MiddlewareFold(),
+    ...checkPhase2Migrations(),
+    ...checkPhase2TypeTests(),
+    ...checkPhase2VerifyScripts(),
   ];
 
   let passed = 0;
