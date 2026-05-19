@@ -46,7 +46,14 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  // Enforcement mode: parse ADMIN_URL_PATTERNS array literal.
+  // Enforcement mode (Plan 03-02+): middleware exports ADMIN_URL_PATTERNS.
+  //
+  // Phase-aware downgrade (Plan 03-02 Task 2 implementation note):
+  // When app/(admin)/ has zero page.tsx files on disk (Plans 03-02..03-10
+  // are mid-flight; only Plan 03-11 ships admin pages), every pattern is
+  // "dead" by definition. Downgrade the dead-pattern check to a WARN in
+  // that case; only enforce the "URL has no pattern" direction. Once Plan
+  // 03-11 lands page.tsx files, both directions enforce.
   const patternsDecl = mw.getVariableDeclaration('ADMIN_URL_PATTERNS');
   if (!patternsDecl) {
     console.error('check-admin-routes: ADMIN_URL_PATTERNS const not found in middleware.ts');
@@ -95,14 +102,23 @@ async function main(): Promise<void> {
     }
   }
   // Every pattern must match ≥1 URL.
+  // Phase-aware downgrade: when app/(admin)/ contains zero page.tsx files
+  // (Plan 03-02 through 03-10 inclusive — admin pages don't land until
+  // Plan 03-11), the dead-pattern check would fire on EVERY pattern by
+  // definition. Demote to WARN until pages exist; only enforce the
+  // "URL has no pattern" direction in the meantime.
+  const adminPagesExist = urls.length > 0;
   for (let i = 0; i < patterns.length; i++) {
     const pat = patterns[i];
     const src = patternSources[i];
     if (!pat || !src) continue;
     if (!urls.some((u) => pat.test(u))) {
-      violations.push(
-        `ADMIN_URL_PATTERNS[${i}] = ${src} matches NO URL on disk (dead pattern — CR-02 regression)`,
-      );
+      const msg = `ADMIN_URL_PATTERNS[${i}] = ${src} matches NO URL on disk (dead pattern — CR-02 regression)`;
+      if (adminPagesExist) {
+        violations.push(msg);
+      } else {
+        console.warn(`check-admin-routes: WARN — ${msg} (downgraded — no admin pages on disk yet; Plan 03-11 enables enforcement)`);
+      }
     }
   }
 
