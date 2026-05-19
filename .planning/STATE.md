@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 02 — SHIPPED 2026-05-19 as PR #2 (gsd/phase-2-data-layer → main); all 7 plans + audit + hotfix; verify:phase-2 7/7 OK; awaiting merge
-last_updated: "2026-05-19T00:00:00.000Z"
+status: Phase 02 — MERGED 2026-05-19 (PR #2 squash → main @ 130b8ab); Phase 03 — Admin UI CONTEXT.md drafted under `--all` no-clarifying-questions; ready for /gsd-plan-phase 3
+last_updated: "2026-05-19T15:00:00.000Z"
 progress:
   total_phases: 8
   completed_phases: 1
@@ -49,12 +49,15 @@ Plan: 7 of 7 — FULL complete; ready for verifier + ROADMAP close-out
 [█░░░░░░░] 1/8 phases  —  Foundation: 5/5 plans ✓  ·  Data Layer: 7/7 plans complete ✓ (02-01 ✓, 02-02 ✓, 02-03 ✓, 02-04 ✓, 02-05 ✓, 02-06 ✓, 02-07 hotfix ✓ CR-01 + HI-01 closed)
 ```
 
-**Next action**: gsd-verifier runs phase-goal verification → VERIFICATION.md → if PASSED, update ROADMAP.md to mark Phase 2 ✓ → route to `/gsd-discuss-phase 3` (Admin UI).
+**Next action**: `/gsd-plan-phase 3` to convert `.planning/phases/03-admin-ui/03-CONTEXT.md` into per-plan PLAN.md files. (Phase 2 verifier + ROADMAP close-out already happened pre-merge; PR #2 was squash-merged to main as `130b8ab` on 2026-05-19.)
 
-**Operator carry-forward to Phase 3**:
-- **SF-WHSEC-1**: rotate the `whsec_...` Clerk signing secret via Svix Dashboard before live-smoke (exposed in chat during Plan 02-02).
-- **Webhook live-smoke**: operator deferred end-to-end smoke from Plan 02-06 to Phase 3 (rationale: Phase 3 ships the actual `<CreateOrganization />` UI; live smoke is higher-fidelity then). `pnpm verify:phase-2` 7/7 OK is sufficient evidence of code correctness.
-- **REG-P1-01** (Phase 1 regression discovered during Phase 2 close-out): `pnpm verify:phase-1` check 6/6 (`Middleware redirects /sign-in-success → /sign-in unauthenticated`) now fails with `TypeError: fetch failed`. All other 5/6 Phase-1 checks pass. The failure appears network-level (fetch couldn't reach the route) rather than redirect-target-wrong. Likely cause: Plan 02-05's `middleware.ts` SF-M4 try/catch fold changed runtime behavior on this specific dev-only placeholder route. Investigate during Phase 3 setup; the route is a Phase-1 unused placeholder so production impact is zero, but the regression gate output is misleading.
+**Operator carry-forward to Phase 3** (now folded into `03-CONTEXT.md` as L-NN constraints — tracked here for cross-session visibility until each is closed by a Phase 3 commit):
+- **SF-WHSEC-1** → folded as **L-04** in 03-CONTEXT. Plan 03-01 will gate the operator-manual rotation. Open until operator rotates via Svix Dashboard + pastes new `whsec_…` into `.env.local`.
+- **Webhook live-smoke** → folded as **D-08** in 03-CONTEXT. Naturally exercised by the first `<CreateOrganization />` click in `/onboarding/create-org` (Plan 03-N). Open until first end-to-end smoke succeeds.
+- **REG-P1-01** → folded as **L-03** in 03-CONTEXT. Plan 03-02 deletes `app/(auth)/sign-in-success/page.tsx` and replaces with `app/(auth)/post-sign-in/page.tsx`. `pnpm verify:phase-1` will be re-pointed to `/post-sign-in` once the route lands. Open until that swap commits.
+- **CR-02** → folded as **L-02 + D-01** in 03-CONTEXT. Plan 03-02 replaces the dead `/(admin)/(.*)` matcher with explicit `ADMIN_URL_PATTERNS` array; `scripts/check-admin-routes.ts` cross-validates.
+- **SF-CASCADE-AUDIT** → NOT folded into Phase 3 (Phase 6+ obligation when org-delete code path lands). Stays as Phase 6+ carry-forward.
+- **Nyquist G-08a / G-09a / G-03a** → NOT folded into Phase 3 (Phase 2.1 hardening orthogonal to admin UI). Picks up when convenient.
 
 ---
 
@@ -67,6 +70,8 @@ Plan: 7 of 7 — FULL complete; ready for verifier + ROADMAP close-out
 | Phase 1 plans executed | 5 / 5 |
 | Phase 2 context | drafted 2026-05-17 |
 | Phase 2 plans drafted | 6 / 6 |
+| Phase 2 merged to main | 2026-05-19 (PR #2 squash → `130b8ab`) |
+| Phase 3 context | drafted 2026-05-19 (`--all` autonomous; 13 HOW decisions D-01..D-13 + 5 USER-LOCKED constraints L-01..L-05) |
 | Phase 2 plans executed | 6 / 6 code-complete (02-01 ~7min/3 commits/4 files; 02-02 partial ~unknown/0 source commits + SF-DB-1 closed by operator pre-02-06; 02-03 14min/3 commits/9 files + post-commit Task 4; 02-04 ~4min15s/2 commits/9 files — tsc baseline closed; 02-05 ~9m46s/3 commits/1 created + 3 modified files — SF-M4 fully closed; 02-06 Tasks 1-5 ~17m33s/5 commits/4 created + 4 modified files — verify:phase-2 7/7 OK against live TEST DB; Task 6 operator checkpoint OPEN) |
 | Requirements mapped | 17 / 17 |
 | Locked decisions | 25 (ADRs 001–025) |
