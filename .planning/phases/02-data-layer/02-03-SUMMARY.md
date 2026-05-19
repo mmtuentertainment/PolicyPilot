@@ -79,7 +79,7 @@ completed: 2026-05-17
 
 # Phase 2 Plan 03: Drizzle Migrations + RLS Policies Summary
 
-**Two-migration split shipped — drizzle-kit auto-generated `0000_initial.sql` (12 tables + 18 FKs) plus hand-written `0001_rls_policies.sql` (10x ENABLE RLS + 10x CREATE POLICY + 10x GRANT + D-03a CHECK), DIRECT_URL fallback in drizzle.config, 4 new db scripts in package.json. [BLOCKING] dev DB schema push deferred — Plan 02-02's DIRECT_URL points to the legacy IPv6-only Supabase hostname; new blocker SF-DB-2 surfaced for operator.**
+**Two-migration split shipped — drizzle-kit auto-generated `0000_initial.sql` (12 tables + 18 FKs) plus hand-written `0001_rls_policies.sql` (10x ENABLE RLS + 10x CREATE POLICY + 10x GRANT + D-03a CHECK), DIRECT_URL fallback in drizzle.config, 4 new db scripts in package.json. Task 4 (live dev DB push) initially deferred at commit time via SF-DB-2 — RESOLVED post-commit after a 1-line `.env.local` `DIRECT_URL` fix to the Session-pooler hostname; live dev DB verified 12/12 tables + 10/10 RLS-enabled tenant tables + 10/10 org_isolation policies + 40 GRANTs + D-03a CHECK. TEST DB migrated via Plan 02-06 orchestrator step 2. Final state: 4/4 tasks complete.**
 
 ## Performance
 
@@ -94,7 +94,7 @@ completed: 2026-05-17
 - **Task 1 — drizzle.config.ts DIRECT_URL split (D-05) + 4 db scripts in package.json.** Migration URL is now `directUrl ?? databaseUrl`; warning fires on fallback. Four canonical scripts wired via `tsx --env-file=.env.local node_modules/drizzle-kit/bin.cjs <cmd>`: `db:generate` (auto-DDL), `db:generate:rls` (= `--custom --name=rls_policies`), `db:migrate` (dev), `db:migrate:test` (reads `.env.local.test`). `.env.local.test` shipped as gitignored placeholder; `.gitignore` amended to add `.env.local.test` explicitly (the existing `.env*.local` glob did not cover the trailing-`.test` filename).
 - **Task 2 — Auto-DDL + RLS skeleton generation.** `pnpm db:generate --name=initial` produced `drizzle/0000_initial.sql` with CREATE TABLE for all 12 schema tables (140 lines, 18 FK constraints, users.org_id is nullable per D-03a). `pnpm db:generate:rls` produced empty `drizzle/0001_rls_policies.sql` and registered it in `_journal.json` (RESEARCH Pitfall 3 mitigation — `--custom` is load-bearing; hand-dropping `.sql` into `drizzle/` would be silently skipped by `migrate`). Both `0000_snapshot.json` and `0001_snapshot.json` present. `.gitignore` amended to **remove** the `drizzle/` entry (Plan 01-01 mistake-in-advance — migrations MUST be tracked so deployments reproduce schema state).
 - **Task 3 — Hand-edit 0001_rls_policies.sql with the full security DDL.** 95-line file with comment-stripped counts of: 10× `ENABLE ROW LEVEL SECURITY`, 10× `CREATE POLICY "org_isolation"`, 10× `GRANT SELECT, INSERT, UPDATE, DELETE ... TO authenticated`, 1× D-03a CHECK on `users` (`org_id IS NOT NULL OR created_at > now() - interval '5 minutes'`). `organizations` uses the special-case `USING (id::text = auth.jwt()->>'org_id')`; the other 9 tables use the uniform `USING (org_id::text = auth.jwt()->>'org_id')`. `::text` cast on LHS is load-bearing (RESEARCH LANDMINE — auth.jwt() returns text, org_id columns are uuid). `clerk_events` + `stripe_events` deliberately excluded from RLS (service-role only per ADR-023).
-- **Task 4 — [BLOCKING] schema push DEFERRED.** See `## Deviations from Plan` below for the full SF-DB-2 write-up. Tasks 1-3 produce all the on-disk artifacts the plan calls for; only the *application* of the migrations to live Postgres is deferred.
+- **Task 4 — Schema push: RESOLVED post-commit.** Initially deferred at commit time via SF-DB-2 (legacy IPv6-only `DIRECT_URL` hostname); resolved post-commit via a 1-line `.env.local` update to the Session-pooler form (`aws-1-us-east-1.pooler.supabase.com:5432`, user pattern `postgres.<project_ref>`). `pnpm db:migrate` then applied both migrations cleanly to dev DB; TEST DB migrated via Plan 02-06 orchestrator step 2. Full deviation write-up preserved in `## Deviations from Plan` below for historical record. Final state: live dev DB has 12/12 tables + 10/10 RLS-enabled tenant tables + 10/10 org_isolation policies + 40 GRANTs + D-03a CHECK (verification artifact at `.tmp/verify-dev-db.ts`, gitignored).
 
 ## Task Commits
 
@@ -103,7 +103,7 @@ completed: 2026-05-17
 | 1 | drizzle.config DIRECT_URL split + 4 db scripts + placeholder | `c1dcf6f` | feat    |
 | 2 | generate 0000_initial + 0001_rls_policies skeleton    | `0bbf321` | chore   |
 | 3 | hand-edit 0001_rls_policies.sql with RLS+GRANT+CHECK  | `f443cd0` | feat    |
-| 4 | (deferred — see SF-DB-2)                              | —         | —       |
+| 4 | live dev DB push (post-commit, no source-tree change) | —         | —       |
 
 **Plan metadata:** committed atomically with this SUMMARY + STATE.md + ROADMAP.md.
 
