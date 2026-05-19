@@ -78,8 +78,9 @@ async function main(): Promise<void> {
         SELECT relrowsecurity FROM pg_catalog.pg_class
         WHERE relname = ${table} AND relkind = 'r'
       `;
-      if (rlsRows.length === 0 || rlsRows[0]!.relrowsecurity !== true) {
-        failures.push({ table, check: 'RLS enabled', detail: `relrowsecurity = ${rlsRows[0]?.relrowsecurity ?? '(no row)'}` });
+      const firstRlsRow = rlsRows[0];
+      if (firstRlsRow?.relrowsecurity !== true) {
+        failures.push({ table, check: 'RLS enabled', detail: `relrowsecurity = ${firstRlsRow?.relrowsecurity ?? '(no row)'}` });
       }
 
       // 3. org_isolation policy present.
@@ -110,13 +111,23 @@ async function main(): Promise<void> {
       }
     }
 
-    // Service-role tables (clerk_events, stripe_events) must NOT have RLS.
+    // Service-role tables (clerk_events, stripe_events) must EXIST and NOT have RLS.
+    // A missing table is a hard fail (the webhook handlers depend on it for
+    // idempotency); a present table with RLS enabled is also a fail (RLS on a
+    // service-role idempotency table would block all writes by the webhook
+    // handlers, which authenticate as `postgres` / service-role and rely on
+    // the schema being readable/writable without JWT context).
     for (const svcTable of ['clerk_events', 'stripe_events']) {
       const rlsRows = await sql<{ relrowsecurity: boolean }[]>`
         SELECT relrowsecurity FROM pg_catalog.pg_class
         WHERE relname = ${svcTable} AND relkind = 'r'
       `;
-      if (rlsRows.length > 0 && rlsRows[0]!.relrowsecurity === true) {
+      const firstSvcRow = rlsRows[0];
+      if (firstSvcRow === undefined) {
+        failures.push({ table: svcTable, check: 'NO RLS (service-role table)', detail: 'table missing from pg_class' });
+        continue;
+      }
+      if (firstSvcRow.relrowsecurity === true) {
         failures.push({ table: svcTable, check: 'NO RLS (service-role table)', detail: 'relrowsecurity = true (must be false)' });
       }
     }

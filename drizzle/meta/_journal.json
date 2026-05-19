@@ -22,6 +22,13 @@
       "when": 1779194120631,
       "tag": "0002_users_department_fk",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779196077623,
+      "tag": "0003_fk_hardening",
+      "breakpoints": true
     }
   ]
 }

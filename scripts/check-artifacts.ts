@@ -786,10 +786,16 @@ function checkPhase2Schema(): Check[] {
     const block = s.slice(idx, end);
     assert(out, /orgId:\s*uuid\('org_id'\)\.notNull\(\)\.references/.test(block), `lib/db/schema.ts: ${t} has D-02 org_id .notNull().references`, "D-02 denormalization missing");
   }
-  // D-03a: users.org_id is nullable
+  // D-03a: users.org_id is nullable.
+  // End-of-block marker is `);` (final paren + semicolon), which matches BOTH
+  // the old single-arg form `pgTable('name', {...});` (closing `});`) AND the
+  // new array-callback form `pgTable('name', {...}, (table) => [...]);`
+  // (closing `]);`). The users table moved to the array-callback form in
+  // 0003 to declare its composite FK on (org_id, department_id) — see
+  // lib/db/schema.ts users definition.
   const usersIdx = s.indexOf("export const users ");
   if (usersIdx !== -1) {
-    const end = s.indexOf("});", usersIdx);
+    const end = s.indexOf(");", usersIdx);
     const block = s.slice(usersIdx, end);
     assert(out, !/orgId:\s*uuid\('org_id'\)\.notNull\(\)/.test(block), "lib/db/schema.ts: users.orgId is nullable (D-03a)", "D-03a violation — users.orgId has .notNull()");
   }
