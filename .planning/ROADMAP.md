@@ -79,7 +79,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 - [x] 03-04-PLAN.md — Repository bodies: Policies + PolicyVersions (L-05 append-only) + WorkflowStages (D-11) + tests/types.ts L-05 invariants
 - [x] 03-05-PLAN.md — Phase 2 webhook hardening: L-06a (silent-loss fix on dispatch error) + L-06b (maskClerkOrgId helper applied at 4+ log sites)
 - [x] 03-06-PLAN.md — lib/policies/transitions.ts: 7 server-only orchestrators wrapping withOrgScope (D-03 + D-04 + L-05) — TDD with publish + editPublished snapshot semantics
-- [ ] 03-07-PLAN.md — Server Actions: createPolicyAction (new/actions.ts) + 8 transition actions ([id]/actions.ts) — Zod validation + revalidatePath + redirect-outside-try/catch (D-09)
+- [x] 03-07-PLAN.md — Server Actions: createPolicyAction (new/actions.ts) + 8 transition actions ([id]/actions.ts) — Zod validation + revalidatePath + redirect-outside-try/catch (D-09)
 - [x] 03-08-PLAN.md — Dependency install: @tiptap/* 2.27.2 (4 pkgs) + zod ^3.23.5 + shadcn add table/sidebar/dropdown-menu/dialog/form/label/select/textarea/badge (D-02 + D-09 + D-13) — legitimacy gated
 - [x] 03-09-PLAN.md — Admin shell: app/(admin)/layout.tsx (L-01 gate + SidebarProvider) + AdminSidebar (x-pathname active state) + AdminTopbar (children slot for Clerk widgets)
 - [x] 03-10-PLAN.md — Policy components: PolicyEditor (Client, immediatelyRender:false) + PolicyView (Server, generateHTML) + PolicyStatusBadge + PolicyTransitionMenu (Client) + PolicyVersionHistory (Server)
@@ -162,7 +162,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 |-------|----------------|--------|-----------|
 | 1. Foundation | 5/5 | Complete | 2026-05-16 |
 | 2. Data Layer | 7/7 | Complete | 2026-05-18 |
-| 3. Admin UI | 10/12 | In Progress|  |
+| 3. Admin UI | 11/12 | In Progress|  |
 | 4. AI Layer | 0/0 | Not started | - |
 | 5. Employee Portal | 0/0 | Not started | - |
 | 6. Billing | 0/0 | Not started | - |
