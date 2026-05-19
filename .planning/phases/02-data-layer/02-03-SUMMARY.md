@@ -210,14 +210,14 @@ None — `.env.local` was already operator-populated (Phase 1 D-11 + Plan 02-02 
 - Other 9 tenant-scoped tables use uniform `USING (org_id::text = auth.jwt()->>'org_id')`
 - `clerk_events` + `stripe_events` NOT touched (service-role only — ADR-023)
 
-### Migration application status
+### Migration application status (post-commit, final)
 
-| Project           | `pnpm db:migrate` reported | Live tables | RLS-enabled tables |
-| ----------------- | --------------------------- | ----------- | ------------------ |
-| dev (DIRECT_URL)  | NOT RUN — SF-DB-2 (legacy hostname doesn't resolve from IPv4) | 0 (live DB unmigrated) | 0 |
-| test (DATABASE_URL_TEST) | NOT RUN — SF-DB-1 (test project doesn't exist; free-tier limit) | n/a | n/a |
+| Project                  | `pnpm db:migrate` reported | Live tables | RLS-enabled tenant tables |
+| ------------------------ | --------------------------- | ----------- | ------------------------- |
+| dev (DIRECT_URL)         | 2 migrations applied (post-commit, after SF-DB-2 Session-pooler fix) | 12 / 12     | 10 / 10                   |
+| test (DATABASE_URL_TEST) | 2 migrations applied (via Plan 02-06 orchestrator step 2, after SF-DB-1 closure) | 12 / 12     | 10 / 10                   |
 
-When SF-DB-2 + SF-DB-1 resolve, the expected first-run output is "2 migrations applied" against each project. The live-DB schema probes specified in the plan's Task 4 verify block (pg_catalog.pg_tables for 12-table presence; pg_catalog.pg_class for relrowsecurity on the 10 tenant-scoped tables; clerk_events + stripe_events absent from RLS list) are deferred to Plan 02-06.
+Live-DB schema probes from the plan's Task 4 verify block (12-table presence in pg_catalog.pg_tables; relrowsecurity on the 10 tenant-scoped tables; clerk_events + stripe_events absent from the RLS-enabled list) all PASS — verified by `scripts/check-schema.ts` running inside `pnpm verify:phase-2` (7/7 OK).
 
 ## `.gitignore` Status
 
@@ -259,10 +259,10 @@ To unblock `pnpm db:migrate`:
 
 **Tasks 1-3 artifacts:** Complete and committed. The plan's `<output>` "_journal.json entries actually written" requirement is fully satisfied (verbatim JSON above). The "2 migrations reported by db:migrate:test on first run" and "12 tables in TEST DB" outputs are deferred — when SF-DB-1 resolves, Plan 02-06 will run the live probes and record those outputs.
 
-**Open blockers:**
-- **SF-DB-1** — `DATABASE_URL_TEST` + `DIRECT_URL_TEST` blank (Plan 02-02 deferred Task 3). Recommendation: Pause `realestate` Supabase project (Option A).
-- **SF-DB-2** — `DIRECT_URL` in `.env.local` points to the legacy IPv6-only hostname; needs update to Session-pooler form. Documented above under "User Setup Required". (NEW this plan.)
-- **SF-WHSEC-1** — Clerk webhook signing secret pasted into transcript during Plan 02-02 checkpoint. Rotate via Svix Dashboard before Plan 02-05 dev-tunnel testing. (Pre-existing.)
+**Blockers (final state):**
+- **SF-DB-1** — CLOSED 2026-05-18. Operator populated `DATABASE_URL_TEST` + `DIRECT_URL_TEST` in `.env.local` before Plan 02-06 execution; Plan 02-06 orchestrator step 2 migrated the TEST DB cleanly.
+- **SF-DB-2** — CLOSED 2026-05-17. Operator updated `DIRECT_URL` in `.env.local` from the legacy IPv6-only hostname to the Session-pooler form (`aws-1-us-east-1.pooler.supabase.com:5432`, user pattern `postgres.<project_ref>`); `pnpm db:migrate` then applied both migrations cleanly to dev DB.
+- **SF-WHSEC-1** — Carry-forward to Phase 3. Clerk webhook signing secret was pasted into the chat transcript during Plan 02-02 checkpoint. Rotate via Svix Dashboard before Phase 3 webhook live-smoke testing. (Pre-existing.)
 
 ## Self-Check: PASSED
 
