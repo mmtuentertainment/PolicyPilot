@@ -54,6 +54,7 @@ Plan: 6 of 6 — FULL complete; ready for verifier + ROADMAP close-out
 **Operator carry-forward to Phase 3**:
 - **SF-WHSEC-1**: rotate the `whsec_...` Clerk signing secret via Svix Dashboard before live-smoke (exposed in chat during Plan 02-02).
 - **Webhook live-smoke**: operator deferred end-to-end smoke from Plan 02-06 to Phase 3 (rationale: Phase 3 ships the actual `<CreateOrganization />` UI; live smoke is higher-fidelity then). `pnpm verify:phase-2` 7/7 OK is sufficient evidence of code correctness.
+- **REG-P1-01** (Phase 1 regression discovered during Phase 2 close-out): `pnpm verify:phase-1` check 6/6 (`Middleware redirects /sign-in-success → /sign-in unauthenticated`) now fails with `TypeError: fetch failed`. All other 5/6 Phase-1 checks pass. The failure appears network-level (fetch couldn't reach the route) rather than redirect-target-wrong. Likely cause: Plan 02-05's `middleware.ts` SF-M4 try/catch fold changed runtime behavior on this specific dev-only placeholder route. Investigate during Phase 3 setup; the route is a Phase-1 unused placeholder so production impact is zero, but the regression gate output is misleading.
 
 ---
 
