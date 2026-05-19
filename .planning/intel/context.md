@@ -217,3 +217,27 @@ Restates ADR-010 through ADR-016.
 | `reference/PROMPTS.md` | All Claude system prompts and prompt templates |
 | `reference/TIER-LIMITS.md` | Feature gates and limits per plan tier |
 | `.env.local.example` | All required environment variables |
+
+---
+
+## Topic: OrgContext / OrgScope — the ADR-019 enforcement carriers
+
+- source: ADR-023 + ADR-025 (decisions.md), `/improve-codebase-architecture` grilling session 2026-05-17
+
+`OrgContext` is the typed carrier of the active organization identity used to enforce ADR-019 ("`org_id` in every query"). Shape: `{ orgId: string; userId: string; role: 'admin' | 'reviewer' | 'employee' }`. Constructed once per request via `getOrgContext()` from the Clerk session (throws on missing session/org).
+
+`OrgScope = OrgContext & { tx }` extends it with the active per-request transaction. Application code wraps an `OrgContext` in `withOrgScope(ctx, async (scope) => { ... })`, which opens a Drizzle transaction, runs `SET LOCAL ROLE authenticated` (Supabase built-in, NOBYPASSRLS) and `SELECT set_config('request.jwt.claims', <json>, true)`, then dispatches the function. Repository methods take `OrgScope` as their first parameter and operate on the scoped transaction — all repository calls within one `withOrgScope` share one transaction and one set of RLS-evaluable JWT claims.
+
+Repositories — one module per tenant-scoped table under `lib/db/repositories/*.ts` — are the only public path to those tables. They internally apply `where(eq(table.orgId, scope.orgId))` to SELECT/UPDATE/DELETE and `orgId: scope.orgId` to INSERT. They expose domain verbs (`Policies.publish`, `Acknowledgments.record`) rather than raw query-builder access, and omit methods that would violate adjacent invariants (e.g., no `Acknowledgments.update` per ADR-018). Repository methods never open their own transactions.
+
+Raw `db` from `lib/db/index.ts` (connection-level `postgres` role, BYPASSRLS) is allow-listed to four callers: Clerk webhook (org creation), Stripe webhook (org lookup by `stripeCustomerId`), Railway cron jobs (cross-org reminders), Phase-8 test harness. CI gate: `scripts/check-db-imports.ts`.
+
+**Defense-in-depth holds operationally** (resolved 2026-05-17 by ADR-025): user-facing traffic runs as the `authenticated` role with injected JWT claims, so the RLS policies in `reference/SCHEMA.md` (`USING (org_id = auth.jwt()->>'org_id')`) evaluate server-side on top of the application-layer `where`. A forgotten WHERE clause is caught by RLS; an RLS-policy bug is caught by the repository's `where`. Phase-2 verify gate `scripts/check-rls.ts` is the cross-org property test.
+
+---
+
+## Topic: Middleware scope — auth + role only
+
+- source: ADR-024 (decisions.md), `/improve-codebase-architecture` grilling session 2026-05-17
+
+`middleware.ts` enforces only auth + role across all 8 phases (5 route kinds: public / webhook / cron / authenticated / role-gated). Tier gating is **not** a middleware concern — it lives at the API-route layer (403 response with `upgradeUrl`) or the Server-Component layer (`requireTier(feature, org)` throws, caught by an error boundary that calls `redirect('/upgrade')`). Middleware never imports `TIER_LIMITS` and never reads `organizations.planTier`. The procedural if-else chain is the deliberate implementation; no data-driven route-policy table.

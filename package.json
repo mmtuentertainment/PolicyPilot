@@ -13,7 +13,12 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "verify:phase-1": "tsx --env-file=.env.local scripts/check-foundation.ts && pnpm check:artifacts",
+    "verify:phase-2": "tsx --env-file=.env.local scripts/check-data-layer.ts",
     "check:db": "tsx --conditions=react-server --env-file=.env.local scripts/check-db.ts",
+    "db:generate": "tsx --env-file=.env.local node_modules/drizzle-kit/bin.cjs generate",
+    "db:generate:rls": "tsx --env-file=.env.local node_modules/drizzle-kit/bin.cjs generate --custom --name=rls_policies",
+    "db:migrate": "tsx --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate",
+    "db:migrate:test": "tsx --env-file=.env.local.test node_modules/drizzle-kit/bin.cjs migrate",
     "check:artifacts": "tsx scripts/check-artifacts.ts",
     "check:coderabbit-config": "tsx scripts/check-coderabbit-config.ts"
   },
@@ -30,6 +35,7 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "shadcn": "^4.7.0",
+    "svix": "1.93.0",
     "tailwind-merge": "^3.6.0",
     "tw-animate-css": "^1.4.0"
   },
@@ -46,6 +52,7 @@
     "eslint-config-next": "15.5.18",
     "js-yaml": "^4.1.1",
     "tailwindcss": "^4",
+    "ts-morph": "28.0.0",
     "tsx": "^4.22.0",
     "typescript": "^5"
   },
