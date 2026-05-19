@@ -7,6 +7,12 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, '.'),
+      // Alias the `server-only` package to an empty stub so unit tests
+      // (jsdom env) can import server-only modules without the real
+      // package's hard throw firing. The real `server-only` still ships
+      // in node_modules and still triggers inside `next build` for any
+      // accidental client-bundle import. Plan 03-02 Task 1 / L-01.
+      'server-only': resolve(__dirname, 'tests/stubs/server-only.ts'),
     },
   },
   // Override PostCSS config so Vite does not try to load the repo's
