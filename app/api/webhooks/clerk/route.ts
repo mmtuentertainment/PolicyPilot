@@ -36,6 +36,18 @@ function maskClerkId(id: string): string {
 }
 
 /**
+ * L-06b (F-02): Mask a Clerk organization ID for logging — mirrors
+ * maskClerkId but with the `org_` prefix preserved for grep-ability.
+ * Aggregated log streams otherwise expose the full tenant base to
+ * anyone with log-indexer access. Structured-log redaction (Phase 7+)
+ * will replace this with a redaction filter in pino.
+ */
+function maskClerkOrgId(id: string): string {
+  if (id.length <= 4) return '***';
+  return `org_***${id.slice(-4)}`;
+}
+
+/**
  * CR-01 (Plan 02-07): Mirror our enum role into Clerk's user publicMetadata.
  *
  * Attempts to update the Clerk user's `publicMetadata.role` to match the given
@@ -173,7 +185,7 @@ export async function POST(req: Request): Promise<Response> {
           planTier: 'starter',
           stripeSubscriptionStatus: 'trialing',
         });
-        console.log(`[clerk-webhook] organization.created ${data.id}`);
+        console.log(`[clerk-webhook] organization.created ${maskClerkOrgId(data.id)}`);
         break;
       }
 
@@ -207,7 +219,10 @@ export async function POST(req: Request): Promise<Response> {
         if (!clerkUserId || !clerkOrgId) {
           console.error(
             '[clerk-webhook] organizationMembership.created missing user_id or organization.id',
-            { clerkUserId: clerkUserId ? maskClerkId(clerkUserId) : null, clerkOrgId },
+            {
+              clerkUserId: clerkUserId ? maskClerkId(clerkUserId) : null,
+              clerkOrgId: clerkOrgId ? maskClerkOrgId(clerkOrgId) : null,
+            },
           );
           break;
         }
@@ -224,7 +239,7 @@ export async function POST(req: Request): Promise<Response> {
           // Returning 409 keeps the operator-visible Clerk dashboard log
           // truthful: this event was rejected and needs operator follow-up.
           console.error(
-            `[clerk-webhook] org ${clerkOrgId} not found — organization.created may not have arrived yet; Clerk should retry`,
+            `[clerk-webhook] org ${maskClerkOrgId(clerkOrgId)} not found — organization.created may not have arrived yet; Clerk should retry`,
           );
           return new Response('Org not yet created', { status: 409 });
         }
@@ -232,7 +247,7 @@ export async function POST(req: Request): Promise<Response> {
         if (!firstOrg) {
           // Defensive narrowing for noUncheckedIndexedAccess.
           console.error(
-            `[clerk-webhook] org ${clerkOrgId} lookup returned empty row unexpectedly`,
+            `[clerk-webhook] org ${maskClerkOrgId(clerkOrgId)} lookup returned empty row unexpectedly`,
           );
           return new Response('Org lookup failed', { status: 409 });
         }
@@ -264,7 +279,7 @@ export async function POST(req: Request): Promise<Response> {
           );
         }
         console.log(
-          `[clerk-webhook] organizationMembership.created user=${maskClerkId(clerkUserId)} org=${clerkOrgId} role=${roleStr ?? '(unchanged)'}`,
+          `[clerk-webhook] organizationMembership.created user=${maskClerkId(clerkUserId)} org=${maskClerkOrgId(clerkOrgId)} role=${roleStr ?? '(unchanged)'}`,
         );
         break;
       }
