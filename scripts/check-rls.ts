@@ -41,10 +41,25 @@ const TENANT_TABLES = [
   'workflow_stages',
 ] as const;
 
+/**
+ * Get the RLS predicate column name for a tenant-scoped table.
+ *
+ * @param table - The table name; `'organizations'` is treated specially (uses the org primary key).
+ * @returns `'id'` for the `organizations` table, `'org_id'` for all other tenant tables.
+ */
 function predicateColumnFor(table: string): 'id' | 'org_id' {
   return table === 'organizations' ? 'id' : 'org_id';
 }
 
+/**
+ * Seeds a test database and verifies Row-Level Security (RLS) isolation for tenant-scoped tables.
+ *
+ * Seeds two organizations, users, and policies, then runs an assertion transaction that sets the authenticated role
+ * and JWT claims for orgA's user, performs a positive control (orgA can read its own policy) and negative isolation
+ * checks (orgA cannot read orgB-scoped rows) across TENANT_TABLES. The assertion transaction is forced to roll back,
+ * seeded tables are truncated to clean up, the database client is closed, and the process exits with code `0` on success
+ * or `1` when the positive control fails or any table leaks orgB data.
+ */
 async function main(): Promise<void> {
   // Connection-string `postgres` user is BYPASSRLS — fine for seeding.
   const sql = postgres(TEST_URL!, { prepare: false });

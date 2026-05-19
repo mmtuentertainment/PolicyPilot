@@ -25,20 +25,15 @@ import { clerkEvents, organizations, users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 /**
- * CR-01 (Plan 02-07): Mirror our enum role into Clerk's user publicMetadata.
+ * Mirror an internal app role into a Clerk user's `publicMetadata.role`.
  *
- * D-04 mandates that `users.role` AND `publicMetadata.role` stay in sync so
- * `getOrgContext()` (which reads `sessionClaims.publicMetadata.role`) and the
- * admin middleware gate (which reads the same path) actually see the role
- * on the next authenticated request. Without this, every protected route
- * 500s on the first request after sign-up because `asRole(undefined)` throws.
+ * Attempts to update the Clerk user's `publicMetadata.role` to match the given
+ * app role. This operation is best-effort: failures are logged and swallowed so
+ * the caller's workflow is not interrupted.
  *
- * Best-effort: the DB row is already written by the caller; if the Clerk
- * Backend API call fails we log structured detail and return without
- * throwing — `organizationMembership.updated` will re-fire on the next
- * role change and re-attempt the sync, so transient failures self-heal.
- * Crashing the webhook handler here would mark the event processed in
- * `clerk_events` (SF-W5 known gap) and lose the DB write effect on retry.
+ * @param clerkUserId - The Clerk user id to update
+ * @param role - The application role to mirror (`'admin' | 'reviewer' | 'employee'`)
+ * @param source - Short string indicating the originating event or caller for logging
  */
 async function mirrorRoleToClerk(
   clerkUserId: string,
@@ -62,15 +57,12 @@ async function mirrorRoleToClerk(
 }
 
 /**
- * Narrow Clerk's organizationMembership.role string to our enum.
- * D-04 / D-09: `admin` / `reviewer` / `employee` are the three roles the
- * operator defined in the Clerk Dashboard (D-09). Clerk may emit the role
- * with an `org:` prefix (e.g. `org:admin`) depending on dashboard
- * customization; strip the prefix first, then narrow.
+ * Normalize a Clerk organization membership role string to one of the application's roles.
  *
- * Returns the narrowed Role on success, or null when the payload role
- * cannot be mapped (the caller logs + skips the role update — the row's
- * existing role value or the `employee` default is retained).
+ * Strips an optional `org:` prefix and maps the result to `'admin'`, `'reviewer'`, or `'employee'`.
+ *
+ * @param value - Role value from a Clerk membership payload
+ * @returns `'admin'`, `'reviewer'`, or `'employee'` if `value` maps to a known role, `null` otherwise
  */
 function asAppRole(value: unknown): 'admin' | 'reviewer' | 'employee' | null {
   if (typeof value !== 'string') return null;
@@ -81,6 +73,18 @@ function asAppRole(value: unknown): 'admin' | 'reviewer' | 'employee' | null {
   return null;
 }
 
+/**
+ * Receive and process Clerk Dashboard webhooks: verify Svix signature, enforce idempotency, and apply created/updated organization and membership changes to the database while mirroring role metadata back to Clerk.
+ *
+ * Handles signature verification failures, missing configuration, idempotent duplicate events, four main create/update event types (organization.created, user.created, organizationMembership.created, organizationMembership.updated), and treats delete/unhandled events as log-only. Application-layer dispatch errors are logged and returned as successful responses to avoid Clerk retries.
+ *
+ * @returns A Response indicating the result:
+ * - `200 OK` on successful processing, duplicate event short-circuit, or logged dispatch error
+ * - `500` when the webhook secret is not configured
+ * - `400` when required Svix headers are missing
+ * - `401` when signature verification fails
+ * - `409` when referenced organization or user rows are not yet present in the database
+ */
 export async function POST(req: Request): Promise<Response> {
   const secret = process.env.CLERK_WEBHOOK_SECRET;
   if (!secret) {

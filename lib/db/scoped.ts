@@ -25,6 +25,19 @@ import type { OrgContext } from '@/lib/auth/context';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type OrgScope = OrgContext & { tx: PgTransaction<any, any, any> };
 
+/**
+ * Run a callback inside a DB transaction with the session configured for the given org context.
+ *
+ * Within the transaction this sets the session role to `authenticated` and injects a JSON
+ * `request.jwt.claims` (containing `sub`, `org_id`, `role`) using `set_config(..., true)` so
+ * database RLS policies that rely on `auth.jwt()` evaluate against `ctx`. The call to
+ * `SET LOCAL ROLE authenticated` must occur before `set_config`, and `is_local = true` is required
+ * so the injected claims are scoped to the transaction and do not leak across pooled connections.
+ *
+ * @param ctx - Org-scoped authentication context (provides `userId`, `orgId`, `role`)
+ * @param fn - Callback invoked with the augmented scope (ctx plus the active transaction)
+ * @returns The value returned by `fn`
+ */
 export async function withOrgScope<T>(
   ctx: OrgContext,
   fn: (scope: OrgScope) => Promise<T>,

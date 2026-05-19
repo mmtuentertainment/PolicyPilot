@@ -32,16 +32,37 @@ const DRIZZLE_KIT_ENTRY = resolvePath(process.cwd(), 'node_modules/drizzle-kit/b
 
 type Result = { ok: boolean; label: string; detail?: string };
 
+/**
+ * Logs a numbered check result to stdout in the format "[idx/total] OK/FAIL — label — detail".
+ *
+ * @param idx - 1-based index of the check
+ * @param total - total number of checks
+ * @param r - Result object whose `ok`, `label`, and optional `detail` are used for output
+ */
 function logResult(idx: number, total: number, r: Result): void {
   const status = r.ok ? 'OK  ' : 'FAIL';
   const detail = r.detail ? ` — ${r.detail}` : '';
   console.log(`[${idx}/${total}] ${status} — ${r.label}${detail}`);
 }
 
+/**
+ * Return the first non-empty trimmed line from the input string.
+ *
+ * @param s - The input string to search for non-empty lines
+ * @returns The first non-empty line after trimming whitespace, or an empty string if none exist
+ */
 function firstNonEmptyLine(s: string): string {
   return s.split('\n').map((l) => l.trim()).find((l) => l.length > 0) ?? '';
 }
 
+/**
+ * Runs a Node child process with the given arguments and returns a unified `Result` describing success or failure.
+ *
+ * @param args - Argument vector passed to the Node executable
+ * @param label - Short human-readable label used in the returned `Result`
+ * @param extraEnv - Optional environment variables that override `process.env` for the child process
+ * @returns A `Result` where `ok` is `true` when the child exits with status 0; otherwise `ok` is `false` and `detail` is the first non-empty line from the child process's stderr/stdout or a fallback message of the form "`<label> exited <status>`"
+ */
 function runChild(args: string[], label: string, extraEnv?: Record<string, string>): Result {
   const result = spawnSync(NODE_BIN, args, {
     encoding: 'utf8',
@@ -59,10 +80,23 @@ function runChild(args: string[], label: string, extraEnv?: Record<string, strin
   };
 }
 
+/**
+ * Verifies the repository typechecks with zero TypeScript errors.
+ *
+ * @returns A Result whose `ok` is `true` when `tsc --noEmit` exits successfully; otherwise `ok` is `false` and `detail` contains the first non-empty line of the compiler output or an exit status message.
+ */
 function checkTypecheck(): Result {
   return runChild([TSC_ENTRY, '--noEmit'], 'tsc --noEmit zero errors');
 }
 
+/**
+ * Runs the drizzle-kit migration command targeting the test database defined by the `_TEST` environment variables.
+ *
+ * If `DATABASE_URL_TEST` or `DIRECT_URL_TEST` is missing, returns a failure `Result` describing the missing setup.
+ * Otherwise overrides `DATABASE_URL` and `DIRECT_URL` with the `_TEST` values and invokes the migration command against the test DB.
+ *
+ * @returns A `Result` where `ok` is `true` when the migration command exits successfully; `ok` is `false` and `detail` contains diagnostic text when the environment is misconfigured or the migration fails.
+ */
 function checkMigrateTest(): Result {
   // Override DATABASE_URL + DIRECT_URL to the _TEST values so drizzle.config.ts
   // (which reads the canonical names) routes migrations to the TEST DB. The
@@ -84,6 +118,11 @@ function checkMigrateTest(): Result {
   );
 }
 
+/**
+ * Run the DB imports allow-list check using an AST-based script.
+ *
+ * @returns A `Result` whose `ok` is `true` if the check passed, `false` otherwise; when `ok` is `false`, `detail` contains diagnostic output. 
+ */
 function checkDbImports(): Result {
   return runChild(
     [TSX_ENTRY, 'scripts/check-db-imports.ts'],
@@ -91,6 +130,11 @@ function checkDbImports(): Result {
   );
 }
 
+/**
+ * Executes the cross-org RLS property test covering the positive case and the 10-table negative case.
+ *
+ * @returns The `Result` describing the check outcome — `ok` is `true` when the test passes, `false` otherwise; `detail` contains diagnostic text when the check fails.
+ */
 function checkRls(): Result {
   return runChild(
     [TSX_ENTRY, 'scripts/check-rls.ts'],
@@ -98,6 +142,11 @@ function checkRls(): Result {
   );
 }
 
+/**
+ * Runs the schema audit that checks pg_catalog and information_schema for inconsistencies.
+ *
+ * @returns A `Result` whose `ok` is `true` if the audit passed, `false` otherwise; on failure `detail` contains diagnostic text. 
+ */
 function checkSchema(): Result {
   return runChild(
     [TSX_ENTRY, 'scripts/check-schema.ts'],
@@ -105,6 +154,11 @@ function checkSchema(): Result {
   );
 }
 
+/**
+ * Checks for artifact regressions affecting Phase 1 and Phase 2.
+ *
+ * @returns A `Result` with `ok: true` if the artifact check passed, `ok: false` and a `detail` message if it failed.
+ */
 function checkArtifacts(): Result {
   return runChild(
     [TSX_ENTRY, 'scripts/check-artifacts.ts'],
@@ -112,6 +166,13 @@ function checkArtifacts(): Result {
   );
 }
 
+/**
+ * Audits the primary database for users whose `org_id` is NULL and were created more than 5 minutes ago.
+ *
+ * Checks `process.env.DATABASE_URL` to connect; if the variable is missing the function returns a failing `Result`.
+ *
+ * @returns A `Result` with `ok: true` when no stale rows are found; otherwise `ok: false` and `detail` contains either the count and comma-separated ids of stale users or an error message.
+ */
 async function checkStaleNullUsers(): Promise<Result> {
   // RESEARCH Pitfall 5: D-03a CHECK constraint allows users.org_id = NULL
   // within 5 minutes of created_at; after 5 min, the row is logically
@@ -149,6 +210,11 @@ async function checkStaleNullUsers(): Promise<Result> {
   }
 }
 
+/**
+ * Orchestrates the Phase 2 data-layer verification by running the full sequence of checks, reporting each result, and terminating the process based on overall success.
+ *
+ * Runs the predefined set of verification checks in order, prints per-check status and a summary, and calls `process.exit(0)` when all checks pass or `process.exit(1)` if any check fails.
+ */
 async function main(): Promise<void> {
   console.log('─── Data Layer (Phase 2) — verification ───');
   console.log('');
