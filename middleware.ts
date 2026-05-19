@@ -63,7 +63,16 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
       // D-10: 404, not 401 — don't advertise the route exists.
       return new NextResponse(null, { status: 404 });
     }
-    const role = (sessionClaims?.publicMetadata as { role?: string } | undefined)?.role;
+    // HI-01 (Plan 02-07): narrow via `{ role?: unknown }` + typeof guard so
+    // this site matches the stricter contract in lib/auth/context.ts:42.
+    // A future Clerk session-token template that emits role as something
+    // other than a string (numeric tier code, structured object) collapses
+    // to undefined here instead of widening to `string` and lying to the
+    // admin-gate comparison below. asRole() in context.ts remains the
+    // single source of truth for the full enum check — middleware only
+    // needs to detect the literal "admin".
+    const pubMeta = sessionClaims?.publicMetadata as { role?: unknown } | undefined;
+    const role = typeof pubMeta?.role === "string" ? pubMeta.role : undefined;
     if (role !== "admin") {
       // D-10: 404 instead of 403 — surfacing 403 would advertise that the
       // route exists.
