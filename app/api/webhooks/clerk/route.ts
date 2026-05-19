@@ -333,6 +333,26 @@ export async function POST(req: Request): Promise<Response> {
     console.error(
       `[clerk-webhook] dispatch failed for event ${svixId} (${evt.type}): ${detail}`,
     );
+    // L-06a (F-01 interim fix): the clerk_events row was written BEFORE
+    // dispatch (per Phase 2 design + Plan-checker WARNING-05 / SF-W5).
+    // A silent dispatch failure leaves the event marked processed AND
+    // returns 200 → Clerk never retries → the event is permanently lost.
+    // Interim fix: delete the idempotency row so the next Clerk retry
+    // can re-fire this exact event. Wrap in its own try/catch so a
+    // cleanup failure doesn't shadow the original error.
+    // Full fix (TODO Phase 7+): invert the idempotency-before-dispatch
+    // ordering so the row is only written after successful dispatch.
+    try {
+      await db.delete(clerkEvents).where(eq(clerkEvents.id, svixId));
+      console.log(
+        `[clerk-webhook] dispatch failed for ${svixId} — clerk_events row deleted so Clerk retry can re-fire`,
+      );
+    } catch (cleanupErr) {
+      const cd = cleanupErr instanceof Error ? `${cleanupErr.name}: ${cleanupErr.message}` : String(cleanupErr);
+      console.error(
+        `[clerk-webhook] failed to delete clerk_events row for ${svixId} after dispatch error: ${cd}`,
+      );
+    }
     // Return 200 anyway — see the gap note above. Clerk Dashboard logs
     // are the operator's debugging path until Phase 7+ inverts the order.
     return new Response('Dispatch error logged', { status: 200 });
