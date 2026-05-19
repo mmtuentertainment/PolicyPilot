@@ -1,7 +1,7 @@
 // lib/db/repositories/policies.ts
 // L-03 + D-06: per-aggregate Policies repository. Methods take OrgScope first.
 //
-// RESEARCH Pitfall 6: this file MUST NOT import `db` from '@/lib/db'.
+// RESEARCH Pitfall 6: this file MUST NOT import the raw `db` barrel.
 // Repositories receive scope.tx (the transaction-bound query handle from
 // withOrgScope). Importing raw db would bypass both the transaction AND
 // the JWT injection — RLS would not fire because the connection-string
@@ -11,22 +11,37 @@
 // ADR-005: Policies.create input type omits `tldrSummary` — the field is
 // populated at publish time by the AI summary call (Phase 4), never
 // user-supplied. The D-07 type test (tests/types.ts) asserts the omit.
+//
+// Phase 3 Plan 03-04 (D-11): real bodies for create, findById, listAll,
+// listWithFilters, updateDraft, incrementVersion, statusCounts. The Phase 2
+// `publish` / `archive` throw-stubs are intentionally REMOVED — Plan 03-06's
+// transition orchestrators do the transactional work directly via
+// s.tx.update(policies) + PolicyVersions.create() inside withOrgScope.
 import 'server-only';
 import type { OrgScope } from '@/lib/db/scoped';
 import { policies } from '@/lib/db/schema';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, ilike, or, sql } from 'drizzle-orm';
+import type { PolicyStatus } from '@/lib/policies/state-machine';
 
 /**
  * Input type for Policies.create. Drizzle's $inferInsert produces the
- * full insertable shape; we Omit five fields:
+ * full insertable shape; we Omit six fields:
  * - `orgId`: set from scope.orgId, not user-controlled
  * - `id`: auto-generated (uuid default)
  * - `tldrSummary`: ADR-005 — populated at publish time by AI summary
+ * - `currentVersion`: repository sets to 1 on create (lifecycle invariant)
+ * - `status`: repository sets to 'draft' on create (lifecycle invariant)
  * - `createdAt`, `updatedAt`: defaultNow()
  */
 type PolicyCreateInput = Omit<
   typeof policies.$inferInsert,
-  'orgId' | 'id' | 'tldrSummary' | 'createdAt' | 'updatedAt'
+  | 'orgId'
+  | 'id'
+  | 'tldrSummary'
+  | 'currentVersion'
+  | 'status'
+  | 'createdAt'
+  | 'updatedAt'
 >;
 
 export const Policies = {
@@ -40,18 +55,106 @@ export const Policies = {
       .where(and(eq(policies.orgId, s.orgId), eq(policies.id, id)))
       .limit(1),
 
-  // Phase 3 (Admin UI) fills the body. Type signature is locked here so
-  // tests/types.ts can assert ADR-005 from day one.
-  create: (_s: OrgScope, _input: PolicyCreateInput) => {
-    throw new Error('Not yet implemented — Phase 3 (Admin UI)');
+  create: (s: OrgScope, input: PolicyCreateInput) =>
+    s.tx
+      .insert(policies)
+      .values({
+        ...input,
+        orgId: s.orgId,
+        createdBy: s.userId,
+        status: 'draft',
+        currentVersion: 1,
+      })
+      .returning(),
+
+  /**
+   * Admin policy library search. WHERE = eq(orgId)
+   *   + optional eq(status)
+   *   + optional (ilike(title) OR ilike(category)).
+   * Orders by updatedAt DESC, hard LIMIT 100 per D-05 (T-03-04-05 acceptance).
+   * Drizzle parameterizes the ilike pattern — no string concatenation
+   * (T-03-04-02 mitigation).
+   */
+  listWithFilters: async (
+    s: OrgScope,
+    { q, status }: { q?: string; status?: PolicyStatus },
+  ) => {
+    const conditions = [eq(policies.orgId, s.orgId)];
+    if (status) conditions.push(eq(policies.status, status));
+    const baseWhere = and(...conditions);
+    const where = q
+      ? and(
+          baseWhere,
+          or(
+            ilike(policies.title, `%${q}%`),
+            ilike(policies.category, `%${q}%`),
+          ),
+        )
+      : baseWhere;
+    return s.tx
+      .select()
+      .from(policies)
+      .where(where)
+      .orderBy(desc(policies.updatedAt))
+      .limit(100);
   },
 
-  // Phase 3 stubs — placeholders for the lifecycle state machine.
-  publish: (_s: OrgScope, _id: string) => {
-    throw new Error('Not yet implemented — Phase 3 (Admin UI)');
-  },
+  /**
+   * In-place edit of a Draft policy (D-04). Does NOT change status; the
+   * lifecycle state-machine in lib/policies/state-machine.ts owns
+   * status transitions. updatedAt is bumped via `now()` SQL.
+   * WHERE includes BOTH orgId AND id (T-03-04-04 mitigation).
+   */
+  updateDraft: (
+    s: OrgScope,
+    id: string,
+    patch: { title?: string; category?: string; contentJson?: unknown },
+  ) =>
+    s.tx
+      .update(policies)
+      .set({ ...patch, updatedAt: sql`now()` })
+      .where(and(eq(policies.orgId, s.orgId), eq(policies.id, id)))
+      .returning(),
 
-  archive: (_s: OrgScope, _id: string) => {
-    throw new Error('Not yet implemented — Phase 3 (Admin UI)');
+  /**
+   * Atomic increment of currentVersion. Used by the edit-published
+   * orchestrator (Plan 03-06) inside withOrgScope after writing a new
+   * policy_versions row. Returns the new value for caller use.
+   * WHERE includes BOTH orgId AND id (T-03-04-04 mitigation).
+   */
+  incrementVersion: (s: OrgScope, id: string) =>
+    s.tx
+      .update(policies)
+      .set({
+        currentVersion: sql`${policies.currentVersion} + 1`,
+        updatedAt: sql`now()`,
+      })
+      .where(and(eq(policies.orgId, s.orgId), eq(policies.id, id)))
+      .returning({ currentVersion: policies.currentVersion }),
+
+  /**
+   * GROUP BY status with zero-filled defaults — feeds /dashboard tiles
+   * (Plan 03-11). Returns a complete map of every PolicyStatus value
+   * so the UI never has to defend against missing keys.
+   */
+  statusCounts: async (s: OrgScope) => {
+    const rows = await s.tx
+      .select({
+        status: policies.status,
+        count: sql<number>`cast(count(*) as int)`,
+      })
+      .from(policies)
+      .where(eq(policies.orgId, s.orgId))
+      .groupBy(policies.status);
+    const out = {
+      draft: 0,
+      under_review: 0,
+      published: 0,
+      archived: 0,
+    } as Record<PolicyStatus, number>;
+    for (const r of rows) {
+      if (r.status) out[r.status as PolicyStatus] = r.count;
+    }
+    return out;
   },
 };
