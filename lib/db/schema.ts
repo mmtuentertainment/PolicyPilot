@@ -8,15 +8,13 @@
 //            CHECK constraint enforces 5-minute window (0001_rls_policies.sql).
 //   - D-03b: New clerk_events table — service-role only, NO org_id (mirrors
 //            stripe_events shape).
-//   - 0003 FK hardening (CodeRabbit PR #2): every org_id FK is ON DELETE
-//     CASCADE so tenant-offboarding cleanly removes the org's child rows in
-//     one transaction (ADR-018's append-only contract is an APP-LEVEL rule;
-//     tenant-deletion is a separate lifecycle event with explicit data-export
-//     prerequisites — no app code path currently deletes orgs). users
-//     references departments via a COMPOSITE FK on (org_id, department_id)
-//     so cross-org assignment is rejected by Postgres, not just RLS — the
-//     composite target is the unique (org_id, id) constraint added to
-//     departments below.
+//   - Tenant-deletion cascade: every org_id FK is ON DELETE CASCADE.
+//     ADR-018's append-only contract is APP-LEVEL; tenant-deletion is a
+//     separate lifecycle with explicit data-export prerequisites and no
+//     app code path today.
+//   - users → departments uses a COMPOSITE FK on (org_id, department_id)
+//     so cross-org assignment is rejected by Postgres, not just RLS.
+//     The target is the (org_id, id) UNIQUE on departments below.
 //
 // Table order: alphabetical (acknowledgments → ... → workflowStages). Drizzle's
 // references(() => organizations.id) defers evaluation, so forward references
@@ -46,8 +44,8 @@ export const acknowledgments = pgTable('acknowledgments', {
   acknowledgedAt: timestamp('acknowledged_at').defaultNow(),
   ipAddress: text('ip_address'),
   // NEVER DELETE OR UPDATE ROWS — append-only audit trail (ADR-018).
-  // org_id cascade applies only to tenant-deletion lifecycle (which has no
-  // app code path today); it does not weaken the app-level append-only rule.
+  // Cascade above applies only to org-row deletion; the app-level rule
+  // still forbids row-level deletes/updates.
   // Type-system enforcement lives in lib/db/repositories/acknowledgments.ts
   // (no update / delete keys exported) and tests/types.ts (@ts-expect-error
   // invariants per D-07).
@@ -81,11 +79,8 @@ export const departments = pgTable(
     name: text('name').notNull(),
   },
   (table) => [
-    // Required composite-uniqueness target for users(org_id, department_id)
-    // composite FK (see users table below). PostgreSQL composite FK target
-    // must be either the primary key or a UNIQUE constraint — id alone is
-    // PK; adding (org_id, id) UNIQUE here lets the cross-org check land at
-    // the DB layer.
+    // Composite-FK target for users(org_id, department_id). PostgreSQL
+    // requires a composite FK's referenced columns to back a UNIQUE or PK.
     unique('departments_org_id_id_unique').on(table.orgId, table.id),
   ],
 );
@@ -168,18 +163,14 @@ export const users = pgTable(
     // organizationMembership.created webhook. The 0001_rls_policies.sql
     // migration adds a CHECK constraint enforcing a 5-minute upper bound on
     // this nullable state. After 5 minutes without an org membership, the
-    // row is invalid and scripts/check-data-layer.ts (Plan 02-06) flags it.
-    // org_id cascade so tenant-offboarding sweeps users with the org row.
+    // row is invalid and scripts/check-data-layer.ts flags it.
     orgId: uuid('org_id').references(() => organizations.id, { onDelete: 'cascade' }),
     clerkUserId: text('clerk_user_id').notNull().unique(),
     role: text('role').notNull().default('employee'),
-    // department_id is part of a COMPOSITE FK on (org_id, department_id)
-    // declared in the table builder's third arg below; the composite target
-    // is departments(org_id, id) (UNIQUE — see departments table). Single-
-    // column references() is NOT used here because that would allow a user
-    // in Org A to point at a department in Org B and only get caught by
-    // RLS at query time. Stays nullable — users without a department
-    // assignment are valid.
+    // Composite FK on (org_id, department_id) declared below — do NOT
+    // add a single-column .references(departments.id) here; that would
+    // permit a user in Org A to point at a department in Org B (caught
+    // only by RLS at query time, not by Postgres). Nullable is intended.
     departmentId: uuid('department_id'),
     createdAt: timestamp('created_at').defaultNow(),
   },

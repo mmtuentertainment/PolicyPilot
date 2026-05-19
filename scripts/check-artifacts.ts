@@ -778,33 +778,46 @@ function checkPhase2Schema(): Check[] {
   for (const t of tables) {
     assert(out, s.includes(`export const ${t} `), `lib/db/schema.ts exports ${t} (Plan 02-01)`, `missing 'export const ${t} '`);
   }
+  // End-of-block marker `);` matches both `pgTable('name', {...});` and
+  // `pgTable('name', {...}, (table) => [...]);`. Do not tighten to `});`
+  // — the array-callback form would slip past, scanning into the next
+  // table and producing a wrong-block slice. `end === -1` is treated as a
+  // hard failure rather than letting `slice(idx, -1)` cut to EOF-1 and
+  // silently approve (D-02 positive regex) or silently fail (D-03a /
+  // D-03b negated regex) against an out-of-band block.
   // D-02: 5 child tables have non-null org_id
   for (const t of ["policyVersions","policyAssignments","acknowledgments","notifications","workflowStages"]) {
     const idx = s.indexOf(`export const ${t} `);
     if (idx === -1) continue;
-    const end = s.indexOf("});", idx);
+    const end = s.indexOf(");", idx);
+    if (end === -1) {
+      assert(out, false, `lib/db/schema.ts: ${t} has D-02 org_id .notNull().references`, `couldn't locate ${t} block close ');' — schema.ts malformed?`);
+      continue;
+    }
     const block = s.slice(idx, end);
     assert(out, /orgId:\s*uuid\('org_id'\)\.notNull\(\)\.references/.test(block), `lib/db/schema.ts: ${t} has D-02 org_id .notNull().references`, "D-02 denormalization missing");
   }
   // D-03a: users.org_id is nullable.
-  // End-of-block marker is `);` (final paren + semicolon), which matches BOTH
-  // the old single-arg form `pgTable('name', {...});` (closing `});`) AND the
-  // new array-callback form `pgTable('name', {...}, (table) => [...]);`
-  // (closing `]);`). The users table moved to the array-callback form in
-  // 0003 to declare its composite FK on (org_id, department_id) — see
-  // lib/db/schema.ts users definition.
   const usersIdx = s.indexOf("export const users ");
   if (usersIdx !== -1) {
     const end = s.indexOf(");", usersIdx);
-    const block = s.slice(usersIdx, end);
-    assert(out, !/orgId:\s*uuid\('org_id'\)\.notNull\(\)/.test(block), "lib/db/schema.ts: users.orgId is nullable (D-03a)", "D-03a violation — users.orgId has .notNull()");
+    if (end === -1) {
+      assert(out, false, "lib/db/schema.ts: users.orgId is nullable (D-03a)", "couldn't locate users block close ');' — schema.ts malformed?");
+    } else {
+      const block = s.slice(usersIdx, end);
+      assert(out, !/orgId:\s*uuid\('org_id'\)\.notNull\(\)/.test(block), "lib/db/schema.ts: users.orgId is nullable (D-03a)", "D-03a violation — users.orgId has .notNull()");
+    }
   }
   // D-03b: clerk_events present, NO orgId
   const clerkIdx = s.indexOf("export const clerkEvents ");
   if (clerkIdx !== -1) {
-    const end = s.indexOf("});", clerkIdx);
-    const block = s.slice(clerkIdx, end);
-    assert(out, !block.includes("orgId"), "lib/db/schema.ts: clerk_events has NO orgId (service-role table)", "anti-pattern: orgId on clerk_events");
+    const end = s.indexOf(");", clerkIdx);
+    if (end === -1) {
+      assert(out, false, "lib/db/schema.ts: clerk_events has NO orgId (service-role table)", "couldn't locate clerkEvents block close ');' — schema.ts malformed?");
+    } else {
+      const block = s.slice(clerkIdx, end);
+      assert(out, !block.includes("orgId"), "lib/db/schema.ts: clerk_events has NO orgId (service-role table)", "anti-pattern: orgId on clerk_events");
+    }
   }
   return out;
 }

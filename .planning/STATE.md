@@ -121,6 +121,7 @@ Plan 02-01 (2026-05-17) execution decisions:
 Items surfaced during Phase 2 planning + plan-checker review (2026-05-17) that are intentionally deferred. None block Phase 2 success criteria.
 
 - **SF-W5** Plan 02-05 webhook handler writes `clerk_events` BEFORE dispatch. If dispatch silently fails, Clerk receives 200 and does not retry. Phase 7 should invert ordering OR add structured logging + alerts. (Plan-checker WARNING-05, 2026-05-17.)
+- **SF-CASCADE-AUDIT** Plan 02-03 + 02-07's `0003_fk_hardening.sql` added `ON DELETE CASCADE` to every org_id FK across 10 tenant tables. Tenant-offboarding now wipes acknowledgments, ai_generations, etc. in one transaction with no app-level signal. When an org-delete route lands (Phase 6+ Billing / tenant lifecycle), it MUST log row counts pre-delete AND emit a structured audit event BEFORE the cascade fires — otherwise the ADR-018 append-only audit trail is silently destroyed on offboarding. No app code path deletes orgs today, so this is a future-phase obligation, not a current bug. (Surfaced by silent-failure-hunter during multi-agent PR review, 2026-05-19.)
 
 ### Phase 1 PR-review follow-ups (deferred — opportunistic cleanup)
 

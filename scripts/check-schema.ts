@@ -111,12 +111,9 @@ async function main(): Promise<void> {
       }
     }
 
-    // Service-role tables (clerk_events, stripe_events) must EXIST and NOT have RLS.
-    // A missing table is a hard fail (the webhook handlers depend on it for
-    // idempotency); a present table with RLS enabled is also a fail (RLS on a
-    // service-role idempotency table would block all writes by the webhook
-    // handlers, which authenticate as `postgres` / service-role and rely on
-    // the schema being readable/writable without JWT context).
+    // Service-role tables (clerk_events, stripe_events): must EXIST (webhook
+    // idempotency depends on them) and must NOT have RLS (would block
+    // service-role writes that bypass JWT context).
     for (const svcTable of ['clerk_events', 'stripe_events']) {
       const rlsRows = await sql<{ relrowsecurity: boolean }[]>`
         SELECT relrowsecurity FROM pg_catalog.pg_class
