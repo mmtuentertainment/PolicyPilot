@@ -55,7 +55,7 @@ decisions:
   - "Acknowledgments.listForUser (not listAll) accepted as equivalent per L-03 + CONTEXT.md repository surface spec — user-scoped listing is the ADR-018-compatible default; org-scoped acknowledgment listing would be an admin-side query that lives in a future repository method. Plan body says 'listAll or equivalent'; the equivalent for Acknowledgments is listForUser."
 metrics:
   duration: "~17m33s (2026-05-17T23:43:04Z → 2026-05-18T00:00:37Z)"
-  tasks_completed: 5  # of 6; Task 6 is checkpoint:human-verify (operator gate)
+  tasks_completed: 6  # operator approved 2026-05-18; webhook live-smoke deferred to Phase 3
   commits: 5
   files_created: 4   # scripts/check-{db-imports,rls,schema,data-layer}.ts
   files_modified: 4  # scripts/check-artifacts.ts, package.json, pnpm-lock.yaml, .env.local.example
@@ -298,3 +298,31 @@ None new beyond the threat register in 02-06-PLAN.md (T-06-01..T-06-07 + T-06-SC
 | 5: orchestrator + artifacts + verify:phase-2 | `9888cf5` | `scripts/check-data-layer.ts`, `scripts/check-artifacts.ts`, `package.json` | +447 / -8 |
 
 Final commit (this SUMMARY + STATE.md + ROADMAP.md updates) follows after this file lands. Task 6 (operator checkpoint) remains open pending operator's resume signal.
+
+---
+
+## POST-COMMIT UPDATE — Operator Approval (2026-05-18)
+
+**Task 6 RESOLVED.** Operator ran `pnpm verify:phase-2` after the initial run hit two transient pooler-side failures (passwording resolution lag after the policypilot-test password reset). A re-run produced clean output:
+
+```
+[1/7] OK   — tsc --noEmit zero errors
+[2/7] OK   — drizzle-kit migrate against TEST DB (idempotent)
+[3/7] OK   — L-05 — @/lib/db import allow-list (AST via ts-morph)
+[4/7] OK   — L-06 — cross-org RLS property test (positive + 10-table negative)
+[5/7] OK   — D-08 step 5 — schema audit (pg_catalog + information_schema)
+[6/7] OK   — Phase 1 + 2 artifact regression gate
+[7/7] OK   — D-03a stale-null users audit (0 stale rows)
+
+✓ All 7 checks passed. Phase 2 ready for /gsd-verify-work.
+```
+
+**Operator decision: defer Step 2 (end-to-end Clerk webhook smoke) to Phase 3.** Rationale: Phase 3 ships the actual `<CreateOrganization />` UI surface that drives the webhook end-to-end. Running the smoke now (against Clerk Dashboard manual org-create) is a lower-fidelity test than the Phase 3 UX flow. The automated verify gate (`✓ All 7 checks passed`) is sufficient evidence that the wiring is correct; live smoke validates the operational path, which is a Phase 3 / Phase 5 concern.
+
+**Carry-forward to Phase 3:**
+
+- **SF-WHSEC-1** (rotate the `whsec_...` Clerk webhook signing secret in Svix Dashboard) — must happen before the live smoke. Operator-side, one-click rotation.
+- **Dev tunnel + Svix endpoint URL update** — Plan 02-02 captured the secret against a placeholder URL. Before live smoke, rotate via Svix Dashboard so the endpoint targets a real ngrok / cloudflared URL.
+- **Webhook live-smoke procedure** (full PowerShell + Clerk Dashboard steps) is documented above in this SUMMARY under "Task 6 / how-to-verify". Phase 3's Admin-UI plan should fold this into its discuss-phase checkpoint as the first end-to-end test against the new UI.
+
+**Plan 02-06 status flipped:** `status: complete`, `deferred_tasks: 0`. The live-smoke deferral is a Phase 3 forward-looking item, not a Plan 02-06 incompletion.
