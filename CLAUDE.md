@@ -118,6 +118,30 @@ FOR ALL USING (org_id = auth.jwt()->>'org_id');
 
 ---
 
+## Git Workflow
+
+GSD branching + merge hygiene. Apply on every clone; do every PR merge.
+
+### Branching
+1. Per-phase feature branch — all phase work (planning artifacts AND implementation code) lives on `gsd/phase-N-<slug>`. Do NOT commit `.planning/phases/**` files directly to `main`.
+2. One PR per phase, squash-merged to `main` with `--delete-branch` (single ship commit per phase).
+3. Cross-cutting / meta changes (CLAUDE.md, infra) ride along on the active phase branch when small, or get their own short-lived branch.
+
+### Local git config (set once per clone)
+```bash
+git config --local fetch.prune true   # auto-prune deleted remote branches on every fetch
+git config --local pull.ff only        # refuse silent merge commits on divergent main
+```
+
+### Post-PR-merge checklist
+1. `git checkout main && git pull --ff-only` — fast-forward to the new squash commit. **If FF fails, local main has divergent commits — STOP and investigate** (most likely because a prior session committed to main directly; resolve via `git reset --hard origin/main` after confirming the divergent commits are already in the squash).
+2. `git log -1 main` — verify the squash commit landed.
+3. For any in-flight feature branch, `git rebase main` from the feature branch when convenient (keeps it up to date with the merged ship).
+
+(Conventions learned from PR #2 cleanup, 2026-05-19. Full incident in `gsd/phase-3-admin-ui` commit log + this CLAUDE.md change.)
+
+---
+
 ## AI API Rules
 
 - Sonnet 4.6 → draft generation, employee Q&A, consistency check
