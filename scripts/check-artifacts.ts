@@ -505,6 +505,16 @@ function checkMiddleware(): Check[] {
   return out;
 }
 
+/**
+ * Validate that Drizzle's schema, client entry, and drizzle-kit config exist and meet baseline invariants.
+ *
+ * Performs existence checks and content-level assertions for:
+ * - lib/db/schema.ts presence,
+ * - lib/db/index.ts (server-only import, postgres-js driver, reads DATABASE_URL, `prepare: false`, no `any` types),
+ * - drizzle.config.ts (schema path points to ./lib/db/schema.ts, dialect is `postgresql`, and it uses a `satisfies Config` clause).
+ *
+ * @returns An array of `Check` objects describing each existence/assertion result for the Drizzle-related files.
+ */
 function checkDrizzleSkeleton(): Check[] {
   const out: Check[] = [];
 
@@ -640,7 +650,16 @@ function checkSmokeScripts(): Check[] {
   return out;
 }
 
-// ─── T-03-05 / T-04-03 — `lib/db` is server-only-imported ──────────────────
+/**
+ * Ensures only allowed server-side modules import from `@/lib/db`.
+ *
+ * Searches repository source files for occurrences of `from "@/lib/db"` (comments excluded)
+ * and produces a passing check when all matches are in the internal allowlist; produces a failing
+ * check describing any unexpected importer paths otherwise.
+ *
+ * @returns An array of `Check` results: a single passing `Check` when all importers are allowed,
+ * or a failing `Check` whose detail lists the unexpected importer file paths.
+ */
 
 function checkServerOnlyBoundary(): Check[] {
   // Grep all source files for `from "@/lib/db"`. Until Server Components or
@@ -735,7 +754,17 @@ function checkServerOnlyBoundary(): Check[] {
   return out;
 }
 
-// ─── Phase 2 — Drizzle schema populated (Plan 02-01 Task 1) ───────────────
+/**
+ * Validates the populated Drizzle schema in lib/db/schema.ts against Phase 2 table and column invariants.
+ *
+ * Checks performed:
+ * - Ensures exports exist for the expected tables: organizations, users, departments, policies, policyVersions, policyAssignments, acknowledgments, aiGenerations, notifications, workflowStages, stripeEvents, clerkEvents.
+ * - For policyVersions, policyAssignments, acknowledgments, notifications, and workflowStages, asserts an `orgId` column is defined with `uuid('org_id').notNull().references(...)`.
+ * - Asserts the users table's `orgId` is nullable (does not include `.notNull()`).
+ * - Asserts the clerkEvents table block does not contain an `orgId` column.
+ *
+ * @returns An array of Check objects representing each assertion result; each Check indicates pass or fail and may include a detail message.
+ */
 
 function checkPhase2Schema(): Check[] {
   const out: Check[] = [];
@@ -774,7 +803,18 @@ function checkPhase2Schema(): Check[] {
   return out;
 }
 
-// ─── Phase 2 — OrgScope + getOrgContext (Plan 02-01 Task 2) ───────────────
+/**
+ * Performs Phase 2 validations for the server-only org-scoping and auth context modules.
+ *
+ * Verifies that `lib/db/scoped.ts` and `lib/auth/context.ts` exist and contain required server-only and scoping invariants:
+ * - top-of-file `import 'server-only'`
+ * - role switch via `SET LOCAL ROLE authenticated`
+ * - `set_config('request.jwt.claims', ..., true)` with `is_local=true` semantics in the scoped DB wrapper
+ * - a `Role` union enumerating `'admin' | 'reviewer' | 'employee'` in the auth context
+ * - a `try { ... await auth() }` pattern (SF-M4 fold) in the auth context
+ *
+ * @returns An array of `Check` objects describing each assertion's pass/fail outcome for the scoped/context validations.
+ */
 
 function checkPhase2ScopedAndContext(): Check[] {
   const out: Check[] = [];
@@ -796,7 +836,17 @@ function checkPhase2ScopedAndContext(): Check[] {
   return out;
 }
 
-// ─── Phase 2 — 9 repository skeletons (Plan 02-04) ────────────────────────
+/**
+ * Validate repository module skeletons and repository-specific invariants for Phase 2.
+ *
+ * Performs file- and content-level checks for each repository under `lib/db/repositories`:
+ * presence, a top-of-file `import 'server-only'` guard, import of `OrgScope` from `@/lib/db/scoped`,
+ * prohibition of raw `@/lib/db` imports, and required listing methods (`listAll` or `listForUser` for acknowledgments).
+ * Also enforces ADR-018 (no top-level `update`/`delete` keys in acknowledgments) and ADR-005
+ * (`Policies.create` input omits `tldrSummary`).
+ *
+ * @returns An array of `Check` results describing which assertions passed or failed.
+ */
 
 function checkPhase2Repositories(): Check[] {
   const out: Check[] = [];
@@ -839,7 +889,19 @@ function checkPhase2Repositories(): Check[] {
   return out;
 }
 
-// ─── Phase 2 — Clerk webhook handler + svix (Plan 02-05) ──────────────────
+/**
+ * Validates the Clerk webhook handler and its svix integration against Phase 2 requirements.
+ *
+ * Performs file-level checks for app/api/webhooks/clerk/route.ts and package.json, asserting:
+ * - the handler file exists,
+ * - `Webhook` is imported from `svix`,
+ * - the request body is read via `await req.text()` and that this occurs before any `JSON.parse(`,
+ * - idempotency is implemented via `.onConflictDoNothing()`,
+ * - the handler recognizes the events `organization.created`, `user.created`, `organizationMembership.created`, and `organizationMembership.updated`,
+ * - `package.json` declares the `svix` dependency matching version 1.93.
+ *
+ * @returns An array of `Check` results where each element indicates a passed or failed assertion for the webhook handler checks.
+ */
 
 function checkPhase2WebhookHandler(): Check[] {
   const out: Check[] = [];
@@ -866,7 +928,15 @@ function checkPhase2WebhookHandler(): Check[] {
   return out;
 }
 
-// ─── Phase 2 — middleware SF-M4 fold (Plan 02-05) ─────────────────────────
+/**
+ * Verifies that middleware.ts includes the SF-M4 fold marker and at least two `try` blocks.
+ *
+ * This returns a set of check results: it fails if `middleware.ts` is missing, fails if fewer than
+ * two `try {` blocks are present (SF-M4 expects folding around both auth calls), and fails if the
+ * literal `SF-M4` marker is not found.
+ *
+ * @returns A list of check results indicating which assertions about `middleware.ts` passed or failed.
+ */
 
 function checkPhase2MiddlewareFold(): Check[] {
   const out: Check[] = [];
@@ -881,7 +951,16 @@ function checkPhase2MiddlewareFold(): Check[] {
   return out;
 }
 
-// ─── Phase 2 — Migrations + drizzle config (Plan 02-03) ───────────────────
+/**
+ * Validates required migration files and key invariants in migration SQL and drizzle config.
+ *
+ * Performs existence checks for drizzle/0000_initial.sql, drizzle/0001_rls_policies.sql, and drizzle/meta/_journal.json;
+ * verifies the journal registers the RLS migration; inspects 0001_rls_policies.sql (with line comments ignored) to
+ * ensure expected counts of RLS enablement, policy definitions, grants to the `authenticated` role, and the specific
+ * users CHECK constraint; and confirms drizzle.config.ts references `DIRECT_URL` and includes a fallback `console.warn`.
+ *
+ * @returns An array of `Check` results describing each migration and drizzle config validation (one entry per asserted invariant).
+ */
 
 function checkPhase2Migrations(): Check[] {
   const out: Check[] = [];
@@ -912,7 +991,14 @@ function checkPhase2Migrations(): Check[] {
   return out;
 }
 
-// ─── Phase 2 — Type tests + verify scripts (Plan 02-01 + 02-06) ──────────
+/**
+ * Validates the repository's `tests/types.ts` file for Phase 2 type-test invariants.
+ *
+ * Checks that the file exists, contains at least three `@ts-expect-error` occurrences, and includes
+ * the `void Acknowledgments.update`, `void Acknowledgments.delete`, and `tldrSummary` markers.
+ *
+ * @returns An array of `Check` objects reporting success or failure for each asserted invariant.
+ */
 
 function checkPhase2TypeTests(): Check[] {
   const out: Check[] = [];
@@ -929,6 +1015,14 @@ function checkPhase2TypeTests(): Check[] {
   return out;
 }
 
+/**
+ * Verifies presence of Phase 2 verification and database-related script files and required package.json script entries.
+ *
+ * Ensures these files exist: `scripts/check-db-imports.ts`, `scripts/check-rls.ts`, `scripts/check-schema.ts`, `scripts/check-data-layer.ts`.
+ * Ensures `package.json` declares these scripts: `db:generate`, `db:generate:rls`, `db:migrate`, `db:migrate:test`, and `verify:phase-2`.
+ *
+ * @returns An array of `Check` objects indicating which assertions passed and which failed.
+ */
 function checkPhase2VerifyScripts(): Check[] {
   const out: Check[] = [];
   for (const path of ["scripts/check-db-imports.ts","scripts/check-rls.ts","scripts/check-schema.ts","scripts/check-data-layer.ts"]) {
@@ -941,7 +1035,13 @@ function checkPhase2VerifyScripts(): Check[] {
   return out;
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────
+/**
+ * Runs the full set of artifact regression checks, prints results, and terminates the process.
+ *
+ * Aggregates Phase 1 and Phase 2 checks, prints a line for each check indicating pass or fail,
+ * prints a summary count, and exits the Node process with status `0` when all checks pass or
+ * non-zero when any check fails.
+ */
 
 function main(): void {
   console.log("─── Foundation — artifact regression gate ───");

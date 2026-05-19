@@ -14,11 +14,31 @@ import { auth } from '@clerk/nextjs/server';
 export type Role = 'admin' | 'reviewer' | 'employee';
 export type OrgContext = { orgId: string; userId: string; role: Role };
 
+/**
+ * Narrow an unknown session role value to the `Role` union or fail.
+ *
+ * @param value - The session claim value to validate as a role
+ * @returns The validated role as a `Role`
+ * @throws Error if `value` is not `'admin'`, `'reviewer'`, or `'employee'`; the error message includes the stringified received value
+ */
 function asRole(value: unknown): Role {
   if (value === 'admin' || value === 'reviewer' || value === 'employee') return value;
   throw new Error(`Invalid role on session claims: ${String(value)}`);
 }
 
+/**
+ * Resolve the current server-side organization authentication context from the active Clerk session.
+ *
+ * This function wraps Clerk's auth call and rethrows a clearer error if Clerk auth fails, enforces that a
+ * valid session with `userId` and `orgId` exists, and validates the session's role claim is one of
+ * `'admin' | 'reviewer' | 'employee'`.
+ *
+ * @returns An object containing `orgId`, `userId`, and `role` (one of `'admin'`, `'reviewer'`, or `'employee'`).
+ * @throws Error when Clerk's `auth()` call fails (message prefixed with `Clerk auth() failed: ...`).
+ * @throws Error with message `Not authenticated: no Clerk session` if the session has no `userId`.
+ * @throws Error with message `No active organization` if the session has no `orgId`.
+ * @throws Error if the session role claim is missing or not one of the allowed role strings.
+ */
 export async function getOrgContext(): Promise<OrgContext> {
   let session;
   try {

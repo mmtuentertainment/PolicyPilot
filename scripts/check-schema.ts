@@ -45,6 +45,17 @@ const REQUIRED_PRIVS = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'] as const;
 
 type Failure = { table: string; check: string; detail: string };
 
+/**
+ * Performs a schema audit against the configured test Postgres database.
+ *
+ * Checks each tenant-scoped table for: existence in public, row-level security enabled,
+ * presence of an `org_isolation` policy, and `SELECT/INSERT/UPDATE/DELETE` privileges
+ * granted to the `authenticated` role. Verifies service-role tables `clerk_events` and
+ * `stripe_events` do not have RLS enabled. Aggregates any failures and exits the process
+ * with status `1` if issues are found; logs a success summary and exits `0` when all checks pass.
+ *
+ * Ensures the database connection is closed before exiting.
+ */
 async function main(): Promise<void> {
   // TEST_URL non-nullness is guaranteed by the IIFE guard at module load.
   const sql = postgres(TEST_URL, { prepare: false });

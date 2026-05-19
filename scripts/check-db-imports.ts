@@ -45,11 +45,22 @@ const ALLOWLIST: RegExp[] = [
   /^lib\/db\/scoped\.ts$/,                       // wrapper that secures the channel (Plan 02-01)
 ];
 
+/**
+ * Determines whether a repository-relative file path is permitted to import the raw `@/lib/db` barrel.
+ *
+ * @param rel - Repository-relative path of the importing source file
+ * @returns `true` if the path matches any entry in the allow list, `false` otherwise
+ */
 function isAllowed(rel: string): boolean {
   const posix = rel.split(pathSep).join('/');
   return ALLOWLIST.some((re) => re.test(posix));
 }
 
+/**
+ * Enforces the ADR-023 (L-05) rule by scanning repository source files for imports of the raw `@/lib/db` barrel and failing the process for any disallowed importers.
+ *
+ * Scans a predetermined set of source paths, counts imports whose module specifier is exactly `@/lib/db` or `@/lib/db/index`, and checks each importing file against an allow-list. If fewer than two allow-listed hits are found (positive-control), or if any disallowed importers are detected, the function logs diagnostics and exits the process with a non-zero status. On success it logs a summary and exits with status 0.
+ */
 async function main(): Promise<void> {
   const project = new Project({
     tsConfigFilePath: resolvePath(process.cwd(), 'tsconfig.json'),
