@@ -10,7 +10,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 
 - [x] **Phase 1: Foundation** — Next.js 15 + Clerk + Supabase wired up, `localhost:3000` loads clean. ✓ 2026-05-16 (operator-approved; VERIFICATION.md PASS)
 - [x] **Phase 2: Data Layer** — Drizzle schema + RLS + Clerk webhooks; `org_id` invariant established. ✓ 2026-05-18 (operator-approved; `pnpm verify:phase-2` 7/7 OK; webhook live-smoke deferred to Phase 3)
-- [ ] **Phase 3: Admin UI** — Policy library, TipTap editor, full lifecycle (Draft → Published → Archived).
+- [x] **Phase 3: Admin UI** — Policy library, TipTap editor, full lifecycle (Draft → Published → Archived). (completed 2026-05-19)
 - [ ] **Phase 4: AI Layer** — Draft generation, TL;DR summaries, Employee Q&A, Consistency Check (Growth+).
 - [ ] **Phase 5: Employee Portal** — Assigned-policies dashboard + append-only acknowledgment flow.
 - [ ] **Phase 6: Billing** — Stripe Checkout + 5-event webhook + tier gating via `TIER_LIMITS`.
@@ -83,7 +83,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 - [x] 03-08-PLAN.md — Dependency install: @tiptap/* 2.27.2 (4 pkgs) + zod ^3.23.5 + shadcn add table/sidebar/dropdown-menu/dialog/form/label/select/textarea/badge (D-02 + D-09 + D-13) — legitimacy gated
 - [x] 03-09-PLAN.md — Admin shell: app/(admin)/layout.tsx (L-01 gate + SidebarProvider) + AdminSidebar (x-pathname active state) + AdminTopbar (children slot for Clerk widgets)
 - [x] 03-10-PLAN.md — Policy components: PolicyEditor (Client, immediatelyRender:false) + PolicyView (Server, generateHTML) + PolicyStatusBadge + PolicyTransitionMenu (Client) + PolicyVersionHistory (Server)
-- [ ] 03-11-PLAN.md — Admin pages: /dashboard + /policies + /policies/new + /policies/[id] + /onboarding/create-org — webhook live-smoke checkpoint + ROADMAP SC walkthrough
+- [x] 03-11-PLAN.md — Admin pages: /dashboard + /policies + /policies/new + /policies/[id] + /onboarding/create-org — webhook live-smoke checkpoint + ROADMAP SC walkthrough
 **UI hint**: yes
 
 ### Phase 4: AI Layer
@@ -162,7 +162,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 |-------|----------------|--------|-----------|
 | 1. Foundation | 5/5 | Complete | 2026-05-16 |
 | 2. Data Layer | 7/7 | Complete | 2026-05-18 |
-| 3. Admin UI | 11/12 | In Progress|  |
+| 3. Admin UI | 12/12 | Complete   | 2026-05-19 |
 | 4. AI Layer | 0/0 | Not started | - |
 | 5. Employee Portal | 0/0 | Not started | - |
 | 6. Billing | 0/0 | Not started | - |
