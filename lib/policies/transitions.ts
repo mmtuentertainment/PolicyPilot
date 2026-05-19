@@ -1,0 +1,242 @@
+// lib/policies/transitions.ts
+// Plan 03-06 Task 2 (GREEN) — server-only orchestrators (D-03 + D-04 + L-05).
+//
+// These 7 functions are the AUTHORITATIVE gate for every policy state
+// change. Plan 03-07's Server Actions are thin wrappers; the real
+// transactional business logic lives here. Each orchestrator:
+//   1. Resolves OrgContext via getOrgContext (Clerk session)
+//   2. Opens withOrgScope (one Drizzle transaction + SET LOCAL ROLE
+//      authenticated + set_config('request.jwt.claims', ..., true) so
+//      Supabase RLS evaluates against the actual ctx.orgId — ADR-025).
+//   3. Loads the policy via Policies.findById (which already filters by
+//      scope.orgId — defense in depth alongside RLS).
+//   4. Validates the requested transition via canTransition; throws
+//      IllegalTransitionError on illegal moves.
+//   5. Performs any side-effects (PolicyVersions.create snapshot for
+//      publish/editPublished/approve; WorkflowStages.recordSubmission for
+//      submitForReview) AND the policies row update inside the SAME
+//      transaction — so a partial write is impossible (T-03-06-02).
+//
+// Defense-in-depth: state machine + repository orgId-scope + Postgres RLS
+// all fire on every transition. Removing any one layer keeps the other
+// two; corrupting any one layer is caught by tests/types.ts (L-05) or
+// scripts/check-rls.ts (Phase 2 / Plan 02-06).
+//
+// L-05 invariant: editPublished + publish + approve write NEW
+// policy_versions rows via PolicyVersions.create — they NEVER update or
+// delete existing rows. The PolicyVersions repository does not even
+// export update/delete (Plan 03-04 / tests/types.ts @ts-expect-error).
+//
+// MUST NOT import raw `db` from '@/lib/db' — use withOrgScope's s.tx
+// for any direct policies-table updates. scripts/check-db-imports.ts
+// (Phase 2) enforces this at CI; the file's path is NOT in ALLOWLIST.
+import 'server-only';
+import { sql, eq } from 'drizzle-orm';
+import { withOrgScope, type OrgScope } from '@/lib/db/scoped';
+import { getOrgContext } from '@/lib/auth/context';
+import { Policies } from '@/lib/db/repositories/policies';
+import { PolicyVersions } from '@/lib/db/repositories/policy_versions';
+import { WorkflowStages } from '@/lib/db/repositories/workflow_stages';
+import { policies } from '@/lib/db/schema';
+import {
+  canTransition,
+  IllegalTransitionError,
+  type PolicyStatus,
+} from './state-machine';
+
+// Narrowed row shape returned by Policies.findById. The drizzle column
+// types come back as `string` for status and `unknown` for contentJson
+// (jsonb) — we cast through this internal shape so the orchestrators
+// stay typed against the policy lifecycle.
+type PolicyRow = {
+  id: string;
+  status: PolicyStatus;
+  currentVersion: number;
+  contentJson: unknown;
+};
+
+/**
+ * Common "load + validate transition" sequence. Runs inside an already-
+ * opened OrgScope; returns the loaded policy on success. Throws:
+ *  - Error('Policy not found') when the WHERE org_id + id miss
+ *  - IllegalTransitionError when canTransition(from, to) is false
+ *
+ * Both throws abort the surrounding withOrgScope transaction, rolling
+ * back any earlier writes in this orchestrator call.
+ */
+async function loadAndAssertTransition(
+  s: OrgScope,
+  policyId: string,
+  to: PolicyStatus,
+): Promise<PolicyRow> {
+  const rows = await Policies.findById(s, policyId);
+  const row = rows[0];
+  if (!row) throw new Error('Policy not found');
+  const policy: PolicyRow = {
+    id: row.id,
+    status: row.status as PolicyStatus,
+    currentVersion: row.currentVersion,
+    contentJson: row.contentJson,
+  };
+  if (!canTransition(policy.status, to)) {
+    throw new IllegalTransitionError(policy.status, to);
+  }
+  return policy;
+}
+
+/**
+ * draft → under_review. Also writes a workflow_stages row so the
+ * (future) reviewer surface (Phase 6+) can pick it up. Single tx; if
+ * either write fails, both roll back.
+ */
+export async function submitForReview(
+  policyId: string,
+  reviewerId: string | null,
+): Promise<void> {
+  const ctx = await getOrgContext();
+  await withOrgScope(ctx, async (s) => {
+    const policy = await loadAndAssertTransition(s, policyId, 'under_review');
+    await WorkflowStages.recordSubmission(s, policy.id, reviewerId);
+    await s.tx
+      .update(policies)
+      .set({ status: 'under_review', updatedAt: sql`now()` })
+      .where(eq(policies.id, policyId));
+  });
+}
+
+/**
+ * under_review → published. Identical D-04 snapshot semantics to publish()
+ * — Phase 6 will gate this separately from publish() (approve will require
+ * reviewer-tier; publish will be Starter-direct). Kept as a thin wrapper
+ * over the publish() body so the snapshot-and-flip logic stays in one
+ * place during Phase 3.
+ */
+export async function approve(policyId: string): Promise<void> {
+  await publish(policyId);
+}
+
+/**
+ * under_review → draft (reject the submission). Does NOT touch
+ * policy_versions — versions only track the published lineage (D-04).
+ */
+export async function reject(policyId: string, _reason?: string): Promise<void> {
+  const ctx = await getOrgContext();
+  await withOrgScope(ctx, async (s) => {
+    await loadAndAssertTransition(s, policyId, 'draft');
+    await s.tx
+      .update(policies)
+      .set({ status: 'draft', updatedAt: sql`now()` })
+      .where(eq(policies.id, policyId));
+  });
+}
+
+/**
+ * draft → published OR under_review → published (D-04, REQ-policy-
+ * lifecycle SC#2). Atomically:
+ *   1. Snapshot the about-to-be-published content into policy_versions
+ *      (versionNumber = current policies.current_version, createdBy =
+ *      ctx.userId — the as-published vN row that future
+ *      acknowledgments.policy_version_id will FK to).
+ *   2. Flip policies.status = 'published'. currentVersion stays put —
+ *      the just-snapshot value IS vN; the next edit-published will bump
+ *      to v(N+1).
+ * Both steps inside one withOrgScope tx — partial state impossible.
+ */
+export async function publish(policyId: string): Promise<void> {
+  const ctx = await getOrgContext();
+  await withOrgScope(ctx, async (s) => {
+    const policy = await loadAndAssertTransition(s, policyId, 'published');
+    // D-04: create policy_versions row capturing the about-to-be-published
+    // content. L-05: append-only — PolicyVersions doesn't even export
+    // update/delete, so this cannot accidentally mutate prior rows.
+    await PolicyVersions.create(s, {
+      policyId: policy.id,
+      versionNumber: policy.currentVersion,
+      contentJson: policy.contentJson,
+      createdBy: s.userId,
+    });
+    await s.tx
+      .update(policies)
+      .set({ status: 'published', updatedAt: sql`now()` })
+      .where(eq(policies.id, policyId));
+  });
+}
+
+/**
+ * published → archived. Just a status flip; no snapshot, no version bump
+ * (the published vN row already exists in policy_versions from the
+ * publish() call that landed it).
+ */
+export async function archive(policyId: string): Promise<void> {
+  const ctx = await getOrgContext();
+  await withOrgScope(ctx, async (s) => {
+    await loadAndAssertTransition(s, policyId, 'archived');
+    await s.tx
+      .update(policies)
+      .set({ status: 'archived', updatedAt: sql`now()` })
+      .where(eq(policies.id, policyId));
+  });
+}
+
+/**
+ * archived → draft. Does NOT create a version row — the admin must edit
+ * and re-publish to land a new v(N+1); restore is just an unarchive.
+ */
+export async function restore(policyId: string): Promise<void> {
+  const ctx = await getOrgContext();
+  await withOrgScope(ctx, async (s) => {
+    await loadAndAssertTransition(s, policyId, 'draft');
+    await s.tx
+      .update(policies)
+      .set({ status: 'draft', updatedAt: sql`now()` })
+      .where(eq(policies.id, policyId));
+  });
+}
+
+/**
+ * Editing a Published policy (REQ-policy-lifecycle SC#3 + L-05). Atomic:
+ *   1. Snapshot the CURRENT (still-published) contentJson + currentVersion
+ *      into policy_versions (the as-of-publish vN snapshot is preserved
+ *      EVEN AFTER the admin starts editing — what acknowledgments
+ *      pointed at stays intact). changeSummary is optional admin copy.
+ *   2. Overwrite policies.contentJson with newContent, reset status to
+ *      'draft', and bump currentVersion (the next publish writes v(N+1)).
+ *
+ * ALLOWED_TRANSITIONS allows `under_review → draft` (reject), so
+ * canTransition('under_review', 'draft') would return true here — but
+ * THIS orchestrator is the published → draft path specifically. The
+ * belt-and-suspenders `policy.status !== 'published'` check rejects
+ * any other source (T-03-06-04 mitigation; tested explicitly via the
+ * draft-status test case which canTransition('draft', 'draft') already
+ * rejects, and would otherwise be a phantom version row).
+ */
+export async function editPublished(
+  policyId: string,
+  newContent: unknown,
+  changeSummary?: string,
+): Promise<void> {
+  const ctx = await getOrgContext();
+  await withOrgScope(ctx, async (s) => {
+    const policy = await loadAndAssertTransition(s, policyId, 'draft');
+    if (policy.status !== 'published') {
+      throw new IllegalTransitionError(policy.status, 'draft');
+    }
+    // Snapshot the prior published version BEFORE overwriting (D-04 + L-05).
+    await PolicyVersions.create(s, {
+      policyId: policy.id,
+      versionNumber: policy.currentVersion,
+      contentJson: policy.contentJson,
+      createdBy: s.userId,
+      changeSummary,
+    });
+    await s.tx
+      .update(policies)
+      .set({
+        contentJson: newContent,
+        status: 'draft',
+        currentVersion: policy.currentVersion + 1,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(policies.id, policyId));
+  });
+}
