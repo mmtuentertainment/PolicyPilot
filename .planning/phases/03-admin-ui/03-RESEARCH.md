@@ -908,32 +908,32 @@ console.log('check-admin-routes: OK');
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`/dashboard` policy-status counts — repository call or SQL aggregate?**
    - What we know: CONTEXT discretion area says "recommendation: SQL aggregate via `Policies.statusCounts(s)`. One query, four rows back. Plan-phase implements."
    - What's unclear: Does the four-row aggregate join `policies` against itself once, or is it a `SELECT status, COUNT(*) FROM policies WHERE org_id = $1 GROUP BY status`?
-   - Recommendation: Latter (single GROUP BY query, returns up to 4 rows — one per status that has ≥1 policy). Plan-phase to confirm.
+   - **RESOLVED:** Latter (single GROUP BY query, returns up to 4 rows — one per status that has ≥1 policy). Plan-phase to confirm.
 
 2. **Should Phase 3 introduce `Organizations.findByClerkOrgId(s, clerkOrgId)` as a read?**
    - What we know: Phase 2 did not ship a public read on `organizations` because its only purpose at the time was the webhook handler (which uses raw `db`).
    - What's unclear: For the Clerk webhook race mitigation (Pitfall §6 Option A) and any future `<OrganizationSwitcher />` integration, a read may be needed.
-   - Recommendation: Add the read method to `lib/db/repositories/organizations.ts` (creating that file if needed — Phase 2 may have skipped it). Plan-phase scopes this when picking Option A vs B for Pitfall §6.
+   - **RESOLVED:** Add the read method to `lib/db/repositories/organizations.ts` (creating that file if needed — Phase 2 may have skipped it). Plan-phase scopes this when picking Option A vs B for Pitfall §6.
 
 3. **TipTap 3.x migration window**
    - What we know: 3.x is stable as of 2026-05. CONTEXT D-02 locked 2.x.
    - What's unclear: Whether operator wants a Phase 8 (or earlier) follow-up to migrate.
-   - Recommendation: Note in `STATE.md` as a `TIPTAP-3-MIGRATION` parking-lot item. Not blocking.
+   - **RESOLVED:** Note in `STATE.md` as a `TIPTAP-3-MIGRATION` parking-lot item. Not blocking.
 
 4. **`PolicyEditor` debounce — 300ms or none?**
    - What we know: CONTEXT D-02 mentions "debounced 300ms in Phase 3 — heavier debounce can be Phase 8 polish."
    - What's unclear: Is the debounce on the hidden-input update (which fires on every keystroke per the `onUpdate` callback in Pattern 3) or on a separate auto-save (deferred)?
-   - Recommendation: Phase 3 fires `setState` synchronously inside `onUpdate` (no debounce). The hidden input value is JSON-stringified once on form submit, not on every keystroke. Plan-phase confirms — adding a debounce here is YAGNI without a measured perf issue.
+   - **RESOLVED:** Phase 3 fires `setState` synchronously inside `onUpdate` (no debounce). The hidden input value is JSON-stringified once on form submit, not on every keystroke. Plan-phase confirms — adding a debounce here is YAGNI without a measured perf issue.
 
 5. **What does `/policies/[id]` show when `currentVersion > 1`?**
    - What we know: D-04 — `policy_versions` rows are the historical snapshots. CONTEXT mentions `<PolicyVersionHistory />` lists versions.
    - What's unclear: Whether the editor view shows the CURRENT `policies.contentJson` (latest in-progress, possibly Draft) or the latest published version.
-   - Recommendation: Editor view ALWAYS shows `policies.contentJson` (the live, mutable state — Draft = editable, Published = read-only with "Edit" button that flips to `editPublished` flow). Version history is a separate panel showing `policy_versions` rows as immutable snapshots. Plan-phase confirms.
+   - **RESOLVED:** Editor view ALWAYS shows `policies.contentJson` (the live, mutable state — Draft = editable, Published = read-only with "Edit" button that flips to `editPublished` flow). Version history is a separate panel showing `policy_versions` rows as immutable snapshots. Plan-phase confirms.
 
 ---
 

@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 02 — MERGED 2026-05-19 (PR #2 squash → main @ 130b8ab); Phase 03 — Admin UI CONTEXT.md drafted under `--all` no-clarifying-questions; ready for /gsd-plan-phase 3
-last_updated: "2026-05-19T15:00:00.000Z"
+status: "Phase 02 — MERGED 2026-05-19 (PR #2 squash → main @ 130b8ab); Phase 03 — Admin UI CONTEXT.md drafted under `--all` no-clarifying-questions; ready for /gsd-plan-phase 3"
+last_updated: "2026-05-19T17:42:20.253Z"
 progress:
   total_phases: 8
-  completed_phases: 1
-  total_plans: 12
+  completed_phases: 2
+  total_plans: 23
   completed_plans: 12
-  percent: 100
+  percent: 52
 ---
 
 # STATE — PolicyPilot
@@ -52,6 +52,7 @@ Plan: 7 of 7 — FULL complete; ready for verifier + ROADMAP close-out
 **Next action**: `/gsd-plan-phase 3` to convert `.planning/phases/03-admin-ui/03-CONTEXT.md` into per-plan PLAN.md files. (Phase 2 verifier + ROADMAP close-out already happened pre-merge; PR #2 was squash-merged to main as `130b8ab` on 2026-05-19.)
 
 **Operator carry-forward to Phase 3** (now folded into `03-CONTEXT.md` as L-NN constraints — tracked here for cross-session visibility until each is closed by a Phase 3 commit):
+
 - **SF-WHSEC-1** → folded as **L-04** in 03-CONTEXT. Plan 03-01 will gate the operator-manual rotation. Open until operator rotates via Svix Dashboard + pastes new `whsec_…` into `.env.local`.
 - **Webhook live-smoke** → folded as **D-08** in 03-CONTEXT. Naturally exercised by the first `<CreateOrganization />` click in `/onboarding/create-org` (Plan 03-N). Open until first end-to-end smoke succeeds.
 - **REG-P1-01** → folded as **L-03** in 03-CONTEXT. Plan 03-02 deletes `app/(auth)/sign-in-success/page.tsx` and replaces with `app/(auth)/post-sign-in/page.tsx`. `pnpm verify:phase-1` will be re-pointed to `/post-sign-in` once the route lands. Open until that swap commits.
