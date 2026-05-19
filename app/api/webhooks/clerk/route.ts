@@ -19,10 +19,47 @@
 // or add structured alerting. Operator-monitored via console logs
 // in the meantime.
 import { Webhook } from 'svix';
-import type { WebhookEvent } from '@clerk/nextjs/server';
+import { clerkClient, type WebhookEvent } from '@clerk/nextjs/server';
 import { db } from '@/lib/db';
 import { clerkEvents, organizations, users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+
+/**
+ * CR-01 (Plan 02-07): Mirror our enum role into Clerk's user publicMetadata.
+ *
+ * D-04 mandates that `users.role` AND `publicMetadata.role` stay in sync so
+ * `getOrgContext()` (which reads `sessionClaims.publicMetadata.role`) and the
+ * admin middleware gate (which reads the same path) actually see the role
+ * on the next authenticated request. Without this, every protected route
+ * 500s on the first request after sign-up because `asRole(undefined)` throws.
+ *
+ * Best-effort: the DB row is already written by the caller; if the Clerk
+ * Backend API call fails we log structured detail and return without
+ * throwing — `organizationMembership.updated` will re-fire on the next
+ * role change and re-attempt the sync, so transient failures self-heal.
+ * Crashing the webhook handler here would mark the event processed in
+ * `clerk_events` (SF-W5 known gap) and lose the DB write effect on retry.
+ */
+async function mirrorRoleToClerk(
+  clerkUserId: string,
+  role: 'admin' | 'reviewer' | 'employee',
+  source: string,
+): Promise<void> {
+  try {
+    const client = await clerkClient();
+    await client.users.updateUserMetadata(clerkUserId, {
+      publicMetadata: { role },
+    });
+    console.log(
+      `[clerk-webhook] publicMetadata.role mirrored user=${clerkUserId} role=${role} source=${source}`,
+    );
+  } catch (err) {
+    const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+    console.error(
+      `[clerk-webhook] failed to mirror publicMetadata.role user=${clerkUserId} role=${role} source=${source}: ${detail}`,
+    );
+  }
+}
 
 /**
  * Narrow Clerk's organizationMembership.role string to our enum.
@@ -136,6 +173,11 @@ export async function POST(req: Request): Promise<Response> {
           role: 'employee', // default; updated by membership.created/updated
           // orgId left undefined -> NULL — membership webhook backfills
         });
+        // CR-01 (Plan 02-07) / D-04: mirror the default `employee` role onto
+        // publicMetadata so sessionClaims.publicMetadata.role is populated
+        // from the very first authenticated request. organizationMembership.*
+        // events will overwrite this with the correct org role.
+        await mirrorRoleToClerk(data.id, 'employee', 'user.created');
         console.log(
           `[clerk-webhook] user.created ${data.id} (org_id pending membership)`,
         );
@@ -195,6 +237,17 @@ export async function POST(req: Request): Promise<Response> {
           );
           return new Response('User not yet created', { status: 409 });
         }
+        // CR-01 (Plan 02-07) / D-04: mirror role onto Clerk publicMetadata so
+        // sessionClaims.publicMetadata.role is populated for getOrgContext()
+        // and the admin middleware gate. Without this the session-claim path
+        // stays `undefined` and asRole() throws on every authenticated request.
+        if (roleStr) {
+          await mirrorRoleToClerk(
+            clerkUserId,
+            roleStr,
+            'organizationMembership.created',
+          );
+        }
         console.log(
           `[clerk-webhook] organizationMembership.created user=${clerkUserId} org=${clerkOrgId} role=${roleStr ?? '(unchanged)'}`,
         );
@@ -216,6 +269,16 @@ export async function POST(req: Request): Promise<Response> {
           .update(users)
           .set({ role: roleStr })
           .where(eq(users.clerkUserId, clerkUserId));
+        // CR-01 (Plan 02-07) / D-04: mirror updated role onto Clerk
+        // publicMetadata so role demotions / promotions propagate to the
+        // session claim. Without this, an admin demoted to employee keeps
+        // admin gate access until they sign out + back in AND publicMetadata
+        // happens to be re-fetched (which it isn't).
+        await mirrorRoleToClerk(
+          clerkUserId,
+          roleStr,
+          'organizationMembership.updated',
+        );
         console.log(
           `[clerk-webhook] organizationMembership.updated user=${clerkUserId} role=${roleStr}`,
         );
