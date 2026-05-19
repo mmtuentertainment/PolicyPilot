@@ -74,9 +74,9 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 **Plans**: 12 plans
 - [x] 03-00-PLAN.md — Operator manual config: rotate Clerk whsec_… (L-04) + change Clerk After-sign-in URL to /post-sign-in (L-03 dashboard half) + verify Organizations toggle
 - [x] 03-01-PLAN.md — Wave 0: vitest install + verify:phase-3 orchestrator + scripts/check-admin-routes.ts scaffold + check-artifacts Phase 3 extension + .tmp/svix-url.json cleanup tail (L-06c)
-- [ ] 03-02-PLAN.md — middleware admin matcher rewrite (L-02 / CR-02) + lib/auth/require-admin.ts (L-01) + delete app/sign-in-success + ship /post-sign-in trampoline (L-03)
-- [ ] 03-03-PLAN.md — lib/policies/state-machine.ts (D-03 pure module) + 16-case truth-table tests (TDD RED→GREEN)
-- [ ] 03-04-PLAN.md — Repository bodies: Policies + PolicyVersions (L-05 append-only) + WorkflowStages (D-11) + tests/types.ts L-05 invariants
+- [x] 03-02-PLAN.md — middleware admin matcher rewrite (L-02 / CR-02) + lib/auth/require-admin.ts (L-01) + delete app/sign-in-success + ship /post-sign-in trampoline (L-03)
+- [x] 03-03-PLAN.md — lib/policies/state-machine.ts (D-03 pure module) + 16-case truth-table tests (TDD RED→GREEN)
+- [x] 03-04-PLAN.md — Repository bodies: Policies + PolicyVersions (L-05 append-only) + WorkflowStages (D-11) + tests/types.ts L-05 invariants
 - [x] 03-05-PLAN.md — Phase 2 webhook hardening: L-06a (silent-loss fix on dispatch error) + L-06b (maskClerkOrgId helper applied at 4+ log sites)
 - [ ] 03-06-PLAN.md — lib/policies/transitions.ts: 7 server-only orchestrators wrapping withOrgScope (D-03 + D-04 + L-05) — TDD with publish + editPublished snapshot semantics
 - [ ] 03-07-PLAN.md — Server Actions: createPolicyAction (new/actions.ts) + 8 transition actions ([id]/actions.ts) — Zod validation + revalidatePath + redirect-outside-try/catch (D-09)
@@ -162,7 +162,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 |-------|----------------|--------|-----------|
 | 1. Foundation | 5/5 | Complete | 2026-05-16 |
 | 2. Data Layer | 7/7 | Complete | 2026-05-18 |
-| 3. Admin UI | 4/12 | In Progress|  |
+| 3. Admin UI | 7/12 | In Progress|  |
 | 4. AI Layer | 0/0 | Not started | - |
 | 5. Employee Portal | 0/0 | Not started | - |
 | 6. Billing | 0/0 | Not started | - |
