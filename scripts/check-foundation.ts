@@ -196,10 +196,15 @@ async function main(): Promise<void> {
 
   console.log("");
   console.log("─── Middleware redirect check ───");
+  // Plan 03-02 L-03 / REG-P1-01: the Phase 1 placeholder at /sign-in-success
+  // was deleted and replaced by the Server Component trampoline at
+  // /post-sign-in (app/(auth)/post-sign-in/page.tsx). Unauthenticated
+  // requests still funnel through middleware.ts and bounce to /sign-in
+  // (the trampoline lives behind the auth chokepoint).
   const c5 = await checkRedirect(
-    "/sign-in-success",
+    "/post-sign-in",
     "/sign-in",
-    "Middleware redirects /sign-in-success → /sign-in unauthenticated",
+    "Middleware redirects /post-sign-in → /sign-in unauthenticated",
   );
   results.push(c5);
   logResult(6, 6, c5);

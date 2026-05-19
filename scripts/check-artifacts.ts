@@ -432,17 +432,46 @@ function checkAppShell(): Check[] {
 
   assert(out, exists("app/(auth)/layout.tsx"), "app/(auth)/layout.tsx exists", "auth layout missing");
 
-  // Sign-in-success placeholder — D-09
-  const successPath = "app/sign-in-success/page.tsx";
-  if (!exists(successPath)) {
-    out.push(fail(`${successPath} exists`, "D-09 placeholder missing"));
+  // Plan 03-02 L-03 / REG-P1-01: the Phase 1 /sign-in-success placeholder
+  // (D-09) is REPLACED by the Server Component trampoline at /post-sign-in.
+  // The old file MUST be deleted; the new file MUST contain the dispatch
+  // calls. Negative + positive assertions together close REG-P1-01.
+  const oldSuccessPath = "app/sign-in-success/page.tsx";
+  assert(
+    out,
+    !exists(oldSuccessPath),
+    `${oldSuccessPath} does NOT exist (Plan 03-02 L-03 — deleted)`,
+    "REG-P1-01 closure incomplete — placeholder still on disk",
+  );
+  const postSignInPath = "app/(auth)/post-sign-in/page.tsx";
+  if (!exists(postSignInPath)) {
+    out.push(fail(`${postSignInPath} exists`, "Plan 03-02 L-03 trampoline missing"));
   } else {
-    out.push(ok(`${successPath} exists`));
+    out.push(ok(`${postSignInPath} exists (Plan 03-02 L-03)`));
+    const psi = read(postSignInPath);
     assert(
       out,
-      /signed in/i.test(read(successPath)),
-      "sign-in-success placeholder copy includes 'signed in'",
-      "placeholder copy drifted",
+      psi.includes("getOrgContext"),
+      "post-sign-in page imports getOrgContext",
+      "getOrgContext import missing",
+    );
+    assert(
+      out,
+      psi.includes("redirect('/onboarding/create-org')"),
+      "post-sign-in dispatches to /onboarding/create-org on no-org",
+      "no-org redirect missing (D-08)",
+    );
+    assert(
+      out,
+      psi.includes("redirect('/dashboard')"),
+      "post-sign-in dispatches to /dashboard for admin role",
+      "admin redirect missing",
+    );
+    assert(
+      out,
+      psi.includes("redirect('/my-policies')"),
+      "post-sign-in dispatches to /my-policies for non-admin role",
+      "non-admin redirect missing",
     );
   }
 
@@ -637,7 +666,10 @@ function checkSmokeScripts(): Check[] {
       "check-foundation.ts asserts D-03 hero substring",
       "hero assertion missing",
     );
-    for (const path of ['"/"', '"/sign-in"', '"/sign-up"', '"/sign-in-success"']) {
+    // Plan 03-02 L-03: the /sign-in-success probe was re-pointed to
+    // /post-sign-in once the Phase 1 placeholder was deleted and the
+    // Server Component trampoline shipped.
+    for (const path of ['"/"', '"/sign-in"', '"/sign-up"', '"/post-sign-in"']) {
       assert(out, s.includes(path), `check-foundation.ts probes ${path}`, "probe path missing");
     }
     assert(
