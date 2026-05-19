@@ -1054,6 +1054,107 @@ function checkPhase2VerifyScripts(): Check[] {
   return out;
 }
 
+// ─── Plan 03-01: Wave-0 test + verify harness ──────────────────────────────
+
+/**
+ * Verifies the Phase 3 Wave-0 test + verify harness artifacts (Plan 03-01).
+ *
+ * Asserts vitest config + setup + smoke test files exist, the
+ * check-admin-routes.ts ts-morph scaffold exists, and the package.json
+ * declares the verify:phase-3 orchestrator (with its L-06c
+ * .tmp/svix-url.json cleanup tail) plus the check:admin-routes / test
+ * scripts that chain into it.
+ *
+ * @returns An array of `Check` objects indicating which assertions passed and which failed.
+ */
+function checkPhase3Scaffold(): Check[] {
+  const out: Check[] = [];
+  assert(out, exists("vitest.config.ts"), "vitest.config.ts exists (Plan 03-01)", "missing");
+  assert(out, exists("tests/setup.ts"), "tests/setup.ts exists (Plan 03-01)", "missing");
+  assert(out, exists("tests/smoke.test.ts"), "tests/smoke.test.ts exists (Plan 03-01)", "missing");
+  assert(out, exists("scripts/check-admin-routes.ts"), "scripts/check-admin-routes.ts exists (Plan 03-01)", "missing");
+  const pkg = read("package.json");
+  assert(out, pkg.includes('"verify:phase-3"'), "package.json declares verify:phase-3", "script missing");
+  assert(out, pkg.includes('"check:admin-routes"'), "package.json declares check:admin-routes", "script missing");
+  assert(out, pkg.includes('"check:db-imports"'), "package.json declares check:db-imports", "script missing");
+  assert(out, pkg.includes('"check:rls"'), "package.json declares check:rls", "script missing");
+  assert(out, pkg.includes('"test":'), "package.json declares test (vitest run)", "script missing");
+  assert(
+    out,
+    pkg.includes("rmSync('.tmp/svix-url.json'"),
+    "verify:phase-3 tail cleans .tmp/svix-url.json (L-06c)",
+    "missing rmSync('.tmp/svix-url.json' literal",
+  );
+  // Setup/config sentinel substrings to catch silent rewrites.
+  const cfg = read("vitest.config.ts");
+  assert(out, cfg.includes("defineConfig"), "vitest.config.ts contains defineConfig", "missing");
+  const setup = read("tests/setup.ts");
+  assert(
+    out,
+    setup.includes("@testing-library/jest-dom"),
+    "tests/setup.ts imports @testing-library/jest-dom",
+    "missing",
+  );
+  const car = read("scripts/check-admin-routes.ts");
+  assert(out, car.includes("ADMIN_URL_PATTERNS"), "check-admin-routes.ts references ADMIN_URL_PATTERNS", "missing");
+  assert(out, car.includes("scaffold mode"), "check-admin-routes.ts has scaffold-mode branch", "missing");
+  assert(out, car.includes("withOrgScope("), "check-admin-routes.ts greps for withOrgScope(", "missing");
+  return out;
+}
+
+/**
+ * Verifies the existence of every Phase 3 downstream artifact (Plans
+ * 03-02..03-11) — auto-detected by the presence of
+ * `app/(admin)/dashboard/page.tsx` on disk (W10 closure).
+ *
+ * When the dashboard page does NOT exist (Phase 3 still in flight after
+ * Plan 03-01), this function emits a single `ok` row and returns. Once
+ * Plan 03-11 ships `app/(admin)/dashboard/page.tsx`, the function flips
+ * to enforcement automatically — no env-flag plumbing required. Each
+ * missing artifact below that point becomes a RED `fail` row tagged with
+ * the plan number that owns its delivery.
+ *
+ * @returns An array of `Check` objects.
+ */
+function checkPhase3FileExistence(): Check[] {
+  // W10: auto-detect Phase 3 completion via dashboard page presence.
+  // When Plan 03-11 ships app/(admin)/dashboard/page.tsx, this gate flips
+  // to enforcement automatically — no env flag plumbing required.
+  if (!exists("app/(admin)/dashboard/page.tsx")) {
+    return [
+      ok(
+        "Phase 3 file-existence rows skipped (dashboard page not yet on disk — gate enabled by Plan 03-11)",
+      ),
+    ];
+  }
+  const out: Check[] = [];
+  const targets: Array<{ path: string; plan: string }> = [
+    { path: "lib/auth/require-admin.ts", plan: "03-02" },
+    { path: "app/(auth)/post-sign-in/page.tsx", plan: "03-02" },
+    { path: "lib/policies/state-machine.ts", plan: "03-03" },
+    { path: "lib/policies/transitions.ts", plan: "03-06" },
+    { path: "app/(admin)/layout.tsx", plan: "03-09" },
+    { path: "app/(admin)/dashboard/page.tsx", plan: "03-11" },
+    { path: "app/(admin)/policies/page.tsx", plan: "03-11" },
+    { path: "app/(admin)/policies/new/page.tsx", plan: "03-11" },
+    { path: "app/(admin)/policies/new/actions.ts", plan: "03-07" },
+    { path: "app/(admin)/policies/[id]/page.tsx", plan: "03-11" },
+    { path: "app/(admin)/policies/[id]/actions.ts", plan: "03-07" },
+    { path: "app/(admin)/onboarding/create-org/page.tsx", plan: "03-11" },
+    { path: "components/admin/AdminSidebar.tsx", plan: "03-09" },
+    { path: "components/admin/AdminTopbar.tsx", plan: "03-09" },
+    { path: "components/policy/PolicyEditor.tsx", plan: "03-10" },
+    { path: "components/policy/PolicyView.tsx", plan: "03-10" },
+    { path: "components/policy/PolicyStatusBadge.tsx", plan: "03-10" },
+    { path: "components/policy/PolicyTransitionMenu.tsx", plan: "03-10" },
+    { path: "components/policy/PolicyVersionHistory.tsx", plan: "03-10" },
+  ];
+  for (const { path, plan } of targets) {
+    assert(out, exists(path), `${path} exists (Plan ${plan})`, `Plan ${plan} will create this`);
+  }
+  return out;
+}
+
 /**
  * Runs the full set of artifact regression checks, prints results, and terminates the process.
  *
@@ -1087,6 +1188,9 @@ function main(): void {
     ...checkPhase2Repositories(),
     ...checkPhase2WebhookHandler(),
     ...checkPhase2MiddlewareFold(),
+    // Phase 3 additions:
+    ...checkPhase3Scaffold(),
+    ...checkPhase3FileExistence(),
     ...checkPhase2Migrations(),
     ...checkPhase2TypeTests(),
     ...checkPhase2VerifyScripts(),

@@ -20,7 +20,13 @@
     "db:migrate": "tsx --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate",
     "db:migrate:test": "tsx --env-file=.env.local.test node_modules/drizzle-kit/bin.cjs migrate",
     "check:artifacts": "tsx scripts/check-artifacts.ts",
-    "check:coderabbit-config": "tsx scripts/check-coderabbit-config.ts"
+    "check:coderabbit-config": "tsx scripts/check-coderabbit-config.ts",
+    "check:db-imports": "tsx --env-file=.env.local scripts/check-db-imports.ts",
+    "check:rls": "tsx --env-file=.env.local scripts/check-rls.ts",
+    "check:admin-routes": "tsx scripts/check-admin-routes.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify:phase-3": "pnpm typecheck && pnpm check:db-imports && pnpm check:rls && pnpm check:admin-routes && pnpm check:artifacts && pnpm test && node -e \"require('fs').rmSync('.tmp/svix-url.json', { force: true })\""
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
