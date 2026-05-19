@@ -19,11 +19,14 @@
 // doesn't apply to metadata queries).
 import postgres from 'postgres';
 
-const TEST_URL = process.env.DIRECT_URL_TEST ?? process.env.DATABASE_URL_TEST;
-if (!TEST_URL) {
-  console.error('Neither DIRECT_URL_TEST nor DATABASE_URL_TEST set. See Plan 02-02 D-05.');
-  process.exit(1);
-}
+const TEST_URL: string = (() => {
+  const v = process.env.DIRECT_URL_TEST ?? process.env.DATABASE_URL_TEST;
+  if (!v) {
+    console.error('Neither DIRECT_URL_TEST nor DATABASE_URL_TEST set. See Plan 02-02 D-05.');
+    process.exit(1);
+  }
+  return v;
+})();
 
 const TENANT_TABLES = [
   'organizations',
@@ -43,7 +46,8 @@ const REQUIRED_PRIVS = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'] as const;
 type Failure = { table: string; check: string; detail: string };
 
 async function main(): Promise<void> {
-  const sql = postgres(TEST_URL!, { prepare: false });
+  // TEST_URL non-nullness is guaranteed by the IIFE guard at module load.
+  const sql = postgres(TEST_URL, { prepare: false });
   const failures: Failure[] = [];
 
   try {

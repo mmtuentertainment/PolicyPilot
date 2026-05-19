@@ -302,6 +302,20 @@ The Consistency Check uses the Claude Batch API (async) for ~50% cost reduction.
 
 ---
 
+## ADR-022: Node 22 Active LTS
+
+- source: `package.json` `engines.node` + `BLUEPRINT.md` § Runtime
+- status: locked (2026-05-16; supersedes Phase 1 D-01 Node 20 pin)
+- scope: runtime version
+
+### Decision
+
+`engines.node` is `>=22.0.0 <23.0.0`. Node 22 became Active LTS in Oct 2024; Node 20 entered maintenance-LTS. The Phase-1 D-01 decision predated this cutover and pinned 20 as "the LTS at the time" — Node 22 satisfies the same spirit ("use Active LTS") with current security patches. Concretely required because Plan 01-04 chose `node --env-file=.env.local` for `pnpm check:db` and `pnpm verify:phase-1`; `--env-file` was experimental in Node 20.6 and only became stable in Node 22, so the previous `<21.0.0` upper bound silently made the project's own verify scripts incompatible with its declared runtime.
+
+Vercel + Railway both support Node 22 in production. Full text mirrored in `.planning/PROJECT.md` short-form ADR-022.
+
+---
+
 ## ADR-023: OrgContext + Per-Aggregate Repositories Enforce ADR-019
 
 - source: derived from `/improve-codebase-architecture` grilling session (2026-05-17)

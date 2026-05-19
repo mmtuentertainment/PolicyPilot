@@ -11,7 +11,7 @@
 // imports raw `db`, RLS would never fire because the connection-string
 // user is BYPASSRLS. The repositories are intentionally NOT in this
 // allow-list.
-import { Project } from 'ts-morph';
+import { Project, SyntaxKind } from 'ts-morph';
 import { resolve as resolvePath, sep as pathSep, relative as relPath } from 'node:path';
 
 // ADR-023 allow-list with 4 logical entries (webhook(clerk|stripe), cron,
@@ -71,20 +71,50 @@ async function main(): Promise<void> {
   let allowListedHits = 0;
 
   const repoRoot = process.cwd();
+  // Match the BARREL `@/lib/db` exactly — NOT `@/lib/db/schema`,
+  // `@/lib/db/scoped`, `@/lib/db/repositories/*`. These are sub-modules
+  // that don't export the raw `db` connection.
+  const isRawDbSpec = (spec: string | undefined): boolean =>
+    spec === '@/lib/db' || spec === '@/lib/db/index';
+
+  const recordHit = (rel: string, spec: string): void => {
+    if (isAllowed(rel)) {
+      allowListedHits += 1;
+    } else {
+      violations.push({ file: rel, spec });
+    }
+  };
+
   for (const sourceFile of project.getSourceFiles()) {
     const rel = relPath(repoRoot, sourceFile.getFilePath());
+
+    // Static imports: `import { db } from '@/lib/db'` / `import db from '@/lib/db'`
     for (const imp of sourceFile.getImportDeclarations()) {
       const spec = imp.getModuleSpecifierValue();
-      // Match the BARREL `@/lib/db` exactly — NOT `@/lib/db/schema`,
-      // `@/lib/db/scoped`, `@/lib/db/repositories/*`. These are sub-modules
-      // that don't export the raw `db` connection.
-      if (spec === '@/lib/db' || spec === '@/lib/db/index') {
-        if (isAllowed(rel)) {
-          allowListedHits += 1;
-        } else {
-          violations.push({ file: rel, spec });
-        }
-      }
+      if (isRawDbSpec(spec)) recordHit(rel, spec as string);
+    }
+
+    // Re-exports: `export { db } from '@/lib/db'` / `export * from '@/lib/db'`
+    for (const exportDecl of sourceFile.getExportDeclarations()) {
+      const spec = exportDecl.getModuleSpecifierValue();
+      if (isRawDbSpec(spec)) recordHit(rel, spec as string);
+    }
+
+    // Dynamic imports: `await import('@/lib/db')` — find CallExpressions
+    // whose expression is the `import` keyword, then extract the first
+    // argument as a string-literal module specifier.
+    for (const call of sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression)) {
+      const expr = call.getExpression();
+      if (expr.getKind() !== SyntaxKind.ImportKeyword) continue;
+      const args = call.getArguments();
+      const first = args[0];
+      if (!first) continue;
+      // Only handle the simple string-literal form — interpolated module
+      // specifiers (`import(\`@/lib/db/${name}\`)`) cannot be statically
+      // resolved and are out of scope for the AST gate.
+      if (first.getKind() !== SyntaxKind.StringLiteral) continue;
+      const spec = first.getText().slice(1, -1); // strip surrounding quotes
+      if (isRawDbSpec(spec)) recordHit(rel, spec);
     }
   }
 

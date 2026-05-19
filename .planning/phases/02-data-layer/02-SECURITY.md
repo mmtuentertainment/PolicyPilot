@@ -7,8 +7,8 @@ threats_total: 45
 threats_mitigated: 35
 threats_partial: 0
 threats_missing: 0
-threats_accepted: 9
-threats_accept_then_detect: 4
+threats_accepted: 7
+threats_accept_then_detect: 3
 block_on: open
 ---
 

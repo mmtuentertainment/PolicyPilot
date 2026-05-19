@@ -53,7 +53,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
   5. A direct cross-org Postgres query (impersonating Org A's JWT) returning Org B rows is blocked by RLS — verified with a service-role-bypassed test.
 **Plans**: 7 plans (6 originally planned + 02-07 hotfix)
 - [x] 02-01-PLAN.md — Drizzle schema (12 tables, D-02 denormalization, D-03a nullable users.org_id, D-03b clerk_events) + OrgScope/getOrgContext (L-01, L-02, D-04, SF-M4 fold) + D-07 type tests ✓ (2026-05-17; commits 75b397e, e7c6b43, 2fff189)
-- [ ] 02-02-PLAN.md — Operator manual config: Clerk org roles (D-09) + session token customization (D-04) + webhook endpoint + signing secret (D-03) + Supabase test project (D-05) + .env.local amendments
+- [x] 02-02-PLAN.md — Operator manual config: Clerk org roles (D-09) + session token customization (D-04) + webhook endpoint + signing secret (D-03) + Supabase test project (D-05) + .env.local amendments ✓ (2026-05-18; SF-DB-1 closed by operator pre-Plan-06)
 - [x] 02-03-PLAN.md — Drizzle migrations (0000_initial generate + 0001_rls_policies hand-written 10×RLS + 10×POLICY + 10×GRANT + D-03a CHECK) + drizzle.config DIRECT_URL split + schema push to dev + test ✓ (2026-05-17; commits `c1dcf6f`, `0bbf321`, `f443cd0` + post-commit live dev DB verified after SF-DB-2 resolved; TEST DB migrated via Plan 02-06 orchestrator step 2)
 - [x] 02-04-PLAN.md — 9 repository skeletons (OrgScope-first; ADR-018 no update/delete on acks; ADR-005 Policies.create omits tldrSummary; D-06) ✓ (2026-05-17; commits 2973555, e71000a — closes Plan 02-01 tsc baseline failure)
 - [x] 02-05-PLAN.md — svix install + Clerk webhook handler (4 events, svix verify, ON CONFLICT idempotency, D-03c delete log-only) + middleware SF-M4 fold ✓ (2026-05-17; commits a9301b2, 6ae44f5, c39ea98 — SF-M4 from Phase 1 PR review fully closed)
@@ -149,7 +149,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 5/5 | Complete | 2026-05-16 |
-| 2. Data Layer | 6/6 | Complete | 2026-05-18 |
+| 2. Data Layer | 7/7 | Complete | 2026-05-18 |
 | 3. Admin UI | 0/0 | Not started | - |
 | 4. AI Layer | 0/0 | Not started | - |
 | 5. Employee Portal | 0/0 | Not started | - |

@@ -138,7 +138,9 @@ export const users = pgTable('users', {
   orgId: uuid('org_id').references(() => organizations.id),
   clerkUserId: text('clerk_user_id').notNull().unique(),
   role: text('role').notNull().default('employee'),
-  departmentId: uuid('department_id'),
+  // FK to departments so department_id cannot hold an orphan UUID.
+  // Stays nullable — users without a department assignment are valid.
+  departmentId: uuid('department_id').references(() => departments.id),
   createdAt: timestamp('created_at').defaultNow(),
 });
 

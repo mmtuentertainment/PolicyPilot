@@ -516,7 +516,7 @@ const TENANT_SCOPED_TABLES = [/* 10 tables */];
 for (const table of TENANT_SCOPED_TABLES) {
   // SELECT 1 FROM pg_tables WHERE tablename = $1
   // SELECT relrowsecurity FROM pg_class WHERE relname = $1
-  // SELECT polname FROM pg_policies WHERE tablename = $1 AND polname = 'org_isolation'
+  // SELECT policyname FROM pg_policies WHERE tablename = $1 AND policyname = 'org_isolation'
   // SELECT privilege_type FROM information_schema.table_privileges
   //   WHERE table_name = $1 AND grantee = 'authenticated'
   //   AND privilege_type IN ('SELECT','INSERT','UPDATE','DELETE')
@@ -577,7 +577,7 @@ const ALLOWLIST = [
 ];
 ```
 
-D-08 recommends AST via `@typescript-eslint/parser` (already a transitive dep of `eslint-config-next`).
+D-08 recommends AST via `ts-morph` (chosen over `@typescript-eslint/parser` for cleaner import-graph API per RESEARCH recommendations; Plan 02-06 ships `ts-morph@28.0.0`).
 
 ---
 

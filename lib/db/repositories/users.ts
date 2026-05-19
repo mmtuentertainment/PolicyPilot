@@ -13,9 +13,12 @@ import type { OrgScope } from '@/lib/db/scoped';
 import { users } from '@/lib/db/schema';
 import { and, eq } from 'drizzle-orm';
 
+// Omits `orgId` so callers cannot supply it — repository implementation
+// must copy `scope.orgId` into the new row (matches the pattern used by
+// policy_versions / workflow_stages / acknowledgments).
 type UserCreateInput = Omit<
   typeof users.$inferInsert,
-  'id' | 'createdAt'
+  'id' | 'orgId' | 'createdAt'
 >;
 
 export const Users = {

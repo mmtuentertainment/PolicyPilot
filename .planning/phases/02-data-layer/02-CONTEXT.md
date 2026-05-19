@@ -206,7 +206,7 @@ The following are left to plan-phase / executor judgment within the constraints 
 - **Whether `scripts/check-rls.ts` probes all 10 tables or just a representative subset** — recommendation: all 10 (cost is microseconds per table, completeness > brevity).
 - **Whether `clerk_events` lives in `lib/db/schema.ts` near `stripe_events` or in its own file** — recommendation: same file, alphabetical order with the other auxiliary tables.
 - **Logger / structured logging for the webhook handler** — Phase 2 may emit plain `console.log` for now; structured logging (e.g., `pino`) is a Phase 7+ concern. SF-M4 (PR-1 follow-up: "no try/catch around await auth()" in `middleware.ts`) is folded into Phase 2 — wrap the auth() call.
-- **The exact regex / AST approach in `scripts/check-db-imports.ts`** — recommendation: AST via `@typescript-eslint/parser` over regex; regex would miss `import db from` vs `import { db } from` vs re-exports. AST is ~50 lines of TS + reliable.
+- **The exact regex / AST approach in `scripts/check-db-imports.ts`** — recommendation: AST via `ts-morph` over regex; regex would miss `import db from` vs `import { db } from` vs re-exports. AST is ~50 lines of TS + reliable. (Plan 02-06 locked `ts-morph@28.0.0` as the implementation; chosen over `@typescript-eslint/parser` for its cleaner import-graph API.)
 
 ### Folded Todos
 
@@ -372,7 +372,7 @@ The following are left to plan-phase / executor judgment within the constraints 
   2. For each table in `TENANT_SCOPED_TABLES = [...]`:
      - `SELECT 1 FROM pg_tables WHERE tablename = $1` — assert 1 row.
      - `SELECT relrowsecurity FROM pg_class WHERE relname = $1` — assert `true`.
-     - `SELECT polname FROM pg_policies WHERE tablename = $1 AND polname = 'org_isolation'` — assert 1 row.
+     - `SELECT policyname FROM pg_policies WHERE tablename = $1 AND policyname = 'org_isolation'` — assert 1 row.
      - `SELECT privilege_type FROM information_schema.table_privileges WHERE table_name = $1 AND grantee = 'authenticated' AND privilege_type IN ('SELECT','INSERT','UPDATE','DELETE')` — assert 4 rows.
   3. Exit 0 on all-pass.
 

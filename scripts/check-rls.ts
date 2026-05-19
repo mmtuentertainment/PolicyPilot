@@ -20,11 +20,14 @@
 import postgres from 'postgres';
 import { randomUUID } from 'node:crypto';
 
-const TEST_URL = process.env.DATABASE_URL_TEST;
-if (!TEST_URL) {
-  console.error('DATABASE_URL_TEST not set. See .env.local Plan 02-02 D-05.');
-  process.exit(1);
-}
+const TEST_URL: string = (() => {
+  const v = process.env.DATABASE_URL_TEST;
+  if (!v) {
+    console.error('DATABASE_URL_TEST not set. See .env.local Plan 02-02 D-05.');
+    process.exit(1);
+  }
+  return v;
+})();
 
 // 10 tenant-scoped tables (matches drizzle/0001_rls_policies.sql).
 // `organizations` uses `id` for RLS predicate; others use `org_id`.
@@ -47,7 +50,8 @@ function predicateColumnFor(table: string): 'id' | 'org_id' {
 
 async function main(): Promise<void> {
   // Connection-string `postgres` user is BYPASSRLS — fine for seeding.
-  const sql = postgres(TEST_URL!, { prepare: false });
+  // TEST_URL non-nullness is guaranteed by the IIFE guard at module load.
+  const sql = postgres(TEST_URL, { prepare: false });
 
   // Generate two orgs' worth of fixtures with deterministic UUIDs.
   const orgAId = randomUUID();

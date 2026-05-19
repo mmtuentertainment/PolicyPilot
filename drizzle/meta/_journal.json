@@ -15,6 +15,13 @@
       "when": 1779026745686,
       "tag": "0001_rls_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779194120631,
+      "tag": "0002_users_department_fk",
+      "breakpoints": true
     }
   ]
 }

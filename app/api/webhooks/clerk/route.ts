@@ -25,6 +25,17 @@ import { clerkEvents, organizations, users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 /**
+ * Mask a Clerk user ID for logging — keeps the last 4 chars for grep-ability
+ * while removing the bulk of the identifier from log streams. Clerk user IDs
+ * are stable PII-adjacent identifiers; structured-logging redaction (Phase 7+)
+ * will replace this with proper one-way hashing.
+ */
+function maskClerkId(id: string): string {
+  if (id.length <= 4) return '***';
+  return `user_***${id.slice(-4)}`;
+}
+
+/**
  * CR-01 (Plan 02-07): Mirror our enum role into Clerk's user publicMetadata.
  *
  * D-04 mandates that `users.role` AND `publicMetadata.role` stay in sync so
@@ -51,12 +62,12 @@ async function mirrorRoleToClerk(
       publicMetadata: { role },
     });
     console.log(
-      `[clerk-webhook] publicMetadata.role mirrored user=${clerkUserId} role=${role} source=${source}`,
+      `[clerk-webhook] publicMetadata.role mirrored user=${maskClerkId(clerkUserId)} role=${role} source=${source}`,
     );
   } catch (err) {
     const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
     console.error(
-      `[clerk-webhook] failed to mirror publicMetadata.role user=${clerkUserId} role=${role} source=${source}: ${detail}`,
+      `[clerk-webhook] failed to mirror publicMetadata.role user=${maskClerkId(clerkUserId)} role=${role} source=${source}: ${detail}`,
     );
   }
 }
@@ -179,7 +190,7 @@ export async function POST(req: Request): Promise<Response> {
         // events will overwrite this with the correct org role.
         await mirrorRoleToClerk(data.id, 'employee', 'user.created');
         console.log(
-          `[clerk-webhook] user.created ${data.id} (org_id pending membership)`,
+          `[clerk-webhook] user.created ${maskClerkId(data.id)} (org_id pending membership)`,
         );
         break;
       }
@@ -192,7 +203,7 @@ export async function POST(req: Request): Promise<Response> {
         if (!clerkUserId || !clerkOrgId) {
           console.error(
             '[clerk-webhook] organizationMembership.created missing user_id or organization.id',
-            { clerkUserId, clerkOrgId },
+            { clerkUserId: clerkUserId ? maskClerkId(clerkUserId) : null, clerkOrgId },
           );
           break;
         }
@@ -233,7 +244,7 @@ export async function POST(req: Request): Promise<Response> {
           .returning({ id: users.id });
         if (updateResult.length === 0) {
           console.error(
-            `[clerk-webhook] user ${clerkUserId} not found — user.created may not have arrived yet; Clerk should retry`,
+            `[clerk-webhook] user ${maskClerkId(clerkUserId)} not found — user.created may not have arrived yet; Clerk should retry`,
           );
           return new Response('User not yet created', { status: 409 });
         }
@@ -249,7 +260,7 @@ export async function POST(req: Request): Promise<Response> {
           );
         }
         console.log(
-          `[clerk-webhook] organizationMembership.created user=${clerkUserId} org=${clerkOrgId} role=${roleStr ?? '(unchanged)'}`,
+          `[clerk-webhook] organizationMembership.created user=${maskClerkId(clerkUserId)} org=${clerkOrgId} role=${roleStr ?? '(unchanged)'}`,
         );
         break;
       }
@@ -261,7 +272,7 @@ export async function POST(req: Request): Promise<Response> {
         if (!clerkUserId || !roleStr) {
           console.error(
             '[clerk-webhook] organizationMembership.updated missing user_id or unknown role',
-            { clerkUserId, role: data.role },
+            { clerkUserId: clerkUserId ? maskClerkId(clerkUserId) : null, role: data.role },
           );
           break;
         }
@@ -280,7 +291,7 @@ export async function POST(req: Request): Promise<Response> {
           'organizationMembership.updated',
         );
         console.log(
-          `[clerk-webhook] organizationMembership.updated user=${clerkUserId} role=${roleStr}`,
+          `[clerk-webhook] organizationMembership.updated user=${maskClerkId(clerkUserId)} role=${roleStr}`,
         );
         break;
       }

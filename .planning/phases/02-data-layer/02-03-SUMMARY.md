@@ -86,7 +86,7 @@ completed: 2026-05-17
 - **Duration:** 14 min (start 2026-05-17T13:58:55Z → finish 2026-05-17T14:12:53Z)
 - **Started:** 2026-05-17T13:58:55Z
 - **Completed:** 2026-05-17T14:12:53Z
-- **Tasks:** 3 / 4 (Task 4 deferred — see SF-DB-2 below)
+- **Tasks:** 4 / 4 (Task 4 deferred at first commit; resolved post-commit after SF-DB-2 1-line `.env.local` fix — see POST-COMMIT UPDATE below)
 - **Files modified:** 9 (3 modified, 6 created — incl. .env.local.test placeholder)
 
 ## Accomplishments
