@@ -151,6 +151,52 @@ function checkSelectOne(): Result {
   };
 }
 
+/**
+ * GAP-3 (.planning/phases/03-admin-ui/03-SMOKE.md): the embedded
+ * <SignIn /> and <SignUp /> components shipped at app/(auth)/sign-in
+ * and app/(auth)/sign-up require both env vars below to redirect
+ * to /post-sign-in after a successful auth flow. Without them, the
+ * embedded components default to redirecting to / — dead-end UX.
+ * Assert both are set and non-empty. Wrong-value (anything other
+ * than the canonical /post-sign-in) is also a fail — anything else
+ * indicates the operator misread .env.local.example.
+ */
+function checkClerkFallbackRedirectEnvVars(): Result {
+  const expected = "/post-sign-in";
+  const signIn = process.env.NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL;
+  const signUp = process.env.NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL;
+  const issues: string[] = [];
+  if (!signIn) {
+    issues.push(
+      "NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL not set or empty in .env.local",
+    );
+  } else if (signIn !== expected) {
+    issues.push(
+      `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=${signIn} (expected ${expected})`,
+    );
+  }
+  if (!signUp) {
+    issues.push(
+      "NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL not set or empty in .env.local",
+    );
+  } else if (signUp !== expected) {
+    issues.push(
+      `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=${signUp} (expected ${expected})`,
+    );
+  }
+  if (issues.length > 0) {
+    return {
+      ok: false,
+      label: "GAP-3 — Clerk fallback redirect env vars present",
+      detail: issues.join("; "),
+    };
+  }
+  return {
+    ok: true,
+    label: "GAP-3 — Clerk fallback redirect env vars present",
+  };
+}
+
 async function main(): Promise<void> {
   console.log("─── Foundation — verification ───");
   console.log(`App URL: ${APP_URL}`);
@@ -160,7 +206,7 @@ async function main(): Promise<void> {
 
   const c1 = checkTypecheck();
   results.push(c1);
-  logResult(1, 6, c1);
+  logResult(1, 7, c1);
 
   const c2 = await checkHttp(
     "/",
@@ -172,7 +218,7 @@ async function main(): Promise<void> {
       ),
   );
   results.push(c2);
-  logResult(2, 6, c2);
+  logResult(2, 7, c2);
 
   const c3a = await checkHttp(
     "/sign-in",
@@ -180,7 +226,7 @@ async function main(): Promise<void> {
     "GET /sign-in returns 200 (Clerk SignIn mount)",
   );
   results.push(c3a);
-  logResult(3, 6, c3a);
+  logResult(3, 7, c3a);
 
   const c3b = await checkHttp(
     "/sign-up",
@@ -188,11 +234,11 @@ async function main(): Promise<void> {
     "GET /sign-up returns 200 (Clerk SignUp mount)",
   );
   results.push(c3b);
-  logResult(4, 6, c3b);
+  logResult(4, 7, c3b);
 
   const c4 = checkSelectOne();
   results.push(c4);
-  logResult(5, 6, c4);
+  logResult(5, 7, c4);
 
   console.log("");
   console.log("─── Middleware redirect check ───");
@@ -207,7 +253,11 @@ async function main(): Promise<void> {
     "Middleware redirects /post-sign-in → /sign-in unauthenticated",
   );
   results.push(c5);
-  logResult(6, 6, c5);
+  logResult(6, 7, c5);
+
+  const c7 = checkClerkFallbackRedirectEnvVars();
+  results.push(c7);
+  logResult(7, 7, c7);
 
   console.log("");
   const failed = results.filter((r) => !r.ok);

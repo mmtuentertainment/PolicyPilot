@@ -215,11 +215,17 @@ function checkEnvExample(): Check[] {
   // Values must be blank in the template (no secret-shaped leaks)
   // Allowed non-secret defaults documented in 01-SECURITY.md T-01-02 evidence:
   //   RESEND_FROM_EMAIL, NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_POSTHOG_HOST.
+  // Added by 03-G2: the two Clerk fallback redirect env vars are pre-populated
+  // with /post-sign-in because the target route is project-fixed (Plan 03-02
+  // L-03 trampoline). The value is a public route path — not a secret. See
+  // GAP-3 in .planning/phases/03-admin-ui/03-SMOKE.md.
   // Anything else with a value after `=` would be a leak.
   const allowedNonBlank = new Set([
     "RESEND_FROM_EMAIL",
     "NEXT_PUBLIC_APP_URL",
     "NEXT_PUBLIC_POSTHOG_HOST",
+    "NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL",
+    "NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL",
   ]);
   let leaks = 0;
   for (const line of env.split(/\r?\n/)) {
