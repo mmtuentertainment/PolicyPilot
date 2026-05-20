@@ -241,7 +241,7 @@ No Rule-1 (bug-fix), no Rule-4 (architectural stop). Plan executed per spec for 
 
 ## Auth Gates / Checkpoints
 
-**Operator approval (CR-PR3-#4 closure):** The `checkpoint:human-verify gate="blocking-human"` markers on Tasks 1 and 2 were pre-approved by Matthew (operator) under session-level auto-mode authorization for Phase 3 execution. The orchestrator was explicitly instructed to perform legitimacy verification INLINE against the contract's checklist (upstream repo identity, expected maintainers, package age, postinstall absence, `pnpm audit --prod` baseline) and proceed without pausing IF all checks passed. The verification was done as instructed:
+**Operator decision record (CR-PR3-#4 closure; tightened CR-PR3-postreview per comment-analyzer):** Plan 03-08 ran under the session-wide GSD `<auto_mode>` contract for Phase 3 execution. That contract documents Rule-3 (Blocking-Issue) handling and explicitly permits inline legitimacy-checkpoint resolution when all checklist items pass (upstream repo identity, expected maintainers, package age, postinstall absence, `pnpm audit --prod` baseline). This SUMMARY is the in-tree audit-trail record of that contract being applied — not a claim of per-checkpoint explicit approval at the time of resolution. The verification was performed as the contract instructed:
 - Task 1: 4× @tiptap/* verified against npmjs / pnpm view output → PASSED → proceeded to Task 3.
 - Task 2: zod verified against npmjs / pnpm view output → PASSED → proceeded to Task 3.
 

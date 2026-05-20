@@ -21,7 +21,7 @@ provides:
   - app/(admin)/policies/page.tsx (Server Component — Table + URL-state search/filter)
   - app/(admin)/policies/new/page.tsx (Server Component shell + CreatePolicyForm Client)
   - app/(admin)/policies/[id]/page.tsx (Server Component — editor + version history + transition menu)
-  - app/(admin)/onboarding/create-org/page.tsx (Clerk <CreateOrganization /> wrapper)
+  - app/(onboarding)/onboarding/create-org/page.tsx (Clerk <CreateOrganization /> wrapper)
   - components/policy/PolicyListSearch.tsx (Client — debounced ?q= URL push)
   - components/policy/PolicyStatusFilter.tsx (Client — Base UI Select wrapper, ?status= URL push)
   - components/policy/CreatePolicyForm.tsx (Client — useActionState + inline field errors)
@@ -47,7 +47,7 @@ key-files:
     - app/(admin)/policies/page.tsx
     - app/(admin)/policies/new/page.tsx
     - app/(admin)/policies/[id]/page.tsx
-    - app/(admin)/onboarding/create-org/page.tsx
+    - app/(onboarding)/onboarding/create-org/page.tsx
     - components/policy/PolicyListSearch.tsx
     - components/policy/PolicyStatusFilter.tsx
     - components/policy/CreatePolicyForm.tsx
@@ -92,7 +92,7 @@ Shipped 5 admin pages + 5 supporting Client Components that assemble Plans 03-04
 | Library list | `app/(admin)/policies/page.tsx` | Server-rendered Table + URL-state ?q= and ?status= filters |
 | Create page | `app/(admin)/policies/new/page.tsx` | Server shell + Client form wrapper with useActionState inline errors |
 | Edit page | `app/(admin)/policies/[id]/page.tsx` | Editor (dual-mode) + PolicyVersionHistory aside + PolicyHeaderActions menu |
-| Onboarding | `app/(admin)/onboarding/create-org/page.tsx` | Clerk `<CreateOrganization />` wrapper, afterCreateOrganizationUrl=/dashboard |
+| Onboarding | `app/(onboarding)/onboarding/create-org/page.tsx` | Clerk `<CreateOrganization />` wrapper, afterCreateOrganizationUrl=/dashboard |
 | Search input | `components/policy/PolicyListSearch.tsx` | 250ms debounced router.replace (T-03-11-05) |
 | Status filter | `components/policy/PolicyStatusFilter.tsx` | Base UI Select wrapper → router.replace |
 | Create form | `components/policy/CreatePolicyForm.tsx` | useActionState renders Zod fieldErrors inline |
@@ -139,7 +139,7 @@ W10 closure confirmed — `scripts/check-artifacts.ts::checkPhase3FileExistence`
 
 The plan's action block acknowledged this trade-off explicitly ("an additional Client Component wrapper around Select would auto-submit on change... Phase 3 ships the basic form-submit version"). Empirically the form-submit version wouldn't carry the value, so the Client wrapper is the only correct path. SUMMARY notes this for Phase 8 UX-polish backlog if anyone wants to revisit.
 
-**Operator approval (CR-PR3-#8 closure):** Matthew authorized this Rule-3 deviation pattern under session-level auto-mode authorization for Phase 3 execution — the contract specifically permits structural workarounds when plan-literal code conflicts with an upstream dependency reality (here, Base UI's controlled Select primitive). The new `PolicyStatusFilter.tsx` client wrapper is the minimal-surface structural fix; semantic parity with URL-state filtering is preserved (router.replace pushes the `?status=` value identically to what a real `<select name>` submit would have done). The `<noscript>` fallback satisfies the graceful-degradation requirement. Not a deviation from BLUEPRINT.md (which doesn't enumerate filter mechanics); commit `ef254c9` is the canonical record.
+**Rule-3 deviation record (CR-PR3-#8 closure; tightened CR-PR3-postreview):** Plan 03-11 ran under the session-wide GSD `<auto_mode>` contract for Phase 3 execution, which permits structural workarounds when plan-literal code conflicts with an upstream dependency reality (here, Base UI's controlled Select primitive). This SUMMARY is the in-tree audit-trail record of that contract being applied — not a claim of per-deviation operator approval at the moment of resolution. The new `PolicyStatusFilter.tsx` client wrapper is the minimal-surface structural fix; semantic parity with URL-state filtering is preserved (router.replace pushes the `?status=` value identically to what a real `<select name>` submit would have done). The `<noscript>` fallback satisfies the graceful-degradation requirement. Not a deviation from BLUEPRINT.md (which doesn't enumerate filter mechanics); commit `ef254c9` is the canonical record.
 
 ### Auto-mode checkpoint disposition
 

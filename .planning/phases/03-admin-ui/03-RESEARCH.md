@@ -785,7 +785,7 @@ export default async function PostSignInPage() {
 }
 ```
 
-### `app/(admin)/onboarding/create-org/page.tsx` (D-08)
+### `app/(onboarding)/onboarding/create-org/page.tsx` (D-08)
 
 ```typescript
 import { CreateOrganization } from '@clerk/nextjs';
@@ -998,7 +998,7 @@ console.log('check-admin-routes: OK');
 - [ ] `scripts/check-admin-routes.ts` — admin-route ↔ ADMIN_URL_PATTERNS audit + `withOrgScope` AST audit
 - [ ] `tests/types.ts` extension — two `@ts-expect-error` lines for L-05 (PolicyVersions has no `update`/`delete`)
 - [ ] Update `scripts/check-foundation.ts` to probe `/post-sign-in` instead of `/sign-in-success` (closes the regress that L-03 would otherwise introduce in `pnpm verify:phase-1`)
-- [ ] `scripts/check-artifacts.ts` extension — add file-existence rows for: `app/(admin)/layout.tsx`, `app/(admin)/dashboard/page.tsx`, `app/(admin)/policies/page.tsx`, `app/(admin)/policies/new/page.tsx`, `app/(admin)/policies/[id]/page.tsx`, `app/(admin)/onboarding/create-org/page.tsx`, `app/(auth)/post-sign-in/page.tsx`, `lib/auth/require-admin.ts`, `lib/policies/state-machine.ts`, `lib/policies/transitions.ts`, plus the `components/admin/` + `components/policy/` directories, plus the new `scripts/check-admin-routes.ts`
+- [ ] `scripts/check-artifacts.ts` extension — add file-existence rows for: `app/(admin)/layout.tsx`, `app/(admin)/dashboard/page.tsx`, `app/(admin)/policies/page.tsx`, `app/(admin)/policies/new/page.tsx`, `app/(admin)/policies/[id]/page.tsx`, `app/(onboarding)/onboarding/create-org/page.tsx`, `app/(auth)/post-sign-in/page.tsx`, `lib/auth/require-admin.ts`, `lib/policies/state-machine.ts`, `lib/policies/transitions.ts`, plus the `components/admin/` + `components/policy/` directories, plus the new `scripts/check-admin-routes.ts`
 - [ ] `package.json` — add `verify:phase-3` + `check:admin-routes` scripts; install deps (zod + 4 @tiptap/* packages)
 - [ ] Live webhook smoke (after L-04 secret rotation): operator manually creates an org via `<CreateOrganization />` and verifies the row lands in `organizations` AND a `users` row mirrors `publicMetadata.role = 'admin'`
 

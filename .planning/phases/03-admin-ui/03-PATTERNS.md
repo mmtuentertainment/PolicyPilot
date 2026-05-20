@@ -27,7 +27,7 @@ This document maps each new/modified Phase 3 file to the closest existing in-rep
 | `app/(admin)/policies/new/actions.ts` | Server Action | request-response (mutation) | new pattern; `app/api/webhooks/clerk/route.ts` is the closest mutation-handler analog (different mechanism but similar Zod-parse + DB-write shape) | partial |
 | `app/(admin)/policies/[id]/actions.ts` | Server Action | request-response (mutation) | new pattern; same as `new/actions.ts` | partial |
 | `app/(auth)/post-sign-in/page.tsx` | page (server redirect trampoline) | request-response | `app/sign-in-success/page.tsx` (placeholder to delete) + `lib/auth/context.ts` for `getOrgContext()` use | partial |
-| `app/(admin)/onboarding/create-org/page.tsx` | page (Clerk widget mount) | request-response | `app/(auth)/sign-in/[[...sign-in]]/page.tsx` (Clerk `<SignIn />` mount) | exact |
+| `app/(onboarding)/onboarding/create-org/page.tsx` | page (Clerk widget mount) | request-response | `app/(auth)/sign-in/[[...sign-in]]/page.tsx` (Clerk `<SignIn />` mount) | exact |
 | `components/admin/AdminSidebar.tsx` | component (Server Component) | request-response | `app/(marketing)/layout.tsx` (nav shape) | role-match |
 | `components/admin/AdminTopbar.tsx` | component (Server Component) | request-response | `app/(marketing)/layout.tsx` (header shape) | role-match |
 | `components/policy/PolicyEditor.tsx` | component (Client Component) | event-driven | NO ANALOG — first Client Component in repo (greenfield) | none |
@@ -643,7 +643,7 @@ export default async function PostSignInPage() {
 
 ---
 
-### `app/(admin)/onboarding/create-org/page.tsx` (NEW — Clerk widget mount)
+### `app/(onboarding)/onboarding/create-org/page.tsx` (NEW — Clerk widget mount)
 
 **Analog:** `app/(auth)/sign-in/[[...sign-in]]/page.tsx:1-6` (Clerk widget mount).
 
