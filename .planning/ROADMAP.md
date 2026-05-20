@@ -10,7 +10,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 
 - [x] **Phase 1: Foundation** — Next.js 15 + Clerk + Supabase wired up, `localhost:3000` loads clean. ✓ 2026-05-16 (operator-approved; VERIFICATION.md PASS)
 - [x] **Phase 2: Data Layer** — Drizzle schema + RLS + Clerk webhooks; `org_id` invariant established. ✓ 2026-05-18 (operator-approved; `pnpm verify:phase-2` 7/7 OK; webhook live-smoke deferred to Phase 3)
-- [x] **Phase 3: Admin UI** — Policy library, TipTap editor, full lifecycle (Draft → Published → Archived). (completed 2026-05-19)
+- [x] **Phase 3: Admin UI** — Policy library, TipTap editor, full lifecycle (Draft → Published → Archived). ✓ 2026-05-20 (14 main plans 03-00..03-11 + 3 gap-closure plans 03-G1/G2/G3; 6/6 HUMAN-UAT PASS; verify:phase-2 8/8 OK; verify:phase-3 8 gates + 269/269 artifacts + 53/53 vitest)
 - [ ] **Phase 4: AI Layer** — Draft generation, TL;DR summaries, Employee Q&A, Consistency Check (Growth+).
 - [ ] **Phase 5: Employee Portal** — Assigned-policies dashboard + append-only acknowledgment flow.
 - [ ] **Phase 6: Billing** — Stripe Checkout + 5-event webhook + tier gating via `TIER_LIMITS`.
@@ -84,6 +84,9 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 - [x] 03-09-PLAN.md — Admin shell: app/(admin)/layout.tsx (L-01 gate + SidebarProvider) + AdminSidebar (x-pathname active state) + AdminTopbar (children slot for Clerk widgets)
 - [x] 03-10-PLAN.md — Policy components: PolicyEditor (Client, immediatelyRender:false) + PolicyView (Server, generateHTML) + PolicyStatusBadge + PolicyTransitionMenu (Client) + PolicyVersionHistory (Server)
 - [x] 03-11-PLAN.md — Admin pages: /dashboard + /policies + /policies/new + /policies/[id] + /onboarding/create-org — webhook live-smoke checkpoint + ROADMAP SC walkthrough
+- [x] 03-G1-PLAN.md — Gap closure: GAP-1 (BLOCKER) getOrgContext Clerk-text → internal UUID translation + scripts/check-auth-context.ts integration test + 9 one-off smoke recovery scripts deletion ✓ 2026-05-19 (commit `ea68a0e`)
+- [x] 03-G2-PLAN.md — Gap closure: GAP-3 (MINOR) embedded Clerk fallback redirect env vars + reference/STACK.md docs + scripts/check-foundation.ts 7th check ✓ 2026-05-19 (commit `eae3f77`)
+- [x] 03-G3-PLAN.md — Gap closure: DUP-VN (BLOCKER) restore() bumps currentVersion + schema UNIQUE(policy_id, version_number) + cleanup migration + check-schema audit; SF-W5 (HIGH) webhook race fix via clerk_events deletion on non-2xx return; MYPOL-STUB (MEDIUM) /my-policies Phase 5 stub ✓ 2026-05-20 (commits `2da89b4` T7, `437b77d` T1+T5, `cef7a88` T2+T3+T4, `6706b32` T6, `43670bb` T9; T8 SF-W5 vitest deferred to Phase 7+ test-coverage plan)
 **UI hint**: yes
 
 ### Phase 4: AI Layer
