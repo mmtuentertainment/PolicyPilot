@@ -47,6 +47,12 @@ export type ActionState = { ok: true } | { ok: false; error: string };
 // input, not just empty strings.
 const PolicyIdSchema = z.string().uuid();
 
+// CR-PR3-postreview-v3 — same idea for users.id (also a Postgres `uuid`).
+// `reviewerId` flows into the WorkflowStages row inside submitForReview;
+// a malformed string would trigger the same 22P02 path. Nullable because
+// the assigned-reviewer field is optional.
+const OptionalReviewerIdSchema = z.string().uuid().nullable();
+
 /**
  * Read the policyId field out of FormData. Returns `null` if missing,
  * malformed, OR not a valid UUID — caller MUST return
@@ -118,7 +124,14 @@ export async function submitForReviewAction(
 ): Promise<ActionState> {
   const policyId = policyIdFrom(formData);
   if (policyId === null) return INVALID_PAYLOAD;
-  const reviewerId = String(formData.get('reviewerId') ?? '') || null;
+  // Treat empty / whitespace-only as "no reviewer assigned"; otherwise the
+  // value must round-trip as a UUID (matches OptionalReviewerIdSchema).
+  const rawReviewerId = String(formData.get('reviewerId') ?? '').trim();
+  const reviewerIdParsed = OptionalReviewerIdSchema.safeParse(
+    rawReviewerId.length > 0 ? rawReviewerId : null,
+  );
+  if (!reviewerIdParsed.success) return INVALID_PAYLOAD;
+  const reviewerId = reviewerIdParsed.data;
   try {
     await submitForReview(policyId, reviewerId);
   } catch (e) {
@@ -310,6 +323,13 @@ export async function updateDraftAction(
   if (title !== undefined) patch.title = title;
   if (category !== undefined) patch.category = category;
   if (content_json !== undefined) patch.contentJson = content_json;
+  // CR-PR3-postreview-v3 — bail before hitting the repo when the client
+  // sends a form with only `policyId` (no editable fields). Without this,
+  // `Policies.updateDraft` runs an empty UPDATE that succeeds at the DB
+  // layer and we'd surface a misleading "Could not save" error path.
+  if (Object.keys(patch).length === 0) {
+    return { ok: false, error: 'Invalid update payload.' };
+  }
   try {
     const ctx = await getOrgContext();
     await withOrgScope(ctx, async (s) => {

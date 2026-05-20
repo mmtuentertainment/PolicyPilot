@@ -20,9 +20,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // can dispatch to them and beforeEach can reset them.
 const publishMock = vi.fn();
 const editPublishedMock = vi.fn();
+const submitForReviewMock = vi.fn();
 
 vi.mock('@/lib/policies/transitions', () => ({
-  submitForReview: vi.fn(),
+  submitForReview: (...args: unknown[]) => submitForReviewMock(...args),
   approve: vi.fn(),
   reject: vi.fn(),
   publish: (...args: unknown[]) => publishMock(...args),
@@ -68,16 +69,25 @@ vi.mock('@/lib/db/scoped', () => ({
     }),
 }));
 
+const updateDraftMock = vi.fn();
 vi.mock('@/lib/db/repositories/policies', () => ({
-  Policies: { updateDraft: vi.fn(async () => []) },
+  Policies: { updateDraft: (...args: unknown[]) => updateDraftMock(...args) },
 }));
 
 import { IllegalTransitionError } from '@/lib/policies/state-machine';
-import { publishAction, editPublishedAction } from './actions';
+import {
+  publishAction,
+  editPublishedAction,
+  submitForReviewAction,
+  updateDraftAction,
+} from './actions';
 
 beforeEach(() => {
   publishMock.mockReset();
   editPublishedMock.mockReset();
+  submitForReviewMock.mockReset();
+  updateDraftMock.mockReset();
+  updateDraftMock.mockImplementation(async () => []);
   revalidateMock.mockClear();
 });
 
@@ -179,5 +189,102 @@ describe('editPublishedAction', () => {
       // IllegalTransitionError message format includes both from + to.
       expect(result.error).toContain('draft');
     }
+  });
+});
+
+// CR-PR3-postreview-v3 — reviewerId is a Postgres `uuid` column on users.id.
+// Before this guard, a malformed string passed through to submitForReview →
+// WorkflowStages insert → 22P02 → unhandled 500. These tests pin the typed
+// reject path AND lock in the "empty string / missing field = null reviewer"
+// passthrough so legitimate "submit without assigning a reviewer" still works.
+describe('submitForReviewAction reviewerId validation', () => {
+  const POLICY_ID = '00000000-0000-4000-8000-000000000001';
+
+  it('returns INVALID_PAYLOAD on non-UUID reviewerId', async () => {
+    const result = await submitForReviewAction(
+      undefined,
+      fd({ policyId: POLICY_ID, reviewerId: 'not-a-uuid' }),
+    );
+    expect(result).toEqual({ ok: false, error: 'Invalid action payload.' });
+    expect(submitForReviewMock).not.toHaveBeenCalled();
+    expect(revalidateMock).not.toHaveBeenCalled();
+  });
+
+  it('returns INVALID_PAYLOAD on UUID with one bad character', async () => {
+    const result = await submitForReviewAction(
+      undefined,
+      fd({
+        policyId: POLICY_ID,
+        reviewerId: '00000000-0000-4000-8000-00000000000G',
+      }),
+    );
+    expect(result).toEqual({ ok: false, error: 'Invalid action payload.' });
+    expect(submitForReviewMock).not.toHaveBeenCalled();
+  });
+
+  it('passes null reviewerId when field is missing', async () => {
+    submitForReviewMock.mockResolvedValueOnce(undefined);
+    const result = await submitForReviewAction(
+      undefined,
+      fd({ policyId: POLICY_ID }),
+    );
+    expect(result).toEqual({ ok: true });
+    expect(submitForReviewMock).toHaveBeenCalledWith(POLICY_ID, null);
+  });
+
+  it('passes null reviewerId when field is whitespace-only', async () => {
+    submitForReviewMock.mockResolvedValueOnce(undefined);
+    const result = await submitForReviewAction(
+      undefined,
+      fd({ policyId: POLICY_ID, reviewerId: '   ' }),
+    );
+    expect(result).toEqual({ ok: true });
+    expect(submitForReviewMock).toHaveBeenCalledWith(POLICY_ID, null);
+  });
+
+  it('passes through a valid UUID reviewerId', async () => {
+    submitForReviewMock.mockResolvedValueOnce(undefined);
+    const reviewerId = '11111111-1111-4111-8111-111111111111';
+    const result = await submitForReviewAction(
+      undefined,
+      fd({ policyId: POLICY_ID, reviewerId }),
+    );
+    expect(result).toEqual({ ok: true });
+    expect(submitForReviewMock).toHaveBeenCalledWith(POLICY_ID, reviewerId);
+  });
+});
+
+// CR-PR3-postreview-v3 — without this guard, a form with only policyId (no
+// editable fields) would issue an empty UPDATE through Policies.updateDraft
+// and surface a misleading generic save-failed error. Pin the typed reject
+// path AND verify the repo is NOT called when the patch is empty.
+describe('updateDraftAction empty-patch rejection', () => {
+  const POLICY_ID = '00000000-0000-4000-8000-000000000001';
+
+  it('returns "Invalid update payload." when no editable fields are present', async () => {
+    const result = await updateDraftAction(
+      undefined,
+      fd({ policyId: POLICY_ID }),
+    );
+    expect(result).toEqual({ ok: false, error: 'Invalid update payload.' });
+    expect(updateDraftMock).not.toHaveBeenCalled();
+    expect(revalidateMock).not.toHaveBeenCalled();
+  });
+
+  it('still updates when at least one editable field (title) is present', async () => {
+    const result = await updateDraftAction(
+      undefined,
+      fd({ policyId: POLICY_ID, title: 'New Title' }),
+    );
+    expect(result).toEqual({ ok: true });
+    expect(updateDraftMock).toHaveBeenCalledTimes(1);
+    // Args: (scope, policyId, patch) — assert the patch carries the field.
+    const [, calledPolicyId, calledPatch] = updateDraftMock.mock.calls[0] as [
+      unknown,
+      string,
+      Record<string, unknown>,
+    ];
+    expect(calledPolicyId).toBe(POLICY_ID);
+    expect(calledPatch).toEqual({ title: 'New Title' });
   });
 });
