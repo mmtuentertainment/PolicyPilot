@@ -1,58 +1,60 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-19T00:00:00.000Z",
-  "phase": "02",
-  "phase_name": "Data Layer",
-  "phase_dir": ".planning/phases/02-data-layer/",
-  "plan": 7,
-  "task": null,
-  "total_tasks": 7,
-  "status": "shipped",
-  "context": "between-phases",
-  "branch": "gsd/phase-2-data-layer",
-  "pr": "https://github.com/mmtuentertainment/PolicyPilot/pull/2",
+  "timestamp": "2026-05-20T06:28:24.673Z",
+  "phase": "3",
+  "phase_name": "Admin UI",
+  "phase_dir": ".planning/phases/03-admin-ui",
+  "plan": "03-G2",
+  "task": 3,
+  "total_tasks": 3,
+  "status": "paused_awaiting_human_uat",
+  "context": "phase",
+  "branch": "gsd/phase-3-admin-ui",
   "completed_tasks": [
-    { "id": "02-01", "name": "Drizzle schema + OrgScope + getOrgContext + tests/types.ts", "status": "done" },
-    { "id": "02-02", "name": "Operator manual config (Clerk + Supabase)", "status": "done" },
-    { "id": "02-03", "name": "Migrations + RLS SQL + dev DB push", "status": "done" },
-    { "id": "02-04", "name": "9 repository skeletons", "status": "done" },
-    { "id": "02-05", "name": "svix + Clerk webhook + middleware SF-M4 fold", "status": "done" },
-    { "id": "02-06", "name": "verify:phase-2 + ts-morph + 3 check scripts", "status": "done" },
-    { "id": "02-07", "name": "Code-review hotfix (CR-01 + HI-01)", "status": "done" },
-    { "id": "02-08-coderabbit", "name": "CodeRabbit findings fix-up (incl. 0002_users_department_fk migration + maskClerkId helper)", "status": "done" }
+    { "id": "03-00", "name": "Operator manual config (Clerk dashboard + whsec rotation)", "status": "done", "commit": "dafbd0d" },
+    { "id": "03-01", "name": "Wave-0 vitest + verify:phase-3 + scaffolds", "status": "done", "commit": "4e813a1" },
+    { "id": "03-02", "name": "middleware admin matcher rewrite + require-admin + /post-sign-in", "status": "done", "commit": "d66379d" },
+    { "id": "03-03", "name": "state-machine module + 24-case truth-table tests", "status": "done", "commit": "9c577f3" },
+    { "id": "03-04", "name": "Repository bodies (Policies + PolicyVersions + WorkflowStages)", "status": "done", "commit": "d8f673b" },
+    { "id": "03-05", "name": "Phase 2 webhook hardening (L-06a + L-06b)", "status": "done", "commit": "4a69444" },
+    { "id": "03-06", "name": "7 transition orchestrators", "status": "done", "commit": "efa124f" },
+    { "id": "03-07", "name": "Server Actions (createPolicyAction + 8 transition actions)", "status": "done", "commit": "9bd8ca1" },
+    { "id": "03-08", "name": "@tiptap/* + zod + 9 shadcn deps install", "status": "done", "commit": "05d53d2" },
+    { "id": "03-09", "name": "Admin shell layout + Sidebar + Topbar", "status": "done", "commit": "bfc1603" },
+    { "id": "03-10", "name": "5 policy components (Editor, View, StatusBadge, TransitionMenu, VersionHistory)", "status": "done", "commit": "fb9b758" },
+    { "id": "03-11", "name": "5 admin pages + artifact gate flip", "status": "done", "commit": "4213ac4" },
+    { "id": "03-G1", "name": "BLOCKER fix - getOrgContext UUID translation + integration test + smoke script cleanup", "status": "done", "commit": "ea68a0e" },
+    { "id": "03-G2", "name": "embedded SignIn redirect env vars + STACK.md docs + check-foundation 7th check", "status": "done", "commit": "eae3f77" }
   ],
   "remaining_tasks": [
-    { "id": "merge-pr-2", "name": "Operator merges PR #2 when CI / review complete", "status": "external" },
-    { "id": "phase-3-discuss", "name": "/gsd-discuss-phase 3 — Admin UI context gathering", "status": "not_started" }
+    { "id": "UAT-1", "name": "ROADMAP SC #1 - Create policy from /dashboard", "status": "not_started" },
+    { "id": "UAT-2", "name": "ROADMAP SC #2 - Illegal transition rejected with UI surface", "status": "not_started" },
+    { "id": "UAT-3", "name": "ROADMAP SC #3 - Edit published creates new policy_versions row + resets to Draft", "status": "not_started" },
+    { "id": "UAT-4", "name": "ROADMAP SC #4 - Cross-org list scoped by org_id", "status": "not_started" },
+    { "id": "UAT-5", "name": "ROADMAP SC #5 - Search by title/category scoped by org_id", "status": "not_started" },
+    { "id": "UAT-6", "name": "Webhook live-smoke (Plan 03-11 Task 6 / SF-WHSEC-1)", "status": "not_started" },
+    { "id": "POST-UAT-1", "name": "Mark Phase 3 complete in ROADMAP + STATE", "status": "blocked_on_uat" },
+    { "id": "POST-UAT-2", "name": "Create PR for gsd/phase-3-admin-ui branch", "status": "blocked_on_uat" }
   ],
   "blockers": [],
   "human_actions_pending": [
     {
-      "action": "Rotate Clerk webhook signing secret (whsec_) in Svix Dashboard",
-      "context": "SF-WHSEC-1 — value pasted into chat transcript during Plan 02-02 checkpoint; before any live traffic",
-      "blocking": false
+      "action": "Run the 6 HUMAN-UAT smoke walkthrough items in a fresh browser",
+      "context": "Verifier returned status=human_needed because ROADMAP SCs 1-5 require live Clerk session + browser interaction (TipTap rendering, transition menu UX, edit-published version increment, cross-org 404, URL-state debouncing). Item 6 (webhook live-smoke) closes SF-WHSEC-1.",
+      "blocking": true
     },
     {
-      "action": "Merge PR #2 (gsd/phase-2-data-layer → main)",
-      "context": "Phase 2 work ships via this PR; verify:phase-2 7/7 OK on the branch tip",
-      "blocking": false
-    },
-    {
-      "action": "Investigate REG-P1-01 during Phase 3 setup",
-      "context": "pnpm verify:phase-1 check 6/6 fails on /sign-in-success (dev-only placeholder route); Plan 02-05 middleware SF-M4 fold suspected",
-      "blocking": false
-    },
-    {
-      "action": "Fix CR-02 admin matcher /(admin)/(.*) dead code during Phase 3",
-      "context": "Pre-existing Phase-1 issue; route groups are URL-invisible in Next.js. Phase 3 will replace with concrete admin URLs once app/(admin)/<route>/page.tsx files land",
+      "action": "Restart background services when resuming (pnpm dev + cloudflared tunnel + Svix endpoint URL update)",
+      "context": "All background services were stopped cleanly at pause. cloudflared tunnel URL changes on restart, so the Svix endpoint will need to be updated again to the new trycloudflare URL.",
       "blocking": false
     }
   ],
   "decisions": [
-    { "decision": "Webhook live-smoke deferred to Phase 3", "rationale": "Phase 3 ships <CreateOrganization /> UI that drives the end-to-end smoke naturally; pnpm verify:phase-2 7/7 OK is sufficient evidence of code correctness in the interim" },
-    { "decision": "5 CodeRabbit findings explicitly skipped", "rationale": "Documented in commit ddf2614: (1) check-data-layer D-03a URL needs DEV not TEST; (2) webhook .updated re-lookup orgId conflicts with Clerk semantics; (3) idempotency-in-transaction = SF-W5 Phase-7; (4)+(5) schema column changes need ADR review (Phase 2.1 candidates)" }
+    { "decision": "Defer GAP-2 (SF-W5 webhook race recovery) to Phase 7", "rationale": "Already documented inline at app/api/webhooks/clerk/route.ts:235-244 as Phase 7 obligation. The 409-on-prerequisite-missing path doesn't delete clerk_events row, so retries hit D-03b idempotency short-circuit. Phase 7 (Crons + Email) is when structured logging + retry handling lands.", "phase": "3" },
+    { "decision": "Widen OrgContext type additively (don't rename orgId/userId)", "rationale": "GAP-1 fix translates Clerk text to internal UUID inside getOrgContext, but keeps the existing field names so all callers compile unchanged. Added clerkOrgId + clerkUserId fields for webhook handlers that legitimately need Clerk's text refs.", "phase": "3" },
+    { "decision": "Manual recovery scripts authored during live smoke were committed then deleted by 03-G1", "rationale": "Live smoke surfaced a two-Clerk-user identity tangle (mmtuproperties JIum vs mmtuentertainment b2iy). Operator-authorized one-off scripts (link-jium-to-org, backfill-b2iy, etc.) recovered DB state. Plan 03-G1 Task 3 deleted all 9 scripts after the underlying bug was fixed. scripts/check-org-state.ts retained as useful debug tool.", "phase": "3" }
   ],
   "uncommitted_files": [],
-  "next_action": "/clear then /gsd-discuss-phase 3 — start Phase 3 (Admin UI) context gathering",
-  "context_notes": "Phase 2 fully complete (7 plans + audit + 02-07 hotfix + CodeRabbit fix-up). PR #2 open; merge when ready. Branch tip 6e2d671; verify:phase-2 7/7 OK; tsc clean. Phase 3 carry-forward: SF-WHSEC-1 (rotate webhook secret), REG-P1-01 (Phase-1 verify regression on /sign-in-success), CR-02 (admin matcher rewrite), Nyquist HIGH gaps (webhook contract test for G-08a/G-09a, PUBLIC/anon GRANT check for G-03a)."
+  "next_action": "Reply 'ready' to restart pnpm dev + cloudflared tunnel in background, get the new trycloudflare URL, update Svix endpoint URL, then run the 6 HUMAN-UAT items in a fresh incognito window signed in as mmtuproperties@gmail.com (JIum - already linked admin to mmtu entertainment org). After all 6 pass, mark Phase 3 complete in ROADMAP/STATE and create PR.",
+  "context_notes": "Phase 3 code is 100% shipped and verified at automated-gate level (269 artifact assertions, 51/51 vitest, 8 verify:phase-3 gates green including new check:auth-context with positive + negative controls). GAP-1 BLOCKER closed with seed-and-rollback integration test that includes a Clerk-text-injection regression guard. Remaining work is purely human-UI testing. Recommend reading 03-VERIFICATION.md + 03-HUMAN-UAT.md before resuming."
 }
