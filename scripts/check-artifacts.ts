@@ -767,6 +767,10 @@ function checkServerOnlyBoundary(): Check[] {
     "./lib/db/scoped.ts",
     "app/api/webhooks/clerk/route.ts",
     "./app/api/webhooks/clerk/route.ts",
+    // 03-G1 ADR-023 allow-list entry: getOrgContext now imports the raw db
+    // barrel to translate Clerk text ids → internal UUIDs per gap-closure.
+    "lib/auth/context.ts",
+    "./lib/auth/context.ts",
   ]);
   const unexpected = hits.filter((h) => !allowed.has(h));
   if (unexpected.length === 0) {
@@ -1188,6 +1192,154 @@ function checkPhase3FileExistence(): Check[] {
 }
 
 /**
+ * Phase 3 gap-closure 03-G1 — artifact regression assertions for the
+ * Clerk-text → internal-UUID translation inside getOrgContext + the new
+ * scripts/check-auth-context.ts integration test + its wiring into the
+ * verify orchestrator + the bumped allow-list positive control.
+ *
+ * @returns An array of `Check` results indicating which 03-G1 invariants passed or failed.
+ */
+function checkPhase3G1Artifacts(): Check[] {
+  const out: Check[] = [];
+
+  // lib/auth/context.ts — the file Task 1 rewrote.
+  const ctxPath = "lib/auth/context.ts";
+  if (!exists(ctxPath)) {
+    out.push(fail(`${ctxPath} exists`, "missing"));
+  } else {
+    const ctx = read(ctxPath);
+    assert(
+      out,
+      ctx.includes("clerkOrgId: string"),
+      `${ctxPath}: OrgContext declares clerkOrgId: string (03-G1)`,
+      "clerkOrgId field missing from OrgContext type",
+    );
+    assert(
+      out,
+      ctx.includes("clerkUserId: string"),
+      `${ctxPath}: OrgContext declares clerkUserId: string (03-G1)`,
+      "clerkUserId field missing from OrgContext type",
+    );
+    assert(
+      out,
+      ctx.includes("eq(organizations.clerkOrgId"),
+      `${ctxPath}: DB lookup uses eq(organizations.clerkOrgId, ...) (03-G1)`,
+      "organizations.clerkOrgId lookup missing",
+    );
+    assert(
+      out,
+      ctx.includes("eq(users.clerkUserId"),
+      `${ctxPath}: DB lookup uses eq(users.clerkUserId, ...) (03-G1)`,
+      "users.clerkUserId lookup missing",
+    );
+    assert(
+      out,
+      ctx.includes("from '@/lib/db'"),
+      `${ctxPath}: imports db from @/lib/db (03-G1 ADR-023 allow-list entry)`,
+      "db barrel import missing",
+    );
+    assert(
+      out,
+      ctx.includes("Org not provisioned in DB for"),
+      `${ctxPath}: missing-org error path uses 'Org not provisioned in DB for' (03-G1)`,
+      "missing-org error message missing",
+    );
+    assert(
+      out,
+      ctx.includes("User not provisioned in DB for"),
+      `${ctxPath}: missing-user error path uses 'User not provisioned in DB for' (03-G1)`,
+      "missing-user error message missing",
+    );
+  }
+
+  // scripts/check-auth-context.ts — Task 2 new integration test.
+  const checkAuthCtxPath = "scripts/check-auth-context.ts";
+  if (!exists(checkAuthCtxPath)) {
+    out.push(fail(`${checkAuthCtxPath} exists`, "missing (03-G1 Task 2)"));
+  } else {
+    out.push(ok(`${checkAuthCtxPath} exists (03-G1 Task 2)`));
+    const cac = read(checkAuthCtxPath);
+    assert(
+      out,
+      cac.includes("Policies.statusCounts"),
+      `${checkAuthCtxPath}: exercises Policies.statusCounts`,
+      "first-failure repo call missing",
+    );
+    assert(
+      out,
+      cac.includes("bugTriggered"),
+      `${checkAuthCtxPath}: negative-control sentinel 'bugTriggered' present`,
+      "negative control missing",
+    );
+    assert(
+      out,
+      cac.includes("clerk_org_check_authctx"),
+      `${checkAuthCtxPath}: unique seed sentinel 'clerk_org_check_authctx' present (prevents accidental delete)`,
+      "seed sentinel missing",
+    );
+  }
+
+  // scripts/check-data-layer.ts — Task 2 orchestrator wiring.
+  const cdlPath = "scripts/check-data-layer.ts";
+  if (!exists(cdlPath)) {
+    out.push(fail(`${cdlPath} exists`, "missing"));
+  } else {
+    const cdl = read(cdlPath);
+    assert(
+      out,
+      cdl.includes("checkAuthContext"),
+      `${cdlPath}: declares + calls checkAuthContext (03-G1 wiring)`,
+      "checkAuthContext not wired",
+    );
+    assert(
+      out,
+      cdl.includes("03-G1 — auth-context Clerk-text → UUID translation"),
+      `${cdlPath}: contains 03-G1 label string`,
+      "03-G1 label missing",
+    );
+    // Step count bumped 7 → 8: logResult(1, 8, ...) must appear exactly once
+    // (the first check). Use a substring match — the regex form
+    // logResult\([0-9]+, 8, would also work but substring is simpler and
+    // sufficient for the mechanical-edit confirmation.
+    const matches1of8 = (cdl.match(/logResult\(1, 8,/g) ?? []).length;
+    assert(
+      out,
+      matches1of8 === 1,
+      `${cdlPath}: logResult(1, 8, ...) appears exactly once (step count bumped 7→8)`,
+      `found ${matches1of8} match(es) — expected 1`,
+    );
+  }
+
+  // scripts/check-db-imports.ts — Task 1 ALLOWLIST + positive-control bump.
+  const cdiPath = "scripts/check-db-imports.ts";
+  if (!exists(cdiPath)) {
+    out.push(fail(`${cdiPath} exists`, "missing"));
+  } else {
+    const cdi = read(cdiPath);
+    assert(
+      out,
+      cdi.includes("lib/auth/context.ts"),
+      `${cdiPath}: ALLOWLIST contains lib/auth/context.ts (03-G1)`,
+      "ADR-023 allow-list entry missing",
+    );
+    assert(
+      out,
+      !cdi.includes("allowListedHits >= 2"),
+      `${cdiPath}: positive control bumped from >= 2 (03-G1)`,
+      "stale 'allowListedHits >= 2' still present",
+    );
+    assert(
+      out,
+      cdi.includes("allowListedHits >= 3"),
+      `${cdiPath}: positive control bumped to >= 3 (03-G1)`,
+      "expected 'allowListedHits >= 3' present",
+    );
+  }
+
+  return out;
+}
+
+/**
  * Runs the full set of artifact regression checks, prints results, and terminates the process.
  *
  * Aggregates Phase 1 and Phase 2 checks, prints a line for each check indicating pass or fail,
@@ -1223,6 +1375,8 @@ function main(): void {
     // Phase 3 additions:
     ...checkPhase3Scaffold(),
     ...checkPhase3FileExistence(),
+    // Phase 3 gap-closure 03-G1 additions:
+    ...checkPhase3G1Artifacts(),
     ...checkPhase2Migrations(),
     ...checkPhase2TypeTests(),
     ...checkPhase2VerifyScripts(),
