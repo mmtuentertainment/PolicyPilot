@@ -24,11 +24,36 @@ import { getOrgContext } from '@/lib/auth/context';
  * call; once it returns, the redirect() calls run unwrapped. This file
  * intentionally has no surrounding try block at the function level.
  */
-export default async function PostSignInPage() {
+// CR-PR3-#19 closure — narrow the catch so backend failures (Clerk auth
+// outage, DB unreachable, malformed Clerk text IDs) surface as real 500s
+// instead of being masked as legitimate onboarding state. Only the three
+// "user-bootstrap-incomplete" shapes route to /onboarding/create-org.
+//
+// Sourced verbatim from lib/auth/context.ts throw sites:
+//   - 'Not authenticated'        (asRole when sessionClaims.role missing)
+//   - 'Invalid role'             (asRole when value not in enum)
+//   - 'No active organization'   (getOrgContext when orgId is null)
+// Backend-failure shapes that must rethrow:
+//   - 'Clerk auth() failed'      (try/catch around await auth())
+//   - 'Org not provisioned'      (orgs lookup empty — race AFTER sign-in)
+//   - 'User not provisioned'     (users lookup empty)
+const BOOTSTRAP_ERRORS = [
+  'Not authenticated',
+  'Invalid role',
+  'No active organization',
+] as const;
+
+function isBootstrapError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return BOOTSTRAP_ERRORS.some((needle) => err.message.includes(needle));
+}
+
+export default async function PostSignInPage(): Promise<never> {
   let ctx;
   try {
     ctx = await getOrgContext();
-  } catch {
+  } catch (err) {
+    if (!isBootstrapError(err)) throw err;
     // No active org (no Clerk orgId, or session role missing) → onboard.
     redirect('/onboarding/create-org');
   }

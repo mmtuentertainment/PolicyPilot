@@ -19,17 +19,37 @@ import { Policies } from "@/lib/db/repositories/policies";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 
-export default async function DashboardPage() {
+// Errors getOrgContext() throws in the brief sign-up → webhook landing
+// window (W7 fallback below renders for these). Sourced from
+// lib/auth/context.ts:asRole + getOrgContext throw sites — kept narrow so
+// genuine backend outages (Clerk down, DB unreachable) propagate up to
+// Next.js' framework error boundary instead of being masked as a loading
+// state. CR-PR3-#14 closure.
+const ONBOARDING_RACE_ERRORS = [
+  'No active organization',
+  'Org not provisioned',
+  'User not provisioned',
+  'Invalid role',
+] as const;
+
+function isOnboardingRaceError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return ONBOARDING_RACE_ERRORS.some((needle) => err.message.includes(needle));
+}
+
+export default async function DashboardPage(): Promise<React.JSX.Element> {
   // W7: Clerk webhook race mitigation (Option B — brief loading state).
   // If the user signed in and reached /dashboard before the
   // `organizationMembership.created` webhook landed, users.org_id will
   // still be null and getOrgContext() throws. Render a "Setting up your
   // organization..." panel with a meta-refresh after 2s instead of a
-  // raw 500.
+  // raw 500. Backend failures (Clerk down, DB unreachable) rethrow so
+  // they surface as real 500s and aren't masked as onboarding state.
   let ctx;
   try {
     ctx = await getOrgContext();
-  } catch {
+  } catch (err) {
+    if (!isOnboardingRaceError(err)) throw err;
     return (
       <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-8 text-center">
         <meta httpEquiv="refresh" content="2" />

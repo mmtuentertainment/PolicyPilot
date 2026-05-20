@@ -25,7 +25,7 @@
 // dashboard webhook target.
 import { CreateOrganization } from "@clerk/nextjs";
 
-export default function CreateOrgPage() {
+export default function CreateOrgPage(): React.JSX.Element {
   return (
     <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-8">
       <h1 className="text-3xl font-semibold mb-2">Create your organization</h1>

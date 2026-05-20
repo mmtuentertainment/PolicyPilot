@@ -37,7 +37,7 @@ export default async function AdminLayout({
   children,
 }: {
   children: ReactNode;
-}) {
+}): Promise<React.JSX.Element> {
   const headerStore = await headers();
   const pathname = headerStore.get("x-pathname") ?? "";
 

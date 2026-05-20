@@ -39,15 +39,20 @@ import { IllegalTransitionError } from '@/lib/policies/state-machine';
 export type ActionState = { ok: true } | { ok: false; error: string };
 
 /**
- * Read the policyId field out of FormData. Throws if missing — caller is
- * the Phase 3 form scaffolding (Plan 03-10/11) and is responsible for
- * placing a `<input type="hidden" name="policyId" ...>` in every form.
+ * Read the policyId field out of FormData. Returns `null` if missing /
+ * malformed — caller MUST return `{ ok: false, error: 'Invalid action
+ * payload.' }` so the typed ActionState contract holds (D-09). Throwing
+ * here would bypass each action's try/catch and surface as a Next.js 500
+ * — see CR-PR3-#18.
  */
-function policyIdFrom(formData: FormData): string {
-  const id = String(formData.get('policyId') ?? '');
-  if (!id) throw new Error('Missing policyId in form data');
-  return id;
+function policyIdFrom(formData: FormData): string | null {
+  const raw = formData.get('policyId');
+  if (typeof raw !== 'string') return null;
+  const id = raw.trim();
+  return id.length > 0 ? id : null;
 }
+
+const INVALID_PAYLOAD: ActionState = { ok: false, error: 'Invalid action payload.' };
 
 /**
  * Map an orchestrator error to ActionState:
@@ -85,6 +90,7 @@ export async function submitForReviewAction(
   formData: FormData,
 ): Promise<ActionState> {
   const policyId = policyIdFrom(formData);
+  if (policyId === null) return INVALID_PAYLOAD;
   const reviewerId = String(formData.get('reviewerId') ?? '') || null;
   try {
     await submitForReview(policyId, reviewerId);
@@ -101,6 +107,7 @@ export async function approveAction(
   formData: FormData,
 ): Promise<ActionState> {
   const policyId = policyIdFrom(formData);
+  if (policyId === null) return INVALID_PAYLOAD;
   try {
     await approve(policyId);
   } catch (e) {
@@ -116,6 +123,7 @@ export async function rejectAction(
   formData: FormData,
 ): Promise<ActionState> {
   const policyId = policyIdFrom(formData);
+  if (policyId === null) return INVALID_PAYLOAD;
   const reason = String(formData.get('reason') ?? '') || undefined;
   try {
     await reject(policyId, reason);
@@ -132,6 +140,7 @@ export async function publishAction(
   formData: FormData,
 ): Promise<ActionState> {
   const policyId = policyIdFrom(formData);
+  if (policyId === null) return INVALID_PAYLOAD;
   try {
     await publish(policyId);
   } catch (e) {
@@ -147,6 +156,7 @@ export async function archiveAction(
   formData: FormData,
 ): Promise<ActionState> {
   const policyId = policyIdFrom(formData);
+  if (policyId === null) return INVALID_PAYLOAD;
   try {
     await archive(policyId);
   } catch (e) {
@@ -162,6 +172,7 @@ export async function restoreAction(
   formData: FormData,
 ): Promise<ActionState> {
   const policyId = policyIdFrom(formData);
+  if (policyId === null) return INVALID_PAYLOAD;
   try {
     await restore(policyId);
   } catch (e) {
