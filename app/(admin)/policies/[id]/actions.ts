@@ -60,12 +60,21 @@ function policyIdFrom(formData: FormData): string | null {
   if (typeof raw !== 'string') return null;
   const id = raw.trim();
   if (PolicyIdSchema.safeParse(id).success) return id;
-  // CR-PR3-postreview (silent-failure-hunter): log the rejected shape so
-  // ops can tell honest-form-typo from active tamper. Log the type and a
-  // short sample only — never the full value (could be PII-adjacent in
-  // some attack shapes).
+  // CR-PR3-postreview-v2 (CodeRabbit follow-up): log non-sensitive
+  // diagnostics ONLY — length + reason. Earlier version included an
+  // 8-char sample of the rejected value to help ops triage honest-typo
+  // vs active tamper, but CR correctly flagged that even truncated
+  // samples can carry identifiers (e.g. a stolen UUID prefix is still
+  // grep-able). Length alone distinguishes the common cases:
+  //   - length 0     → missing field / empty form value
+  //   - length < 36  → form scaffold typo
+  //   - length = 36  → wrong-format string of the right size
+  //   - length > 36  → likely active fuzzing
+  // The action's typed `{ ok: false, error: 'Invalid action payload.' }`
+  // return is the user-facing surface; this log line is server-side
+  // observability only.
   console.warn(
-    `[policyAction] rejected non-UUID policyId — type=${typeof raw} length=${id.length} sample=${JSON.stringify(id.slice(0, 8))}`,
+    `[policyAction] rejected non-UUID policyId — length=${id.length}`,
   );
   return null;
 }
