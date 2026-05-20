@@ -14,17 +14,33 @@
 // after the webhook and the dashboard mounts normally.
 import Link from "next/link";
 import { getOrgContext } from "@/lib/auth/context";
+import { matchesErrorMessage } from "@/lib/auth/bootstrap-errors";
 import { withOrgScope } from "@/lib/db/scoped";
 import { Policies } from "@/lib/db/repositories/policies";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 
 // Errors getOrgContext() throws in the brief sign-up → webhook landing
-// window (W7 fallback below renders for these). Sourced from
-// lib/auth/context.ts:asRole + getOrgContext throw sites — kept narrow so
-// genuine backend outages (Clerk down, DB unreachable) propagate up to
-// Next.js' framework error boundary instead of being masked as a loading
-// state. CR-PR3-#14 closure.
+// window (W7 fallback below renders for these). CR-PR3-#14 closure.
+//
+// Sourced verbatim from lib/auth/context.ts throw sites (line numbers
+// as of 2026-05-20 — re-grep if the file moves):
+//   - 'No active organization'               (getOrgContext line 105 — !orgId)
+//   - 'Org not provisioned in DB for ...'    (getOrgContext line 134-136 —
+//                                              orgs lookup empty after webhook race)
+//   - 'User not provisioned in DB for ...'   (getOrgContext line 140-142 —
+//                                              users lookup empty after webhook race)
+//   - 'Invalid role on session claims: ...'  (asRole line 49 — value not in enum)
+// Backend-failure shapes that DELIBERATELY rethrow (NOT in the allow-list):
+//   - 'Clerk auth() failed: ...'             (line 99-101 — auth() threw; Clerk down)
+//   - 'Not authenticated: no Clerk session'  (line 104 — !userId; middleware
+//                                              should redirect before this fires)
+//
+// Cross-reference: app/(auth)/post-sign-in/page.tsx BOOTSTRAP_ERRORS list
+// intentionally EXCLUDES 'Org/User not provisioned' (the trampoline treats
+// DB drift as a hard failure, not a refresh-loop). The asymmetry is
+// documented: dashboard = soft retry on webhook race; trampoline = hard
+// fail on DB drift.
 const ONBOARDING_RACE_ERRORS = [
   'No active organization',
   'Org not provisioned',
@@ -33,8 +49,7 @@ const ONBOARDING_RACE_ERRORS = [
 ] as const;
 
 function isOnboardingRaceError(err: unknown): boolean {
-  if (!(err instanceof Error)) return false;
-  return ONBOARDING_RACE_ERRORS.some((needle) => err.message.includes(needle));
+  return matchesErrorMessage(err, ONBOARDING_RACE_ERRORS);
 }
 
 export default async function DashboardPage(): Promise<React.JSX.Element> {

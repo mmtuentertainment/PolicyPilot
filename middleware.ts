@@ -146,7 +146,11 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
         return new NextResponse(null, { status: 404 });
       }
     }
-    // /onboarding: authenticated; role check intentionally skipped (D-08).
+    // All ADMIN_URL_PATTERNS entries now require admin role (CR-PR3-#16
+    // closure: /onboarding moved out of this array). This branch is
+    // therefore only reached when both isAdminRoute() and
+    // requiresAdminRole() are true AND the role check passed above — i.e.
+    // a real authenticated admin hitting /dashboard or /policies.
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
