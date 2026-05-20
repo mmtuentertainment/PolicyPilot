@@ -87,6 +87,38 @@ function fd(entries: Record<string, string>): FormData {
   return f;
 }
 
+// CR-PR3-postreview (pr-test-analyzer criticality 9) — lock in the
+// UUID-only validation contract from CR-PR3-#23. Non-UUID strings used
+// to pass `id.length > 0` and reach `where(eq(policies.id, ?))` which
+// triggered Postgres 22P02 → 500. These tests pin the typed-ActionState
+// reject path so a future refactor that loosens the schema or drops the
+// `if (policyId === null) return INVALID_PAYLOAD` guard fails loudly.
+describe('policyId UUID validation (CR-PR3-#23)', () => {
+  const cases = [
+    { label: 'missing policyId field', input: {} as Record<string, string> },
+    { label: 'non-UUID string ("p1")', input: { policyId: 'p1' } },
+    { label: 'empty-after-trim ("   ")', input: { policyId: '   ' } },
+    { label: 'malformed UUID (invalid char)', input: { policyId: '00000000-0000-4000-8000-00000000000G' } },
+  ] as const;
+  for (const c of cases) {
+    it(`publishAction returns INVALID_PAYLOAD on ${c.label}`, async () => {
+      const result = await publishAction(undefined, fd(c.input));
+      expect(result).toEqual({ ok: false, error: 'Invalid action payload.' });
+      expect(publishMock).not.toHaveBeenCalled();
+      expect(revalidateMock).not.toHaveBeenCalled();
+    });
+  }
+
+  it('editPublishedAction returns "Invalid edit payload." on non-UUID policyId', async () => {
+    const result = await editPublishedAction(
+      undefined,
+      fd({ policyId: 'p1', content_json: JSON.stringify({ type: 'doc' }) }),
+    );
+    expect(result).toEqual({ ok: false, error: 'Invalid edit payload.' });
+    expect(editPublishedMock).not.toHaveBeenCalled();
+  });
+});
+
 describe('publishAction', () => {
   it('returns { ok: true } and revalidates 3 paths when publish resolves', async () => {
     publishMock.mockResolvedValueOnce(undefined);

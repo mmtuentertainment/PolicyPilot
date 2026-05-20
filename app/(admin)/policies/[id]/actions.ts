@@ -59,7 +59,15 @@ function policyIdFrom(formData: FormData): string | null {
   const raw = formData.get('policyId');
   if (typeof raw !== 'string') return null;
   const id = raw.trim();
-  return PolicyIdSchema.safeParse(id).success ? id : null;
+  if (PolicyIdSchema.safeParse(id).success) return id;
+  // CR-PR3-postreview (silent-failure-hunter): log the rejected shape so
+  // ops can tell honest-form-typo from active tamper. Log the type and a
+  // short sample only — never the full value (could be PII-adjacent in
+  // some attack shapes).
+  console.warn(
+    `[policyAction] rejected non-UUID policyId — type=${typeof raw} length=${id.length} sample=${JSON.stringify(id.slice(0, 8))}`,
+  );
+  return null;
 }
 
 const INVALID_PAYLOAD: ActionState = { ok: false, error: 'Invalid action payload.' };
