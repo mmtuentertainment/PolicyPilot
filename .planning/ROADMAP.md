@@ -162,7 +162,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 |-------|----------------|--------|-----------|
 | 1. Foundation | 5/5 | Complete | 2026-05-16 |
 | 2. Data Layer | 7/7 | Complete | 2026-05-18 |
-| 3. Admin UI | 12/12 | Complete   | 2026-05-19 |
+| 3. Admin UI | 14/14 | Complete   | 2026-05-20 |
 | 4. AI Layer | 0/0 | Not started | - |
 | 5. Employee Portal | 0/0 | Not started | - |
 | 6. Billing | 0/0 | Not started | - |
