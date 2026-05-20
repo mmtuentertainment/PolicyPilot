@@ -179,16 +179,29 @@ export async function archive(policyId: string): Promise<void> {
 }
 
 /**
- * archived → draft. Does NOT create a version row — the admin must edit
- * and re-publish to land a new v(N+1); restore is just an unarchive.
+ * archived → draft. Does NOT create a version row, but DOES bump
+ * currentVersion so the next publish writes v(N+1) — mirrors the
+ * editPublished() invariant. Without this bump, a republish after restore
+ * would re-snapshot at the same version_number, producing a duplicate row
+ * in policy_versions (03-G3 T1 closure — diagnosed at
+ * .planning/debug/duplicate-policy-version.md).
+ *
+ * The schema-level UNIQUE(policy_id, version_number) added in 03-G3 T2/T3
+ * is the belt-and-suspenders backstop; this orchestrator-level bump is
+ * the primary fix because it preserves the semantic intent that
+ * restore→republish is a NEW version event (auditors expect a new vN row).
  */
 export async function restore(policyId: string): Promise<void> {
   const ctx = await getOrgContext();
   await withOrgScope(ctx, async (s) => {
-    await loadAndAssertTransition(s, policyId, 'draft');
+    const policy = await loadAndAssertTransition(s, policyId, 'draft');
     await s.tx
       .update(policies)
-      .set({ status: 'draft', updatedAt: sql`now()` })
+      .set({
+        status: 'draft',
+        currentVersion: policy.currentVersion + 1,
+        updatedAt: sql`now()`,
+      })
       .where(eq(policies.id, policyId));
   });
 }

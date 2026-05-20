@@ -26,11 +26,14 @@
 // L-05 invariant carried forward from Plan 03-04.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// txUpdateMock is captured by reference so every test can assert on it
-// AND so the mocked withOrgScope can hand the same `tx` to every callback.
-const txUpdateMock = vi.fn(() => ({
-  set: vi.fn(() => ({ where: vi.fn(() => Promise.resolve()) })),
-}));
+// txUpdateMock + txSetMock are captured by reference so every test can
+// assert on them AND so the mocked withOrgScope can hand the same `tx` to
+// every callback. txSetMock is lifted from inside the update-factory to
+// the module scope (03-G3 T5) so tests can assert the actual values
+// passed to .set(...) — needed to lock in the restore() currentVersion
+// bump from 03-G3 T1.
+const txSetMock = vi.fn(() => ({ where: vi.fn(() => Promise.resolve()) }));
+const txUpdateMock = vi.fn(() => ({ set: txSetMock }));
 const txMock = { update: txUpdateMock };
 
 vi.mock('@/lib/db/scoped', () => ({
@@ -112,6 +115,7 @@ beforeEach(() => {
   pvCreateMock.mockReset();
   wfSubmitMock.mockReset();
   txUpdateMock.mockClear();
+  txSetMock.mockClear();
 });
 
 describe('publish (REQ-policy-lifecycle SC#2)', () => {
@@ -246,6 +250,48 @@ describe('archive + restore', () => {
       { id: 'p1', status: 'archived', currentVersion: 1, contentJson: {} },
     ]);
     await expect(restore('p1')).resolves.toBeUndefined();
+  });
+
+  // 03-G3 T5 — close DUP-VN: restore() now bumps currentVersion so the
+  // next publish writes v(N+1) instead of re-snapshotting at vN. See
+  // .planning/debug/duplicate-policy-version.md for full diagnose.
+  it('restore bumps currentVersion by 1 (T1 closure of DUP-VN)', async () => {
+    findByIdMock.mockResolvedValueOnce([
+      { id: 'p1', status: 'archived', currentVersion: 3, contentJson: {} },
+    ]);
+    await restore('p1');
+    expect(txSetMock).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'draft', currentVersion: 4 }),
+    );
+  });
+
+  it('archive → restore → publish writes v(N+1), NOT duplicate vN (regression: DUP-VN)', async () => {
+    // Step 1: archive a published v1
+    findByIdMock.mockResolvedValueOnce([
+      { id: 'p1', status: 'published', currentVersion: 1, contentJson: { type: 'doc' } },
+    ]);
+    await archive('p1');
+
+    // Step 2: restore → must bump currentVersion to 2
+    findByIdMock.mockResolvedValueOnce([
+      { id: 'p1', status: 'archived', currentVersion: 1, contentJson: { type: 'doc' } },
+    ]);
+    await restore('p1');
+    expect(txSetMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: 'draft', currentVersion: 2 }),
+    );
+
+    // Step 3: publish the restored draft → snapshot MUST be v2, not v1
+    // (the restore bump from step 2 is what makes this happen).
+    pvCreateMock.mockClear();
+    findByIdMock.mockResolvedValueOnce([
+      { id: 'p1', status: 'draft', currentVersion: 2, contentJson: { type: 'doc' } },
+    ]);
+    await publish('p1');
+    expect(pvCreateMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ policyId: 'p1', versionNumber: 2 }),
+    );
   });
 });
 
