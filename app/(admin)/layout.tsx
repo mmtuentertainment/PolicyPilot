@@ -1,4 +1,4 @@
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -10,19 +10,16 @@ import { requireAdmin } from "@/lib/auth/require-admin";
 /**
  * Admin route-group layout (D-06 shell + L-01 authoritative gate).
  *
- * requireAdmin() runs FIRST — calls notFound() (HTTP 404) on non-admin role
- * per D-10 "advertise nothing". Defense-in-depth: middleware.ts also gates
- * via ADMIN_ROLE_REQUIRED_PATTERNS; this layout is the canonical source.
+ * requireAdmin() runs unconditionally — calls notFound() (HTTP 404) on
+ * non-admin role per D-10 "advertise nothing". Defense-in-depth:
+ * middleware.ts also gates via ADMIN_ROLE_REQUIRED_PATTERNS; this layout
+ * is the canonical source.
  *
- * /onboarding bypass — /onboarding/create-org lives at app/(admin)/onboarding/
- * (Plan 03-11) but must be reachable by signed-in users WITHOUT an admin
- * role yet (they're being onboarded into their about-to-be-created org).
- * Middleware's ADMIN_ROLE_REQUIRED_PATTERNS already excludes /onboarding
- * from the role-check 404 branch (it requires auth only); we mirror that
- * decision here at the layout level. The x-pathname header is injected by
- * middleware.ts (Plan 03-02) and is safe to read — middleware OVERWRITES
- * the header from req.nextUrl.pathname, clobbering any client-supplied
- * value (T-03-02-04 / T-03-09-03 mitigation).
+ * CR-PR3-#16 closure (2026-05-20): /onboarding was previously nested
+ * under app/(admin)/onboarding and bypassed requireAdmin() by reading
+ * the x-pathname header. That header-derived role-bypass is now gone —
+ * onboarding lives in its own (onboarding) route group with an auth-only
+ * layout. The gate decision is path-structural instead of header-derived.
  *
  * Sidebar-state cookie persistence — the shadcn sidebar primitive
  * (components/ui/sidebar.tsx, Plan 03-08) sets a cookie tracking the
@@ -38,17 +35,7 @@ export default async function AdminLayout({
 }: {
   children: ReactNode;
 }): Promise<React.JSX.Element> {
-  const headerStore = await headers();
-  const pathname = headerStore.get("x-pathname") ?? "";
-
-  // /onboarding bypass — user is mid-onboarding without an admin role yet.
-  // Middleware still requires auth (ADMIN_URL_PATTERNS includes /onboarding)
-  // but the layout-level admin-role gate would otherwise 404 a user who has
-  // not been admin'd in their (about-to-be-created) org. See D-08.
-  const isOnboardingRoute = pathname.startsWith("/onboarding");
-  if (!isOnboardingRoute) {
-    await requireAdmin();
-  }
+  await requireAdmin();
 
   const cookieStore = await cookies();
   // sidebar:state — plan-documented cookie name. The installed shadcn

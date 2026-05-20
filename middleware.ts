@@ -32,25 +32,29 @@ const isCronRoute = createRouteMatcher([
 // L-02 / CR-02 closure (Plan 03-02 Task 2) — replaces the dead Phase 1+2
 // route-group catch-all (the regex over the (admin) route group that
 // never appears in URLs). ADMIN_URL_PATTERNS matches the real URLs admin
-// pages live at (D-01). /onboarding is gated as "admin URL" so signed-in
-// but orgless users hit the chokepoint (D-08), but
-// ADMIN_ROLE_REQUIRED_PATTERNS (next) excludes /onboarding from the
-// role-check 404 branch — those users are mid-onboarding without a role yet.
+// pages live at (D-01).
+//
+// CR-PR3-#16 closure (2026-05-20): /onboarding moved out of this array.
+// It used to be listed here ("admin URL, role-unrequired") so the
+// chokepoint behavior was uniform; but that required the (admin) layout
+// to do a header-derived role-bypass for /onboarding paths. Onboarding
+// is now its own route group (app/(onboarding)/) and flows through the
+// default chokepoint at the bottom of clerkMiddleware — auth required,
+// no role check, path-structural decision. The (admin) layout now calls
+// requireAdmin() unconditionally for everything under (admin)/.
 const ADMIN_URL_PATTERNS: RegExp[] = [
   /^\/dashboard(\/|$)/,
   /^\/policies(\/|$)/,
-  /^\/onboarding(\/|$)/,
 ];
 function isAdminRoute(pathname: string): boolean {
   return ADMIN_URL_PATTERNS.some((p) => p.test(pathname));
 }
 
-// Subset of ADMIN_URL_PATTERNS that requires `publicMetadata.role ==='admin'`.
-// /onboarding is auth-required but role-unrequired — the user is signing in
-// for the first time and the org/role mapping has not been created yet
-// (D-08 dispatches them via <CreateOrganization />). Splitting the gate this
-// way keeps the chokepoint behavior consistent with D-10 ("advertise nothing"
-// for true admin routes) while letting the onboarding trampoline land.
+// Every entry in ADMIN_URL_PATTERNS now requires admin role — onboarding
+// (which was the only entry that didn't) lives outside this array. Kept
+// as a separate function for future flexibility (if a future admin URL
+// needs auth without role, we have the seam) and to preserve the
+// defense-in-depth structure the previous comment described.
 const ADMIN_ROLE_REQUIRED_PATTERNS: RegExp[] = [
   /^\/dashboard(\/|$)/,
   /^\/policies(\/|$)/,
@@ -105,17 +109,18 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
       return new NextResponse(null, { status: 404 });
     }
 
-    // Unauthenticated user hitting an admin URL — for /onboarding (auth-only
-    // but role-unrequired) redirect to /sign-in like the generic branch
-    // below; for true admin routes, 404 per D-10. Both branches treat
-    // sign-in as the recovery surface.
+    // Unauthenticated user hitting an admin URL — every entry in
+    // ADMIN_URL_PATTERNS now requires admin role (CR-PR3-#16 closure), so
+    // we 404 per D-10 instead of redirecting. requiresAdminRole() check
+    // kept as a defense-in-depth seam in case a future non-role-required
+    // admin URL is added back.
     if (!userId) {
       if (requiresAdminRole(pathname)) {
         // D-10: don't advertise that /dashboard or /policies exist to
         // unauthenticated callers — 404, not redirect.
         return new NextResponse(null, { status: 404 });
       }
-      // /onboarding: ordinary auth-required redirect.
+      // Defense-in-depth seam — currently no admin URL takes this branch.
       const signInUrl = new URL("/sign-in", req.url);
       signInUrl.searchParams.set(
         "redirect_url",

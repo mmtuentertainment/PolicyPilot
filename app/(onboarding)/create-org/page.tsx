@@ -1,11 +1,14 @@
-// app/(admin)/onboarding/create-org/page.tsx — Plan 03-11 Task 5.
+// app/(onboarding)/create-org/page.tsx — Plan 03-11 Task 5, relocated
+// in CR-PR3-#16 closure from app/(admin)/onboarding/create-org/page.tsx.
 //
 // D-08 — <CreateOrganization /> wrapper.
 //
-// Reachable by signed-in users WITHOUT an active org. The (admin) layout's
-// requireAdmin() gate is bypassed for /onboarding/* (Plan 03-09 layout
-// check + middleware ADMIN_ROLE_REQUIRED_PATTERNS excludes /onboarding
-// from the role-check 404 branch).
+// Reachable by signed-in users WITHOUT an active org. Lives in the
+// (onboarding) route group so the admin layout's requireAdmin() gate
+// doesn't apply here — the decision is now PATH-STRUCTURAL instead of
+// header-derived. Middleware enforces auth-required via the default
+// chokepoint (no role check). See app/(onboarding)/layout.tsx for the
+// full design note.
 //
 // Flow:
 //   1. New user signs up → Clerk after-sign-in-url → /post-sign-in
