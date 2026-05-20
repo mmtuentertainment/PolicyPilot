@@ -129,6 +129,26 @@ async function main(): Promise<void> {
       }
     }
 
+    // 03-G3 T6 — assert the policy_versions UNIQUE(policy_id, version_number)
+    // constraint added by migration 0004_policy_versions_unique.sql exists.
+    // This is the schema-level backstop for the DUP-VN bug: the primary fix
+    // is the restore() currentVersion bump in transitions.ts (T1), but if
+    // the bump is regressed OR direct SQL bypasses the orchestrators, this
+    // UNIQUE constraint rejects duplicate (policy_id, version_number) rows
+    // at the database layer. Diagnose: .planning/debug/duplicate-policy-version.md
+    const uniqueRows = await sql<{ conname: string }[]>`
+      SELECT conname FROM pg_catalog.pg_constraint
+      WHERE conname = 'policy_versions_policy_id_version_number_unique'
+        AND contype = 'u'
+    `;
+    if (uniqueRows.length !== 1) {
+      failures.push({
+        table: 'policy_versions',
+        check: '03-G3 T6 — UNIQUE(policy_id, version_number)',
+        detail: `${uniqueRows.length} constraint row(s) (expected exactly 1)`,
+      });
+    }
+
     if (failures.length > 0) {
       console.error(`Schema audit FAILED: ${failures.length} issue(s) found:`);
       for (const f of failures) {
@@ -137,7 +157,7 @@ async function main(): Promise<void> {
       process.exit(1);
     }
 
-    console.log(`OK — schema audit: ${TENANT_TABLES.length} tenant-scoped tables verified (exists + RLS + policy + 4 GRANTs); 2 service-role tables verified (NO RLS).`);
+    console.log(`OK — schema audit: ${TENANT_TABLES.length} tenant-scoped tables verified (exists + RLS + policy + 4 GRANTs); 2 service-role tables verified (NO RLS); policy_versions UNIQUE(policy_id, version_number) constraint present.`);
     process.exit(0);
   } catch (err) {
     console.error(
