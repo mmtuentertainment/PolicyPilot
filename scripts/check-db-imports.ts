@@ -43,6 +43,7 @@ const ALLOWLIST: RegExp[] = [
   /^scripts\/check-schema\.ts$/,                 // ADR-023 #4 — Phase 2 schema audit
   /^scripts\/check-db\.ts$/,                     // Phase 1 smoke gate (baseline raw-db importer; Rule-3 deviation)
   /^lib\/db\/scoped\.ts$/,                       // wrapper that secures the channel (Plan 02-01)
+  /^lib\/auth\/context\.ts$/,                    // ADR-023 allow-list entry: getOrgContext translates Clerk text ids to internal UUIDs per gap-closure 03-G1.
 ];
 
 /**
@@ -130,12 +131,15 @@ async function main(): Promise<void> {
   }
 
   // POSITIVE CONTROL: confirm we found AT LEAST the wrapper + the webhook
-  // (lib/db/scoped.ts + app/api/webhooks/clerk/route.ts both exist after
-  // Plan 02-01 + Plan 02-05). If we found 0 legitimate hits, the walker
+  // + the auth context (lib/db/scoped.ts + app/api/webhooks/clerk/route.ts
+  // + lib/auth/context.ts all exist after Plan 02-01 + Plan 02-05 +
+  // gap-closure 03-G1). If we found fewer than 3 legitimate hits, the walker
   // is broken (e.g., wrong path alias resolution, tsconfig paths bug).
-  if (allowListedHits < 2) {
+  if (allowListedHits >= 3) {
+    // OK — positive control satisfied.
+  } else {
     console.error(
-      `L-05 positive control failed: expected at least 2 allow-listed @/lib/db imports (lib/db/scoped.ts + app/api/webhooks/clerk/route.ts), found ${allowListedHits}. The AST walker may be broken.`,
+      `L-05 positive control failed: expected at least 3 allow-listed @/lib/db imports (lib/db/scoped.ts + app/api/webhooks/clerk/route.ts + lib/auth/context.ts), found ${allowListedHits}. The AST walker may be broken.`,
     );
     process.exit(1);
   }

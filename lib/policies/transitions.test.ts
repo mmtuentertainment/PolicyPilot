@@ -39,6 +39,8 @@ vi.mock('@/lib/db/scoped', () => ({
     fn: (s: {
       orgId: string;
       userId: string;
+      clerkOrgId: string;
+      clerkUserId: string;
       role: 'admin' | 'reviewer' | 'employee';
       tx: typeof txMock;
     }) => Promise<unknown>,
@@ -46,6 +48,8 @@ vi.mock('@/lib/db/scoped', () => ({
     fn({
       orgId: 'org_1',
       userId: 'user_1',
+      clerkOrgId: 'clerk_test_org',
+      clerkUserId: 'clerk_test_user',
       role: 'admin',
       tx: txMock,
     }),
@@ -55,6 +59,8 @@ vi.mock('@/lib/auth/context', () => ({
   getOrgContext: async () => ({
     orgId: 'org_1',
     userId: 'user_1',
+    clerkOrgId: 'clerk_test_org',
+    clerkUserId: 'clerk_test_user',
     role: 'admin' as const,
   }),
 }));

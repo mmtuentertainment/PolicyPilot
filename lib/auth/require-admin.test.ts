@@ -34,7 +34,13 @@ describe('requireAdmin()', () => {
   });
 
   it('returns OrgContext when role is admin', async () => {
-    const ctx = { orgId: 'org_1', userId: 'user_1', role: 'admin' as const };
+    const ctx = {
+      orgId: 'org_1',
+      userId: 'user_1',
+      clerkOrgId: 'clerk_test_org',
+      clerkUserId: 'clerk_test_user',
+      role: 'admin' as const,
+    };
     getOrgContextMock.mockResolvedValueOnce(ctx);
     await expect(requireAdmin()).resolves.toEqual(ctx);
   });
@@ -43,6 +49,8 @@ describe('requireAdmin()', () => {
     getOrgContextMock.mockResolvedValueOnce({
       orgId: 'org_1',
       userId: 'user_1',
+      clerkOrgId: 'clerk_test_org',
+      clerkUserId: 'clerk_test_user',
       role: 'employee',
     });
     await expect(requireAdmin()).rejects.toThrow('NEXT_NOT_FOUND');
@@ -52,6 +60,8 @@ describe('requireAdmin()', () => {
     getOrgContextMock.mockResolvedValueOnce({
       orgId: 'org_1',
       userId: 'user_1',
+      clerkOrgId: 'clerk_test_org',
+      clerkUserId: 'clerk_test_user',
       role: 'reviewer',
     });
     await expect(requireAdmin()).rejects.toThrow('NEXT_NOT_FOUND');
