@@ -38,18 +38,28 @@ import { IllegalTransitionError } from '@/lib/policies/state-machine';
 
 export type ActionState = { ok: true } | { ok: false; error: string };
 
+// CR-PR3-#23 closure — UUID validation at the action boundary.
+//
+// policies.id is a Postgres `uuid` column. A non-UUID string passed through
+// to a `where(eq(policies.id, ?))` query triggers a 22P02 invalid-text-
+// representation error → unhandled exception → Next.js 500. Validating
+// here keeps the typed ActionState contract intact for ANY malformed
+// input, not just empty strings.
+const PolicyIdSchema = z.string().uuid();
+
 /**
- * Read the policyId field out of FormData. Returns `null` if missing /
- * malformed — caller MUST return `{ ok: false, error: 'Invalid action
- * payload.' }` so the typed ActionState contract holds (D-09). Throwing
- * here would bypass each action's try/catch and surface as a Next.js 500
- * — see CR-PR3-#18.
+ * Read the policyId field out of FormData. Returns `null` if missing,
+ * malformed, OR not a valid UUID — caller MUST return
+ * `{ ok: false, error: 'Invalid action payload.' }` so the typed
+ * ActionState contract holds (D-09). Throwing here would bypass each
+ * action's try/catch and surface as a Next.js 500 (CR-PR3-#18 +
+ * CR-PR3-#23 — UUID enforcement extends the same idea to type-level).
  */
 function policyIdFrom(formData: FormData): string | null {
   const raw = formData.get('policyId');
   if (typeof raw !== 'string') return null;
   const id = raw.trim();
-  return id.length > 0 ? id : null;
+  return PolicyIdSchema.safeParse(id).success ? id : null;
 }
 
 const INVALID_PAYLOAD: ActionState = { ok: false, error: 'Invalid action payload.' };
@@ -195,7 +205,7 @@ const ContentJsonSchema = z
   .passthrough();
 
 const EditPublishedSchema = z.object({
-  policyId: z.string().min(1),
+  policyId: PolicyIdSchema, // CR-PR3-#23 — UUID, not just non-empty
   content_json: z
     .string()
     .min(1)
@@ -241,7 +251,7 @@ export async function editPublishedAction(
 }
 
 const UpdateDraftSchema = z.object({
-  policyId: z.string().min(1),
+  policyId: PolicyIdSchema, // CR-PR3-#23 — UUID, not just non-empty
   title: z.string().min(1).max(200).optional(),
   category: z.string().min(1).max(50).optional(),
   content_json: z

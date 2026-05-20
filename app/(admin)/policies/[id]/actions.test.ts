@@ -90,10 +90,10 @@ function fd(entries: Record<string, string>): FormData {
 describe('publishAction', () => {
   it('returns { ok: true } and revalidates 3 paths when publish resolves', async () => {
     publishMock.mockResolvedValueOnce(undefined);
-    const result = await publishAction(undefined, fd({ policyId: 'p1' }));
+    const result = await publishAction(undefined, fd({ policyId: '00000000-0000-4000-8000-000000000001' }));
     expect(result).toEqual({ ok: true });
     expect(revalidateMock).toHaveBeenCalledWith('/policies');
-    expect(revalidateMock).toHaveBeenCalledWith('/policies/p1');
+    expect(revalidateMock).toHaveBeenCalledWith('/policies/00000000-0000-4000-8000-000000000001');
     expect(revalidateMock).toHaveBeenCalledWith('/dashboard');
     expect(revalidateMock).toHaveBeenCalledTimes(3);
   });
@@ -102,7 +102,7 @@ describe('publishAction', () => {
     publishMock.mockRejectedValueOnce(
       new IllegalTransitionError('archived', 'published'),
     );
-    const result = await publishAction(undefined, fd({ policyId: 'p1' }));
+    const result = await publishAction(undefined, fd({ policyId: '00000000-0000-4000-8000-000000000001' }));
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error).toContain('archived');
@@ -115,7 +115,7 @@ describe('publishAction', () => {
   it('bubbles unexpected errors past the action (framework error boundary handles them)', async () => {
     publishMock.mockRejectedValueOnce(new Error('DB connection lost'));
     await expect(
-      publishAction(undefined, fd({ policyId: 'p1' })),
+      publishAction(undefined, fd({ policyId: '00000000-0000-4000-8000-000000000001' })),
     ).rejects.toThrow('DB connection lost');
   });
 });
@@ -124,7 +124,7 @@ describe('editPublishedAction', () => {
   it('returns "Invalid edit payload." on malformed content_json', async () => {
     const result = await editPublishedAction(
       undefined,
-      fd({ policyId: 'p1', content_json: '{not-json' }),
+      fd({ policyId: '00000000-0000-4000-8000-000000000001', content_json: '{not-json' }),
     );
     expect(result).toEqual({ ok: false, error: 'Invalid edit payload.' });
     // editPublished orchestrator must NOT have been invoked on a Zod fail.
@@ -138,7 +138,7 @@ describe('editPublishedAction', () => {
     const result = await editPublishedAction(
       undefined,
       fd({
-        policyId: 'p1',
+        policyId: '00000000-0000-4000-8000-000000000001',
         content_json: JSON.stringify({ type: 'doc' }),
       }),
     );
