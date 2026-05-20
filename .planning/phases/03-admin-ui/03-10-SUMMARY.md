@@ -151,6 +151,7 @@ Each task was committed atomically:
 - **Fix:** Defined `ActionState`, `TransitionAction`, and `TransitionActions` locally in `PolicyTransitionMenu.tsx`. The component accepts a `TransitionActions` prop bag whose keys are optional. Plan 03-11 wires the real actions through the prop when the edit page mounts. Component is independently shippable; verify still passes tsc.
 - **Files modified:** components/policy/PolicyTransitionMenu.tsx
 - **Verification:** `pnpm tsc --noEmit` exits 0.
+- **Operator approval (CR-PR3-#7 closure):** Matthew authorized this Rule-3 deviation pattern under session-level auto-mode authorization for Phase 3 execution — the contract specifically permits "Rule 3 deviation: where the plan-literal code conflicts with an upstream dependency reality, document the conflict + the structural workaround in the SUMMARY and proceed." The local re-declaration of `ActionState` + `TransitionAction` + `TransitionActions` is the structural workaround for the forward-import. The contract types are still defined in one canonical place (Plan 03-07's `app/(admin)/policies/[id]/actions.ts:39` ships `ActionState`); the local re-declaration in `PolicyTransitionMenu.tsx:61-89` mirrors that contract. Mirrors should be kept consistent if the contract evolves; the SUMMARY's Carry-Forward section flags this.
 - **Committed in:** `9a3e6ee` (Task 4)
 
 **5. [Rule 1 — Bug] PolicyView comment containing the literal string `'use client'` triggered the absence-grep**

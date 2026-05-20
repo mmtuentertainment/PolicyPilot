@@ -207,7 +207,7 @@ The locked constraints above leave open the HOW questions. Decisions below resol
     }
     ```
   - **Client-side validation:** `<Form />` uses `useFormState` to render error messages. HTML `required` + `maxLength` attributes give the immediate "this field is required" feedback. NO React Hook Form in Phase 3 — Server Actions + native HTML5 + `useFormState` cover the surface without an extra dependency.
-  - **Zod is already in `package.json`** (likely — most projects ship it; if not, install via `pnpm add zod` — this is one of the few stack additions Phase 3 needs).
+  - **Zod dependency check:** Confirm `zod` is in `package.json`. If absent, this is a **stack addition** that requires operator (Matthew) approval BEFORE running `pnpm add zod` — CLAUDE.md ASK FIRST rule #1 ("Any package not in the stack list above"). The plan that owns the actual install is 03-08; the approval gate is a Task-1 legitimacy checkpoint (CR-PR3-#9 closure replaces an earlier autonomous-install instruction).
   - **Why no React Hook Form:** RHF excels for complex multi-step forms with cross-field validation. Phase 3 forms are 2-3 fields; the marginal complexity isn't worth a package. Phase 6 (Stripe checkout) or Phase 8 (compliance dashboard filters) might revisit.
   - **Rejected:** Client-side-only validation (server is the gate, period), React Hook Form (overkill), Formik (deprecated trajectory).
 

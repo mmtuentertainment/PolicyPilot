@@ -1,14 +1,14 @@
 ---
-status: partial
+status: closed
 phase: 03-admin-ui
 source: [03-VERIFICATION.md]
 started: 2026-05-19T23:00:00Z
-updated: 2026-05-19T23:00:00Z
+updated: 2026-05-20T07:00:00Z
 ---
 
 ## Current Test
 
-[awaiting human testing — see 6 items below]
+[ALL 6 PASS as of 2026-05-20 — see Summary at bottom for full record]
 
 ## Tests
 

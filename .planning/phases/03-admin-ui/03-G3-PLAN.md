@@ -114,6 +114,11 @@ SF-W5 webhook race fix: extract `deleteIdempotencyRow(svixId, reason)` helper in
 - Update the doc comment at lines 181-184: replace "admin must edit and re-publish to land a new v(N+1); restore is just an unarchive" with "restore creates the seed for v(N+1) — the next publish writes v(N+1), matching editPublished's invariant"
 - No new dependencies, no breaking changes
 
+### T2-Pre — Operator approval checkpoint (CR-PR3-#10 closure)
+- **BLOCKING:** Matthew (operator) must approve T2-T4 before they execute. Schema changes after Phase 2 are CLAUDE.md ASK FIRST rule #3 territory ("Any DB schema change after Phase 2 is complete").
+- **Approval recorded:** Operator selected "(C) Hybrid (Option A + UNIQUE constraint)" via AskUserQuestion on 2026-05-20 during the UAT-3 diagnose checkpoint. The selected option's description explicitly references `unique('policy_versions_policy_id_version_number_unique')` + the cleanup migration. T2-T4 below are the implementation of that approved option.
+- **Acceptance:** This line in the PLAN file constitutes the audit-trail record of the operator approval. Migration name `0004_policy_versions_unique` matches the approved scope.
+
 ### T2 — Schema UNIQUE(policy_id, version_number)
 - File: `lib/db/schema.ts`
 - Change: add `unique('policy_versions_policy_id_version_number_unique').on(table.policyId, table.versionNumber)` to the `policyVersions` table's index/constraint array (find the table-definition trailing callback that already declares other constraints; add the unique declaration there)

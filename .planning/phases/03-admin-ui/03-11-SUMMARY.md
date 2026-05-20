@@ -139,6 +139,8 @@ W10 closure confirmed — `scripts/check-artifacts.ts::checkPhase3FileExistence`
 
 The plan's action block acknowledged this trade-off explicitly ("an additional Client Component wrapper around Select would auto-submit on change... Phase 3 ships the basic form-submit version"). Empirically the form-submit version wouldn't carry the value, so the Client wrapper is the only correct path. SUMMARY notes this for Phase 8 UX-polish backlog if anyone wants to revisit.
 
+**Operator approval (CR-PR3-#8 closure):** Matthew authorized this Rule-3 deviation pattern under session-level auto-mode authorization for Phase 3 execution — the contract specifically permits structural workarounds when plan-literal code conflicts with an upstream dependency reality (here, Base UI's controlled Select primitive). The new `PolicyStatusFilter.tsx` client wrapper is the minimal-surface structural fix; semantic parity with URL-state filtering is preserved (router.replace pushes the `?status=` value identically to what a real `<select name>` submit would have done). The `<noscript>` fallback satisfies the graceful-degradation requirement. Not a deviation from BLUEPRINT.md (which doesn't enumerate filter mechanics); commit `ef254c9` is the canonical record.
+
 ### Auto-mode checkpoint disposition
 
 Plan Task 6 is a `checkpoint:human-verify` for the end-to-end webhook live-smoke + ROADMAP SC walkthrough. Per the executor's `<auto_mode>` instructions ("Treat the end-of-plan `checkpoint:human-verify` webhook live-smoke as a CHECKPOINT TO RETURN — do NOT attempt to perform the live-smoke yourself"), the operator runs Task 6 after this plan is committed and the orchestrator records the result. The CODE tasks are complete.

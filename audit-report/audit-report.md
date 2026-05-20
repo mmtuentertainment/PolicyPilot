@@ -7,12 +7,12 @@
 |----------|-------|
 | Critical/High (VIOLATION) | 87 |
 | Medium (WARNING) | 2 |
-| **Total** | **93** |
+| **Total** | **89** |
 
 ## Route Inventory
-- Total routes: **0**
-- Missing auth: **0**
-- Missing rate limit: **0**
+- Total routes: **1** (Next.js App Router routes are not detected by the framework-agnostic indexer; `POST /api/webhooks/clerk` discovered via manual `app/api/**/route.ts` walk — see PHASE-2-API-AUDIT.md "Inputs to this Audit" table)
+- Missing auth: **0** (webhook verifies svix signature with rotated `whsec_…` per SF-WHSEC-1 closure)
+- Missing rate limit: **1** (`POST /api/webhooks/clerk` — Vercel surface; Phase 7+ Railway worker adds Redis sliding window per F-04)
 
 ## Critical Path -- Fix These First
 
@@ -490,6 +490,18 @@ Fix: No action for Phase 2 Vercel deploy. Phase 7+ Railway worker: add Redis-bac
 
 ## Next Priority Action
 
-**Secret: generic-api-key in .next/cache/.previewinfo**
+**Webhook idempotency-before-dispatch ordering (Phase 7+ obligation)**
 
-Remove from source. Rotate credential. Use secrets manager.
+Current contract (Plan 02-05 + 03-G3 T7 interim fix): the Clerk webhook
+handler at `app/api/webhooks/clerk/route.ts` writes the `clerk_events`
+idempotency row BEFORE dispatching the event handler. T7 (commit
+`2da89b4`) closes the silent-drop race by deleting the row before any
+non-2xx return, so Clerk's exponential retry re-fires the handler.
+Phase 7+ should invert the order entirely: only insert the
+`clerk_events` row AFTER successful dispatch, and add structured
+alerting on stuck rows. References:
+- `app/api/webhooks/clerk/route.ts:14-21` — current SF-W5 doc block
+- `.planning/phases/03-admin-ui/03-G3-SUMMARY.md` — T7 interim fix
+- This file's auto-generated `.next/cache/.previewinfo` flag is triaged
+  noise (gitignored; not in repo); the original `Next Priority Action`
+  pointing at it was misleading per CR-PR3-#22.

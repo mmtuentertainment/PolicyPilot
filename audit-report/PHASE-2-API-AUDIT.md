@@ -128,7 +128,7 @@ If you want a second priority: ship the 15-line interim fix for **F-01** (delete
 
 | Path | What |
 |------|------|
-| `audit-report/audit-report.sarif` | SARIF 2.1 output (uploadable via `gh code-scanning upload-sarif`). Includes all 87 gitleaks hits — filter by `domain != "Cryptography/Secrets" OR file !~ /^\.next\\|^\.env\\|^\.tmp/` if you want to suppress the false-criticals. |
+| `audit-report/audit-report.sarif` | SARIF 2.1 output (uploadable via `gh code-scanning upload-sarif`). Includes all 87 gitleaks hits — filter by `domain != "Cryptography/Secrets" OR file !~ /^\.next\\\|^\.env\\\|^\.tmp/` if you want to suppress the false-criticals. |
 | `audit-report/audit-report.md` | Auto-generated raw report (uses gitleaks counts; not triaged for gitignore status). |
 | `audit-report/PHASE-2-API-AUDIT.md` | **This file** — triaged executive summary. |
 | `audit-cache/routes.json` | Route manifest. Next.js App Router routes not detected by the framework-agnostic indexer (Express/FastAPI/Flask/Gin regex only); manual `app/api/**/route.ts` discovery used instead. |

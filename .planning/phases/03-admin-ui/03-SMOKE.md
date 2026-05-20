@@ -3,7 +3,7 @@ phase: 03-admin-ui
 type: smoke-report
 status: gaps-found
 date: 2026-05-19
-operator: matthew (mmtuentertainment@gmail.com / b2iy, mmtuproperties@gmail.com / JIum)
+operator: matthew (Clerk user IDs ending …b2iy + …JIum — email→user-id mapping in private operator channel per CR-PR3-#12 closure)
 ---
 
 # Phase 3 — Webhook Live-Smoke Report
@@ -127,10 +127,10 @@ and document under `reference/STACK.md` Clerk section.
 
 (Recovery scripts left in `scripts/` for the gap-closure plan to clean up.)
 
-- Clerk users: `user_3Dxws...JIum` (mmtuproperties@gmail.com) + `user_3DpHee...b2iy` (mmtuentertainment@gmail.com). Both real, same operator.
-- Clerk orgs: `org_3DxxQ...yTtc` (mmtu entertainment, created by b2iy, members: JIum + b2iy both admin) + a duplicate `org_3Dy5O...4cy0` (created in the smoke retry, single member b2iy)
-- DB: 1 user (b2iy, role=admin, org_id=59d14320.../mmtu entertainment), 1 org (mmtu entertainment), 0 policies
-- Browser session: b2iy, lastActiveOrg=org_3DxxQ...yTtc (which translates to internal UUID 59d14320...)
+- Clerk users: `user_***JIum` + `user_***b2iy` (both belong to the same operator; email mapping held in private operator channel per L-06b masking pattern).
+- Clerk orgs: `org_***yTtc` ("mmtu entertainment" — created by `user_***b2iy`; members: both operator users as admin) + a duplicate `org_***4cy0` (created during the smoke retry, single member `user_***b2iy`).
+- DB: 1 user (`user_***b2iy`, role=admin, org_id pointed at "mmtu entertainment"), 1 org, 0 policies.
+- Browser session: `user_***b2iy`, lastActiveOrg=`org_***yTtc` (translates to the corresponding internal UUID).
 
 The DB state is **consistent and correct** post-recovery. /dashboard would render
 end-to-end IF GAP-1 (orgId UUID translation) were fixed.

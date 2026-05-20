@@ -31,34 +31,28 @@ GSD session state. Updated each time a phase or plan transitions. Source of trut
 
 ## Current Position
 
-Phase: 3 (Admin UI) — EXECUTING
-Plan: 1 of 12
+Phase: 3 (Admin UI) — **COMPLETE** (2026-05-20)
+Next phase: 4 (AI Layer) — not yet planned
 
-- **Phase**: 2 — Data Layer **complete** (2026-05-18 — Plans 02-01 through 02-07 shipped; verify:phase-2 7/7 OK; CR-01 + HI-01 closed)
-- **Plan**: 7 / 7 — Plans 02-01..02-06 + 02-07 hotfix all shipped; `pnpm verify:phase-2` exits 0 with 7/7 OK against live TEST DB (runtime ~22s); `pnpm tsc --noEmit` clean. Task 6 (operator human-verify) APPROVED 2026-05-18 — live-smoke deferred to Phase 3 per operator decision. Plan 02-07 closed CR-01 + HI-01 from code review.
-- **Status**:
-  - **Plan 02-01** shipped via commits `75b397e` (schema), `e7c6b43` (context + scoped), `2fff189` (type tests), `a381bd8` (metadata). 12 Drizzle tables; SF-M4 closed in `lib/auth/context.ts`. `tsc --noEmit` baseline failure was intentionally deferred — closed by Plan 02-04.
-  - **Plan 02-02** partial: ✓ Clerk Org Roles (3 effective: `Admin` built-in customized + `employee` + `reviewer` — webhook handler strips `org:` prefix per D-09 fallback, IMPLEMENTED in Plan 02-05); ✓ Clerk Session Token publicMetadata claim already configured; ✓ Svix webhook endpoint created with 4 events + signing secret captured in `.env.local`; ✓ `DIRECT_URL` populated; ✓ TEST DB credentials populated in `.env.local` (closed pre Plan 02-06 — SF-DB-1 CLOSED).
-  - **Plan 02-03** FULL: ✓ Task 1 (`c1dcf6f`), Task 2 (`0bbf321`), Task 3 (`f443cd0`), Task 4 (post-commit live-DB push after SF-DB-2 fix; TEST DB migrated via Plan 02-06 orchestrator step 2). Live dev DB verified 12/12 tables + 10/10 RLS-enabled tenant tables + 10/10 org_isolation policies + 40 GRANTs + D-03a CHECK. **SF-DB-2 RESOLVED.**
-  - **Plan 02-04** FULL: ✓ Task 1 (`2973555` — Policies + Acknowledgments + Users + PolicyVersions: 4 critical files satisfying D-07 type invariants); ✓ Task 2 (`e71000a` — PolicyAssignments + Departments + AiGenerations + Notifications + WorkflowStages: 5 remaining files for Plan 02-06 positive-control). 9 files / 351 lines. 1 Rule-1 deviation (Acknowledgments header switched from `//` to `/** */` block-comment because TS scans line-comments for `@ts-expect-error` directives — acceptance substrings preserved verbatim).
-  - **Plan 02-05** FULL: ✓ Task 1 (`a9301b2` — svix@1.93.0 exact-pinned); ✓ Task 2 (`6ae44f5` — webhook handler at `app/api/webhooks/clerk/route.ts`, 264 lines); ✓ Task 3 (`c39ea98` — middleware.ts SF-M4 fold). 2 Rule-3 deviations (pre-existing esbuild audit + plan verify regex window too tight). End-to-end webhook smoke deferred to Plan 02-06 operator human-verify.
-  - **Plan 02-06** Tasks 1-5 SHIPPED (Task 6 checkpoint open): ✓ Task 1 (`e160728` — ts-morph@28.0.0 + .env.local.example +4 placeholders); ✓ Task 2 (`c31d1c8` — scripts/check-db-imports.ts L-05 AST allow-list 126 lines, 8-entry ALLOWLIST including scripts/check-db.ts for Phase 1 baseline, positive control `allowListedHits >= 2`); ✓ Task 3 (`a156dc5` — scripts/check-rls.ts L-06 cross-org property test 187 lines, positive control + 10-table negative + ROLLBACK-by-throw for SET LOCAL scoping); ✓ Task 4 (`ff82746` — scripts/check-schema.ts D-08 step 5 schema audit 136 lines, pg_catalog + information_schema, 1 Rule-1 fix for polname → policyname column name); ✓ Task 5 (`9888cf5` — scripts/check-data-layer.ts 7-check orchestrator 207 lines, env-override migrate-against-TEST DB, scripts/check-artifacts.ts extended +8 Phase 2 functions with comment-stripping walker hardening + Phase-1 schema-stale check dropped, verify:phase-2 package.json wired). `pnpm verify:phase-2` exits 0 with 7/7 OK (runtime ~22s). All 214 check-artifacts assertions pass. ⏸ Task 6 (operator self-run + end-to-end Clerk webhook smoke + resume signal).
-- **Progress**: 1 / 8 phases complete; Phase 2: 7/7 plans complete (02-01..02-06 + 02-07 hotfix; Plan 02-06 Task 6 operator-approved 2026-05-18; CR-01 + HI-01 closed)
+- **Phase 1** — Foundation **complete** (2026-05-16; 5/5 plans; PR #1 merged)
+- **Phase 2** — Data Layer **complete** (2026-05-18; 7/7 plans = 6 main + 02-07 hotfix; verify:phase-2 8/8 OK; PR #2 squash-merged to `main` @ `130b8ab` on 2026-05-19)
+- **Phase 3** — Admin UI **complete** (2026-05-20; 15/15 plans = 12 main 03-00..03-11 + 3 gap-closure 03-G1/G2/G3; 6/6 HUMAN-UAT PASS; verify:phase-2 8/8 OK; verify:phase-3 8 gates + 270/270 artifacts + 53/53 vitest; PR #3 OPEN on `gsd/phase-3-admin-ui`)
+- **Progress**: 3 / 8 phases complete (38%)
 
 ```text
-[█░░░░░░░] 1/8 phases  —  Foundation: 5/5 plans ✓  ·  Data Layer: 7/7 plans complete ✓ (02-01 ✓, 02-02 ✓, 02-03 ✓, 02-04 ✓, 02-05 ✓, 02-06 ✓, 02-07 hotfix ✓ CR-01 + HI-01 closed)
+[███░░░░░] 3/8 phases  —  Foundation ✓  ·  Data Layer ✓  ·  Admin UI ✓ (PR #3 open)
 ```
 
-**Next action**: `/gsd-plan-phase 3` to convert `.planning/phases/03-admin-ui/03-CONTEXT.md` into per-plan PLAN.md files. (Phase 2 verifier + ROADMAP close-out already happened pre-merge; PR #2 was squash-merged to main as `130b8ab` on 2026-05-19.)
+**Next action**: review + merge PR #3, then `/gsd-discuss-phase 4` to begin Phase 4 (AI Layer — Draft, TL;DR, Q&A, Consistency Check; depends on Phase 3 admin shell).
 
-**Operator carry-forward to Phase 3** (now folded into `03-CONTEXT.md` as L-NN constraints — tracked here for cross-session visibility until each is closed by a Phase 3 commit):
+**Carry-forward queue** (deferred to later phases; all gaps surfaced in Phase 3 UAT are CLOSED in this PR — see 03-G3 SUMMARY):
 
-- **SF-WHSEC-1** → folded as **L-04** in 03-CONTEXT. Plan 03-01 will gate the operator-manual rotation. Open until operator rotates via Svix Dashboard + pastes new `whsec_…` into `.env.local`.
-- **Webhook live-smoke** → folded as **D-08** in 03-CONTEXT. Naturally exercised by the first `<CreateOrganization />` click in `/onboarding/create-org` (Plan 03-N). Open until first end-to-end smoke succeeds.
-- **REG-P1-01** → folded as **L-03** in 03-CONTEXT. Plan 03-02 deletes `app/(auth)/sign-in-success/page.tsx` and replaces with `app/(auth)/post-sign-in/page.tsx`. `pnpm verify:phase-1` will be re-pointed to `/post-sign-in` once the route lands. Open until that swap commits.
-- **CR-02** → folded as **L-02 + D-01** in 03-CONTEXT. Plan 03-02 replaces the dead `/(admin)/(.*)` matcher with explicit `ADMIN_URL_PATTERNS` array; `scripts/check-admin-routes.ts` cross-validates.
-- **SF-CASCADE-AUDIT** → NOT folded into Phase 3 (Phase 6+ obligation when org-delete code path lands). Stays as Phase 6+ carry-forward.
-- **Nyquist G-08a / G-09a / G-03a** → NOT folded into Phase 3 (Phase 2.1 hardening orthogonal to admin UI). Picks up when convenient.
+- **SF-CASCADE-AUDIT** → Phase 6+ obligation when org-delete code path lands. The 0003_fk_hardening cascade currently wipes acknowledgments + ai_generations on tenant offboarding with no app-level audit-event emission. When tenant lifecycle UI ships, the delete handler must log row counts + emit a structured audit event BEFORE the cascade fires (per ADR-018 append-only).
+- **Tenant-lifecycle cleanup** → Phase 6+: delete the orphan `MMTU Entertainment` (Title Case) org from the days-old smoke retry; consolidate the case-only duplicate-name org pair. Diagnosed at `.planning/debug/org-topology-uat5.md`.
+- **Phase 7+ webhook hardening** → invert idempotency-before-dispatch ordering OR add explicit alerting on stuck `clerk_events` rows. 03-G3 T7 ships the application-layer interim fix (delete `clerk_events` row before non-2xx return).
+- **Phase 7+ webhook test coverage** → vitest scaffold for the webhook handler 409/catch paths. T8 deferred from 03-G3; production code verified live via 2 independent paths during UAT-4 + UAT-6.
+- **Phase 5** replaces the 03-G3 T9 `/my-policies` stub with the real employee-acknowledgment portal.
+- **Nyquist G-08a / G-09a / G-03a** → Phase 2.1 hardening orthogonal to admin UI. Pick up when convenient.
 
 ---
 
@@ -66,7 +60,7 @@ Plan: 1 of 12
 
 | Metric | Value |
 |--------|-------|
-| Phases complete | 1 / 8 |
+| Phases complete | 3 / 8 |
 | Phase 1 plans drafted | 5 / 5 |
 | Phase 1 plans executed | 5 / 5 |
 | Phase 2 context | drafted 2026-05-17 |

@@ -10,7 +10,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 
 - [x] **Phase 1: Foundation** — Next.js 15 + Clerk + Supabase wired up, `localhost:3000` loads clean. ✓ 2026-05-16 (operator-approved; VERIFICATION.md PASS)
 - [x] **Phase 2: Data Layer** — Drizzle schema + RLS + Clerk webhooks; `org_id` invariant established. ✓ 2026-05-18 (operator-approved; `pnpm verify:phase-2` 7/7 OK; webhook live-smoke deferred to Phase 3)
-- [x] **Phase 3: Admin UI** — Policy library, TipTap editor, full lifecycle (Draft → Published → Archived). ✓ 2026-05-20 (14 main plans 03-00..03-11 + 3 gap-closure plans 03-G1/G2/G3; 6/6 HUMAN-UAT PASS; verify:phase-2 8/8 OK; verify:phase-3 8 gates + 269/269 artifacts + 53/53 vitest)
+- [x] **Phase 3: Admin UI** — Policy library, TipTap editor, full lifecycle (Draft → Published → Archived). ✓ 2026-05-20 (12 main plans 03-00..03-11 + 3 gap-closure plans 03-G1/G2/G3 = 15 total; 6/6 HUMAN-UAT PASS; verify:phase-2 8/8 OK; verify:phase-3 8 gates + 270/270 artifacts + 53/53 vitest)
 - [ ] **Phase 4: AI Layer** — Draft generation, TL;DR summaries, Employee Q&A, Consistency Check (Growth+).
 - [ ] **Phase 5: Employee Portal** — Assigned-policies dashboard + append-only acknowledgment flow.
 - [ ] **Phase 6: Billing** — Stripe Checkout + 5-event webhook + tier gating via `TIER_LIMITS`.
@@ -71,7 +71,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
   3. Editing a published policy automatically creates a new `policy_versions` row AND resets `policies.status` to Draft.
   4. Admin policy library list shows all policies in all statuses for the admin's org; an `org_id` impersonation cannot view another org's list.
   5. Search by title, category, and content keyword returns the expected results scoped by `org_id`.
-**Plans**: 12 plans
+**Plans**: 15 plans (12 main 03-00..03-11 + 3 gap-closure 03-G1/G2/G3)
 - [x] 03-00-PLAN.md — Operator manual config: rotate Clerk whsec_… (L-04) + change Clerk After-sign-in URL to /post-sign-in (L-03 dashboard half) + verify Organizations toggle
 - [x] 03-01-PLAN.md — Wave 0: vitest install + verify:phase-3 orchestrator + scripts/check-admin-routes.ts scaffold + check-artifacts Phase 3 extension + .tmp/svix-url.json cleanup tail (L-06c)
 - [x] 03-02-PLAN.md — middleware admin matcher rewrite (L-02 / CR-02) + lib/auth/require-admin.ts (L-01) + delete app/sign-in-success + ship /post-sign-in trampoline (L-03)
@@ -165,7 +165,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 |-------|----------------|--------|-----------|
 | 1. Foundation | 5/5 | Complete | 2026-05-16 |
 | 2. Data Layer | 7/7 | Complete | 2026-05-18 |
-| 3. Admin UI | 14/14 | Complete   | 2026-05-20 |
+| 3. Admin UI | 15/15 | Complete | 2026-05-20 |
 | 4. AI Layer | 0/0 | Not started | - |
 | 5. Employee Portal | 0/0 | Not started | - |
 | 6. Billing | 0/0 | Not started | - |

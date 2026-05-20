@@ -55,7 +55,7 @@ metrics:
   duration: "~6 minutes (start 2026-05-19T~18:30Z → end ~18:36Z UTC)"
   completed_date: "2026-05-19"
   task_count: 4
-  file_count: 14
+  file_count: 16  # 14 created + 2 modified (package.json + pnpm-lock.yaml) — CR-PR3-#5 closure
 ---
 
 # Phase 3 Plan 08: Phase 3 Dependencies (TipTap + Zod + shadcn) Summary
@@ -241,11 +241,11 @@ No Rule-1 (bug-fix), no Rule-4 (architectural stop). Plan executed per spec for 
 
 ## Auth Gates / Checkpoints
 
-Auto-mode contract pre-approved Tasks 1 and 2 (`checkpoint:human-verify gate="blocking-human"`). Verification was performed INLINE as the orchestrator instructed:
+**Operator approval (CR-PR3-#4 closure):** The `checkpoint:human-verify gate="blocking-human"` markers on Tasks 1 and 2 were pre-approved by Matthew (operator) under session-level auto-mode authorization for Phase 3 execution. The orchestrator was explicitly instructed to perform legitimacy verification INLINE against the contract's checklist (upstream repo identity, expected maintainers, package age, postinstall absence, `pnpm audit --prod` baseline) and proceed without pausing IF all checks passed. The verification was done as instructed:
 - Task 1: 4× @tiptap/* verified against npmjs / pnpm view output → PASSED → proceeded to Task 3.
 - Task 2: zod verified against npmjs / pnpm view output → PASSED → proceeded to Task 3.
 
-No legitimate failures encountered. No checkpoint paused the orchestrator. No operator turn was required for this plan.
+No legitimate failures encountered. No checkpoint paused the orchestrator. The auto-mode authorization stands as the explicit operator decision; this SUMMARY is the audit-trail record of that authorization being applied to this plan's two checkpoints.
 
 ## Future-Audit Reference (carry-forward for downstream phases)
 
@@ -291,6 +291,8 @@ Plan-level verification:
 - [x] `pnpm audit --prod` HIGH/CRITICAL count unchanged from Phase 2 baseline (0 → 0)
 
 The two not-run items are out-of-scope for a dep-only install plan; they are explicit acceptance gates for the plans that ship the consuming surface (03-09/10/11).
+
+**Retroactive gate closure (CR-PR3-#6 update, 2026-05-20):** After Plan 03-11 + the 03-G* gap-closure plans landed, `pnpm verify:phase-3` was run end-to-end and exits 0 (8 gates green, 270/270 artifact assertions, 53/53 vitest). The "NOT RUN" markers above are correct for plan-scoped acceptance at the time of plan completion; the Phase 3 OVERALL acceptance via verify:phase-3 is now satisfied. See `.planning/phases/03-admin-ui/03-G3-SUMMARY.md` for the final gate snapshot.
 
 ## Self-Check: PASSED
 
