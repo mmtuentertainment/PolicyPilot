@@ -1122,6 +1122,12 @@ function checkPhase3Scaffold(): Check[] {
   assert(out, pkg.includes('"check:db-imports"'), "package.json declares check:db-imports", "script missing");
   assert(out, pkg.includes('"check:rls"'), "package.json declares check:rls", "script missing");
   assert(out, pkg.includes('"check:policies-list-filters"'), "package.json declares check:policies-list-filters (VALIDATION-2.7)", "script missing");
+  assert(
+    out,
+    /"verify:phase-3"\s*:\s*"[^"]*check:policies-list-filters[^"]*"/.test(pkg),
+    "verify:phase-3 chains check:policies-list-filters (VALIDATION-2.7)",
+    "verify:phase-3 missing check:policies-list-filters",
+  );
   assert(out, pkg.includes('"test":'), "package.json declares test (vitest run)", "script missing");
   assert(
     out,
