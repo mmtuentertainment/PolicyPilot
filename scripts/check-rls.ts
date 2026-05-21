@@ -29,8 +29,9 @@ const TEST_URL: string = (() => {
   return v;
 })();
 
-// 10 tenant-scoped tables (matches drizzle/0001_rls_policies.sql).
-// `organizations` uses `id` for RLS predicate; others use `org_id`.
+// 11 tenant-scoped tables (10 from drizzle/0001_rls_policies.sql + 1 added in Phase 4
+// per drizzle/0006_rls_batch_jobs.sql). `organizations` uses `id` for RLS predicate;
+// others use `org_id`.
 const TENANT_TABLES = [
   'organizations',
   'users',
@@ -42,6 +43,7 @@ const TENANT_TABLES = [
   'ai_generations',
   'notifications',
   'workflow_stages',
+  'batch_jobs', // Phase 4 D-29 / AC-24 — new tenant table for Consistency Check batch state.
 ] as const;
 
 /**
@@ -75,6 +77,12 @@ async function main(): Promise<void> {
   const userBId = randomUUID();
   const policyAId = randomUUID();
   const policyBId = randomUUID();
+  // Phase 4 D-29 / AC-24 — one batch_jobs row per org. The anthropic_batch_id column
+  // has a UNIQUE constraint at the cross-org level (Anthropic's batch IDs come from a
+  // global namespace, so collisions never happen between orgs); we vary the seed
+  // string per org so the constraint is satisfied.
+  const batchJobAId = randomUUID();
+  const batchJobBId = randomUUID();
 
   try {
     // Truncate then seed. CASCADE on truncate cleans children from earlier
@@ -86,6 +94,7 @@ async function main(): Promise<void> {
         'policy_assignments',
         'notifications',
         'ai_generations',
+        'batch_jobs', // Phase 4 D-29 — truncate before seed for idempotent reruns.
         'policy_versions',
         'policies',
         'departments',
@@ -109,6 +118,13 @@ async function main(): Promise<void> {
       // one policy per org (D-02: child tables carry org_id directly)
       await tx`INSERT INTO policies (id, org_id, title, content_json, category) VALUES (${policyAId}, ${orgAId}, 'PolicyA', '{}'::jsonb, 'HR')`;
       await tx`INSERT INTO policies (id, org_id, title, content_json, category) VALUES (${policyBId}, ${orgBId}, 'PolicyB', '{}'::jsonb, 'HR')`;
+
+      // Phase 4 D-29 / AC-24 — one batch_jobs row per org. status defaults to
+      // 'in_progress' and type defaults to 'consistency' (schema-level defaults
+      // per D-06 + D-29). The unique anthropic_batch_id values mock the Anthropic
+      // global-namespace IDs that the live submit endpoint would receive.
+      await tx`INSERT INTO batch_jobs (id, org_id, anthropic_batch_id) VALUES (${batchJobAId}, ${orgAId}, ${'msgbatch_test_orgA_' + orgAId.slice(0, 8)})`;
+      await tx`INSERT INTO batch_jobs (id, org_id, anthropic_batch_id) VALUES (${batchJobBId}, ${orgBId}, ${'msgbatch_test_orgB_' + orgBId.slice(0, 8)})`;
     });
 
     // Now the actual property test. RESEARCH Pitfall 1: SET LOCAL ROLE
@@ -170,7 +186,7 @@ async function main(): Promise<void> {
     // seed lives in a separate sql.begin block — TRUNCATE here to keep
     // the test DB clean for the next run).
     await sql.begin(async (tx) => {
-      for (const t of ['acknowledgments', 'workflow_stages', 'policy_assignments', 'notifications', 'ai_generations', 'policy_versions', 'policies', 'departments', 'users', 'organizations']) {
+      for (const t of ['acknowledgments', 'workflow_stages', 'policy_assignments', 'notifications', 'ai_generations', 'batch_jobs', 'policy_versions', 'policies', 'departments', 'users', 'organizations']) {
         await tx.unsafe(`TRUNCATE TABLE "${t}" CASCADE`);
       }
     });
