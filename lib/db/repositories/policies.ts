@@ -49,6 +49,39 @@ export const Policies = {
   listAll: (s: OrgScope) =>
     s.tx.select().from(policies).where(eq(policies.orgId, s.orgId)),
 
+  /**
+   * Phase 4 D-12 — published-policies library source for Q&A endpoint + the
+   * Consistency Check batch payload composition.
+   *
+   * SELECT id, title, contentJson FROM policies WHERE org_id = scope.orgId
+   *   AND status = 'published'.
+   *
+   * Returns ONLY id + title + contentJson — no admin metadata leak via the
+   * Q&A path. Cross-org isolation: application-layer eq(orgId, s.orgId) +
+   * RLS reinforces. Caller (Plan 04-09 Q&A endpoint) builds the validIds
+   * Set + libraryXml block from the SAME query result inside the SAME
+   * withOrgScope closure (per D-41) — never from a hoisted variable,
+   * global, cross-org Set, or separate query.
+   *
+   * No PolicyId branded type on the return shape — listPublishedForOrg
+   * takes NO policyId argument, so ADR-028's brand gate doesn't apply.
+   * Caller branding (if needed downstream) happens at the trust boundary.
+   */
+  listPublishedForOrg: (s: OrgScope) =>
+    s.tx
+      .select({
+        id: policies.id,
+        title: policies.title,
+        contentJson: policies.contentJson,
+      })
+      .from(policies)
+      .where(
+        and(
+          eq(policies.orgId, s.orgId),
+          eq(policies.status, 'published'),
+        ),
+      ),
+
   findById: (s: OrgScope, id: PolicyId) =>
     s.tx
       .select()
@@ -114,6 +147,31 @@ export const Policies = {
     s.tx
       .update(policies)
       .set({ ...patch, updatedAt: sql`now()` })
+      .where(and(eq(policies.orgId, s.orgId), eq(policies.id, id)))
+      .returning(),
+
+  /**
+   * Phase 4 D-09 — single-purpose AI-write companion to updateDraft.
+   *
+   * ADR-005: tldrSummary is AI-generated only — never accepted from
+   * `create()` (omitted via PolicyCreateInput Omit) or `updateDraft()`
+   * (patch type excludes tldrSummary). Plan 04-08's
+   * `generateSummaryForPolicy` orchestrator calls this method after a
+   * successful Haiku 4.5 summary completion + an AiGenerations.insert
+   * audit-ledger row (one transaction).
+   *
+   * ADR-028: takes PolicyId branded type (not raw string) — caller goes
+   * through policyIdFromString at the trust boundary (e.g., /api/ai/summary
+   * request body Zod validation produces PolicyId via SummarySchema).
+   *
+   * WHERE includes BOTH orgId AND id (T-03-04-04 cross-org write defense).
+   * updatedAt bumped via `now()` SQL so the post-publish render reflects
+   * the new summary timestamp.
+   */
+  updateSummary: (s: OrgScope, id: PolicyId, summary: string) =>
+    s.tx
+      .update(policies)
+      .set({ tldrSummary: summary, updatedAt: sql`now()` })
       .where(and(eq(policies.orgId, s.orgId), eq(policies.id, id)))
       .returning(),
 
