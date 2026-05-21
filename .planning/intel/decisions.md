@@ -612,16 +612,16 @@ class ClerkAuthFailedError extends Error {
 }
 ```
 
-Throw-site mapping in `lib/auth/context.ts`:
+Throw-site mapping in `lib/auth/context.ts` (keyed by stable anchors so the mapping survives line-number drift from future edits — e.g. the CR docstring autofix that shifted these by 6-8 lines):
 
-| line | v0 message | new class |
-|------|-----------|-----------|
-| 49 (asRole) | `Invalid role on session claims: ${value}` | `InvalidRoleError(value)` |
-| 99-101 (auth() catch) | `Clerk auth() failed: ${detail}` | `ClerkAuthFailedError(cause)` |
-| 104 (!userId) | `Not authenticated: no Clerk session` | `NotAuthenticatedError()` |
-| 105 (!orgId) | `No active organization` | `NoActiveOrganizationError()` |
-| 134-136 (org lookup empty) | `Org not provisioned in DB for ${masked}...` | `OrgNotProvisionedError(masked)` |
-| 140-142 (user lookup empty) | `User not provisioned in DB for ${masked}...` | `UserNotProvisionedError(masked)` |
+| Throw site (anchor) | v0 message | new class |
+|---------------------|-----------|-----------|
+| `asRole(value)` (Role validation) | `Invalid role on session claims: ${value}` | `InvalidRoleError(value)` |
+| `auth()` catch | `Clerk auth() failed: ${detail}` | `ClerkAuthFailedError(cause)` |
+| `!userId` guard | `Not authenticated: no Clerk session` | `NotAuthenticatedError()` |
+| `!orgId` guard | `No active organization` | `NoActiveOrganizationError()` |
+| `!orgRow` guard (org lookup empty) | `Org not provisioned in DB for ${masked}...` | `OrgNotProvisionedError(masked)` |
+| `!userRow` guard (user lookup empty) | `User not provisioned in DB for ${masked}...` | `UserNotProvisionedError(masked)` |
 
 `super(message)` preserves the existing message strings verbatim so log-greps for "No active organization" continue to match `err.message`. Future structured-logging swaps can switch to `err.code` (stable across translations and message refactors).
 
@@ -651,8 +651,8 @@ const ONBOARDING_RACE_ERRORS = [
 // app/(auth)/post-sign-in/page.tsx — hard-fail (rethrow on DB drift)
 const BOOTSTRAP_ERRORS = [
   NotAuthenticatedError,
-  NoActiveOrganizationError,
   InvalidRoleError,
+  NoActiveOrganizationError,
 ] as const;
 // INTENTIONALLY excludes ProvisioningRaceError — trampoline treats DB
 // drift as a real outage (hard-fail), dashboard treats it as a race window

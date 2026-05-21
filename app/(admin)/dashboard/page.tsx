@@ -63,11 +63,18 @@ function isOnboardingRaceError(err: unknown): boolean {
 }
 
 /**
- * Render the admin dashboard or, if organization provisioning appears to be in progress, a brief "Setting up your organization..." panel that triggers a meta-refresh.
+ * Render the admin dashboard, or — when the request's bootstrap context is
+ * incomplete (any of the classes listed in `ONBOARDING_RACE_ERRORS`:
+ * `NoActiveOrganizationError`, `ProvisioningRaceError` and its Org/User
+ * subclasses, or `InvalidRoleError`) — render a brief
+ * "Setting up your organization..." panel that triggers a 2s meta-refresh.
  *
- * @returns The dashboard page element; if onboarding provisioning is detected, returns a panel that refreshes after 2 seconds.
+ * @returns The dashboard page element on the happy path; the race-recovery
+ *   panel when `getOrgContext()` throws an `ONBOARDING_RACE_ERRORS` class.
  *
- * @throws Any non-onboarding organization-context errors are rethrown so they surface as real failures.
+ * @throws Any error not in `ONBOARDING_RACE_ERRORS` (e.g. `ClerkAuthFailedError`
+ *   from a real Clerk outage, `NotAuthenticatedError` indicating a middleware
+ *   bypass, or any other thrown value) is rethrown so it surfaces as a 500.
  */
 export default async function DashboardPage(): Promise<React.JSX.Element> {
   // W7: Clerk webhook race mitigation (Option B — brief loading state).
