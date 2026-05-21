@@ -130,7 +130,16 @@ export async function submitForReviewAction(
   const reviewerIdParsed = OptionalReviewerIdSchema.safeParse(
     rawReviewerId.length > 0 ? rawReviewerId : null,
   );
-  if (!reviewerIdParsed.success) return INVALID_PAYLOAD;
+  if (!reviewerIdParsed.success) {
+    // CR-PR3-postreview-v4 — breadcrumb log so a bad reviewerId is
+    // distinguishable from a bad policyId in ops triage (both paths
+    // return the same INVALID_PAYLOAD to the client). Length-only
+    // matches the policyIdFrom privacy posture documented above.
+    console.warn(
+      `[submitForReviewAction] rejected non-UUID reviewerId — length=${rawReviewerId.length}`,
+    );
+    return INVALID_PAYLOAD;
+  }
   const reviewerId = reviewerIdParsed.data;
   try {
     await submitForReview(policyId, reviewerId);
@@ -323,12 +332,20 @@ export async function updateDraftAction(
   if (title !== undefined) patch.title = title;
   if (category !== undefined) patch.category = category;
   if (content_json !== undefined) patch.contentJson = content_json;
-  // CR-PR3-postreview-v3 — bail before hitting the repo when the client
-  // sends a form with only `policyId` (no editable fields). Without this,
-  // `Policies.updateDraft` runs an empty UPDATE that succeeds at the DB
-  // layer and we'd surface a misleading "Could not save" error path.
+  // CR-PR3-postreview-v4 — bail when the client form normalizes to an
+  // empty patch (only `policyId`, or fields whose Zod transform
+  // collapsed to undefined — see content_json.transform above). The
+  // repository's updateDraft (lib/db/repositories/policies.ts:113-117)
+  // does `.set({ ...patch, updatedAt: sql\`now()\` })`, so an empty
+  // patch is NOT an empty UPDATE — the SET clause is never empty.
+  // Without this guard the UPDATE bumps `updated_at`, `.returning()`
+  // yields the row, revalidatePath fires, and the user sees a
+  // successful "saved" for a no-op change. The distinct error string
+  // (`No changes to save.` vs the upstream Zod-fail
+  // `Invalid update payload.`) keeps logs/Sentry diagnostic-able and
+  // surfaces an actionable message to the user.
   if (Object.keys(patch).length === 0) {
-    return { ok: false, error: 'Invalid update payload.' };
+    return { ok: false, error: 'No changes to save.' };
   }
   try {
     const ctx = await getOrgContext();

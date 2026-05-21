@@ -252,6 +252,40 @@ describe('submitForReviewAction reviewerId validation', () => {
     expect(result).toEqual({ ok: true });
     expect(submitForReviewMock).toHaveBeenCalledWith(POLICY_ID, reviewerId);
   });
+
+  // CR-PR3-postreview-v4 — divergence-lock additions surfaced by the
+  // pre-merge pr-test-analyzer review against `bd25409..a9ba7f5`. Both
+  // pin contracts that the existing v3 cases didn't exercise.
+  it('accepts uppercase UUID reviewerId (RFC 4122 case-insensitive)', async () => {
+    // Zod's .uuid() accepts uppercase hex per RFC 4122 §3 — a future
+    // swap to a stricter regex (e.g. `[0-9a-f]{8}-...`) would silently
+    // reject valid pasted UUIDs in production. This test catches that.
+    submitForReviewMock.mockResolvedValueOnce(undefined);
+    const reviewerId = 'ABCDEF01-2345-4678-8901-ABCDEF234567';
+    const result = await submitForReviewAction(
+      undefined,
+      fd({ policyId: POLICY_ID, reviewerId }),
+    );
+    expect(result).toEqual({ ok: true });
+    expect(submitForReviewMock).toHaveBeenCalledWith(POLICY_ID, reviewerId);
+  });
+
+  it('trims leading/trailing whitespace around a valid UUID reviewerId', async () => {
+    // Production trims via String(formData.get('reviewerId') ?? '').trim()
+    // in actions.ts. A refactor that drops .trim() (e.g. switching to
+    // the raw FormData value for "performance") would silently reject
+    // forms that paste a UUID with surrounding whitespace — exactly
+    // the kind of off-by-one regression that's hard to spot in review.
+    submitForReviewMock.mockResolvedValueOnce(undefined);
+    const reviewerId = '22222222-2222-4222-8222-222222222222';
+    const result = await submitForReviewAction(
+      undefined,
+      fd({ policyId: POLICY_ID, reviewerId: `  ${reviewerId}  ` }),
+    );
+    expect(result).toEqual({ ok: true });
+    // Orchestrator must receive the trimmed value, not the padded form value.
+    expect(submitForReviewMock).toHaveBeenCalledWith(POLICY_ID, reviewerId);
+  });
 });
 
 // CR-PR3-postreview-v3 — without this guard, a form with only policyId (no
@@ -261,12 +295,16 @@ describe('submitForReviewAction reviewerId validation', () => {
 describe('updateDraftAction empty-patch rejection', () => {
   const POLICY_ID = '00000000-0000-4000-8000-000000000001';
 
-  it('returns "Invalid update payload." when no editable fields are present', async () => {
+  it('returns "No changes to save." when no editable fields are present', async () => {
     const result = await updateDraftAction(
       undefined,
       fd({ policyId: POLICY_ID }),
     );
-    expect(result).toEqual({ ok: false, error: 'Invalid update payload.' });
+    // CR-PR3-postreview-v4 — distinct from the Zod-schema-failure
+    // string 'Invalid update payload.' (returned at line ~320 of
+    // actions.ts) so logs/Sentry can distinguish "client posted a
+    // malformed payload" from "user clicked save with no edits."
+    expect(result).toEqual({ ok: false, error: 'No changes to save.' });
     expect(updateDraftMock).not.toHaveBeenCalled();
     expect(revalidateMock).not.toHaveBeenCalled();
   });
