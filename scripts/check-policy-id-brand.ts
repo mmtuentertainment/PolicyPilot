@@ -107,6 +107,17 @@ function checkObjectLiteralRepo(
   // Repositories follow the pattern: `export const <Name> = { method: (...) => ... }`.
   // Walk all variable declarations; for each, find the object literal init;
   // for each, check the targeted methods.
+  //
+  // CR PR #13 closure: track per-method presence across the file. Without
+  // this, a method that's been RENAMED or REMOVED entirely never matches
+  // `obj.getProperty(methodName)` and the loop silently skips it — the gate
+  // reports success even though the signature it's supposed to pin no
+  // longer exists. Initialize all-false, set true on first match, push a
+  // 'method not found' failure after the walk for any still-false entry.
+  const found: Record<string, boolean> = {};
+  for (const methodName of methods) {
+    found[methodName] = false;
+  }
   const varDecls = sourceFile.getVariableDeclarations();
   for (const decl of varDecls) {
     const init = decl.getInitializer();
@@ -116,6 +127,7 @@ function checkObjectLiteralRepo(
     for (const methodName of methods) {
       const prop = obj.getProperty(methodName);
       if (!prop) continue; // method belongs to a different object in the file; skip
+      found[methodName] = true;
       const propAssignment = prop.asKind(SyntaxKind.PropertyAssignment);
       if (!propAssignment) {
         failures.push({ kind: 'repo', file: filePath, method: methodName, detail: 'not a property assignment' });
@@ -143,6 +155,19 @@ function checkObjectLiteralRepo(
           detail: `parameter "${policyParam.getName()}" type is "${typeText || '<no annotation>'}" — expected to include "PolicyId"`,
         });
       }
+    }
+  }
+  // Post-walk: any method whose `found` flag stayed false was renamed,
+  // removed, or moved out of the expected object-literal pattern. Fail
+  // hard rather than silently pass.
+  for (const methodName of methods) {
+    if (!found[methodName]) {
+      failures.push({
+        kind: 'repo',
+        file: filePath,
+        method: methodName,
+        detail: 'method not found — renamed, removed, or moved out of an exported object literal',
+      });
     }
   }
   return failures;
