@@ -59,20 +59,25 @@ Do not introduce unlisted packages without asking Matthew first.
 
 ## Build Sequence
 
-Follow phases in order. Do not start Phase N+1 until Phase N compiles clean.
+Phase **order** locked by ADR-007. Phase **gating** amended by ADR-029 (2026-05-21): phase boundaries must remain green on `main`, but in-flight phases may run on parallel branches off a common `main` ancestor. True minimum `Depends on` chain in `.planning/ROADMAP.md` § Phase Details.
 
 ```
-Phase 1: Foundation       — Next.js init, Clerk, Supabase, env vars
-Phase 2: Data Layer       — Drizzle schema, RLS, Clerk webhooks, basic CRUD
-Phase 3: Admin UI         — Layout, policy library, TipTap editor, publish flow
-Phase 4: AI Layer         — Draft, summary, employee Q&A
-Phase 5: Employee Portal  — My-policies, acknowledgment flow, notifications
-Phase 6: Billing          — Stripe products, checkout, webhooks, tier gating
-Phase 7: Crons + Email    — Railway worker, Resend templates, reminders
-Phase 8: Validation       — Dashboard charts, CSV export, acceptance tests
+Phase 1: Foundation       — Next.js init, Clerk, Supabase, env vars             [Depends on: nothing]
+Phase 2: Data Layer       — Drizzle schema, RLS, Clerk webhooks, basic CRUD     [Depends on: 1]
+Phase 3: Admin UI         — Layout, policy library, TipTap editor, publish flow [Depends on: 2]
+Phase 4: AI Layer         — Draft, summary, employee Q&A                        [Depends on: 3]
+Phase 5: Employee Portal  — My-policies, acknowledgment flow, notifications     [Depends on: 3]  ← parallel with 4
+Phase 6: Billing          — Stripe products, checkout, webhooks, tier gating    [Depends on: 4]
+Phase 7: Crons + Email    — Railway worker, Resend templates, reminders         [Depends on: 5]  ← parallel with 6
+Phase 8: Validation       — Dashboard charts, CSV export, acceptance tests      [Depends on: 6 + 7]
 ```
 
-End of each phase: run `tsc --noEmit` → fix all errors → report to Matthew.
+Wave grouping (operator chooses per-phase whether to run sequentially or in parallel):
+- Wave 1: Phase 4 ‖ Phase 5
+- Wave 2: Phase 6 ‖ Phase 7
+- Wave 3: Phase 8
+
+End of each phase: run `tsc --noEmit` AND `verify:phase-N` (both exit 0) → squash to `main` → `git pull --ff-only` locally → report to Matthew. `main` must be green between every phase squash.
 
 ---
 

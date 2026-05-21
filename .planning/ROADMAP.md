@@ -1,6 +1,6 @@
 # ROADMAP — PolicyPilot
 
-8-phase ASSEMBLY sequence. Locked by ADR-007 (BLUEPRINT.md §5). Phase N+1 cannot start until Phase N compiles clean (`tsc --noEmit`). Goal-backward success criteria preserve observable user value at every phase boundary.
+8-phase ASSEMBLY sequence. **Order** locked by ADR-007 (BLUEPRINT.md §5); **gating** amended by ADR-029 (2026-05-21) — phase boundaries must remain green on `main`, but in-flight phases may run on parallel branches off a common `main` ancestor. True minimum `Depends on` chain per `/gsd-manager --analyze-deps` 2026-05-21 (see ADR-029 § Decision table). Each phase still ships with `tsc --noEmit` + `verify:phase-N` both exiting 0 on its squash commit on `main`. Goal-backward success criteria preserve observable user value at every phase boundary.
 
 Granularity: **standard** (8 phases — matches the locked build sequence).
 
@@ -104,7 +104,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 
 ### Phase 5: Employee Portal
 **Goal**: An employee can sign in, see only their assigned + published policies, read them, ask Q&A questions, and one-click acknowledge — with every acknowledgment captured append-only with timestamp and IP. Policy updates correctly require re-acknowledgment.
-**Depends on**: Phase 4
+**Depends on**: Phase 3 *(amended by ADR-029 2026-05-21; was Phase 4 — Phase 5 SC 1–5 do not consume Phase 4 AI surfaces per `/gsd-manager --analyze-deps`; eligible for Wave 1 parallel with Phase 4)*
 **Requirements**: REQ-acknowledgment-tracking, REQ-acknowledgment-rules
 **Anchoring decisions**: ADR-018 (append-only), ADR-008 (route group `(employee)`), ADR-009 (employee gate)
 **Success Criteria** (what must be TRUE):
@@ -118,7 +118,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 
 ### Phase 6: Billing
 **Goal**: A new sign-up can pick a plan, complete Stripe Checkout, see their org's `planTier` synced from the webhook, hit tier limits with a clear 403 + upgrade prompt, and have their subscription survive the first billing-cycle renewal automatically.
-**Depends on**: Phase 5
+**Depends on**: Phase 4 *(amended by ADR-029 2026-05-21; was Phase 5 — `checkTierLimit` is the binding dependency per Phase 4 SC #1/#5, not the employee portal; eligible for Wave 2 parallel with Phase 7)*
 **Requirements**: REQ-tier-starter, REQ-tier-growth, REQ-tier-business
 **Anchoring decisions**: ADR-013, ADR-017, ADR-020
 **Success Criteria** (what must be TRUE):
@@ -132,7 +132,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 
 ### Phase 7: Crons + Email
 **Goal**: Reminders and notifications go out automatically: the Railway cron worker runs daily, the Resend + React Email templates send for all 4 notification types, no duplicates fire on retry, and the in-app bell surfaces unread items.
-**Depends on**: Phase 6
+**Depends on**: Phase 5 *(amended by ADR-029 2026-05-21; was Phase 6 — `ack_reminder` cron requires the Phase 5 acknowledgment flow, not billing; eligible for Wave 2 parallel with Phase 6)*
 **Requirements**: REQ-notification-system
 **Anchoring decisions**: ADR-014, ADR-016
 **Success Criteria** (what must be TRUE):
@@ -145,7 +145,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 
 ### Phase 8: Validation
 **Goal**: All 8 numbered acceptance criteria from REQUIREMENTS.md §10 pass with real data on a populated org, the admin compliance dashboard renders the Recharts donut + CSV export, and the product is demonstrably faster and more reliable than a Google Drive folder.
-**Depends on**: Phase 7
+**Depends on**: Phase 6 AND Phase 7 *(amended by ADR-029 2026-05-21; was "Phase 7" alone — under the new DAG Phase 7 → Phase 5 no longer transitively covers Phase 6, but Phase 8 SC #4 requires the Phase 6 Stripe renewal test; both Wave 2 outputs are required for Phase 8 to start)*
 **Requirements**: REQ-compliance-dashboard, REQ-integrations, REQ-acceptance-criteria
 **Anchoring decisions**: All — final integration gate
 **Success Criteria** (what must be TRUE):
