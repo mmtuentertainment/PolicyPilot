@@ -44,6 +44,7 @@ const ALLOWLIST: RegExp[] = [
   /^scripts\/check-db\.ts$/,                     // Phase 1 smoke gate (baseline raw-db importer; Rule-3 deviation)
   /^lib\/db\/scoped\.ts$/,                       // wrapper that secures the channel (Plan 02-01)
   /^lib\/auth\/context\.ts$/,                    // ADR-023 allow-list entry: getOrgContext translates Clerk text ids to internal UUIDs per gap-closure 03-G1.
+  /^lib\/stripe\/products\.ts$/,                 // Phase 4 Plan 04-06 (D-14 + D-37): tier-limit gate runs BEFORE withOrgScope opens; app-layer org-scoping via eq(organizations.id, orgId) + eq(aiGenerations.orgId, orgId) inside the readPlanTier + countDraftsThisMonth split-helpers. WARNING-2 documented exception.
 ];
 
 /**
