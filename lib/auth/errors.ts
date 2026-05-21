@@ -33,7 +33,8 @@ export type BootstrapErrorCode =
   | 'NO_ACTIVE_ORGANIZATION'
   | 'INVALID_ROLE'
   | 'ORG_NOT_PROVISIONED'
-  | 'USER_NOT_PROVISIONED';
+  | 'USER_NOT_PROVISIONED'
+  | 'FORBIDDEN'; // Phase 4 D-45 — 403 path for requireAdmin non-admin role.
 
 /**
  * Marker abstract base for errors that lib/auth/context.ts throws during
@@ -203,5 +204,26 @@ export class ClerkAuthFailedError extends Error {
     super(`Clerk auth() failed: ${detail}`);
     this.cause = cause;
     this.name = 'ClerkAuthFailedError';
+  }
+}
+
+/**
+ * Phase 4 D-45 (AC-26 → 403 resolution) — admin-role gate failure.
+ *
+ * Thrown by `lib/auth/require-admin.ts:requireAdminFromCtx(ctx)` when ctx.role !== 'admin'.
+ * The Next.js error boundary maps `ForbiddenError` → HTTP 403 with body `{ error: 'forbidden' }`,
+ * matching SPEC R2 acceptance text verbatim (different from the Phase 3 `requireAdmin()` no-arg
+ * signature which still calls `notFound()` → 404 for backward compat with Phase 3 admin pages).
+ *
+ * Mirrors the BootstrapError-subclass shape used by NotAuthenticatedError / NoActiveOrganizationError
+ * (readonly literal `code`, explicit `this.name`). The `reason` param is for structured-log
+ * routing in Phase 7+; the literal string is preserved as part of err.message so log-greps for
+ * "admin role required" continue to match across the v0 string-throw → typed-throw transition.
+ */
+export class ForbiddenError extends BootstrapError {
+  readonly code = 'FORBIDDEN';
+  constructor(public readonly reason: string) {
+    super(`Forbidden: ${reason}`);
+    this.name = 'ForbiddenError';
   }
 }
