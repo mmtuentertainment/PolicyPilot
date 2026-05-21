@@ -1115,11 +1115,19 @@ function checkPhase3Scaffold(): Check[] {
   assert(out, exists("tests/setup.ts"), "tests/setup.ts exists (Plan 03-01)", "missing");
   assert(out, exists("tests/smoke.test.ts"), "tests/smoke.test.ts exists (Plan 03-01)", "missing");
   assert(out, exists("scripts/check-admin-routes.ts"), "scripts/check-admin-routes.ts exists (Plan 03-01)", "missing");
+  assert(out, exists("scripts/check-policies-list-filters.ts"), "scripts/check-policies-list-filters.ts exists (VALIDATION-2.7)", "missing");
   const pkg = read("package.json");
   assert(out, pkg.includes('"verify:phase-3"'), "package.json declares verify:phase-3", "script missing");
   assert(out, pkg.includes('"check:admin-routes"'), "package.json declares check:admin-routes", "script missing");
   assert(out, pkg.includes('"check:db-imports"'), "package.json declares check:db-imports", "script missing");
   assert(out, pkg.includes('"check:rls"'), "package.json declares check:rls", "script missing");
+  assert(out, pkg.includes('"check:policies-list-filters"'), "package.json declares check:policies-list-filters (VALIDATION-2.7)", "script missing");
+  assert(
+    out,
+    /"verify:phase-3"\s*:\s*"[^"]*check:policies-list-filters[^"]*"/.test(pkg),
+    "verify:phase-3 chains check:policies-list-filters (VALIDATION-2.7)",
+    "verify:phase-3 missing check:policies-list-filters",
+  );
   assert(out, pkg.includes('"test":'), "package.json declares test (vitest run)", "script missing");
   assert(
     out,
