@@ -1212,6 +1212,15 @@ function checkPhase3G1Artifacts(): Check[] {
     out.push(fail(`${ctxPath} exists`, "missing"));
   } else {
     const ctx = read(ctxPath);
+    // ADR-027 assertions match against this comment-stripped view so a
+    // commented-out copy of the predicate (e.g. a stale prior shape left
+    // in a `//` or `/* */` block) cannot satisfy the gate. Used only by
+    // the three ADR-027 checks below — 03-G1/ADR-026 assertions keep raw
+    // `ctx` because their target strings (typed-class throws, field
+    // declarations) don't commonly survive as commented examples here.
+    const ctxNoComments = ctx
+      .replace(/\/\/[^\n]*/g, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "");
     assert(
       out,
       ctx.includes("clerkOrgId: string"),
@@ -1267,7 +1276,7 @@ function checkPhase3G1Artifacts(): Check[] {
     // consistency invariant captured in ADR-027.
     assert(
       out,
-      ctx.includes("eq(users.orgId, orgRow.id)"),
+      ctxNoComments.includes("eq(users.orgId, orgRow.id)"),
       `${ctxPath}: user lookup scopes by org_id with eq(users.orgId, orgRow.id) (ADR-027)`,
       "ADR-027 lookup-scoping predicate missing",
     );
@@ -1277,7 +1286,7 @@ function checkPhase3G1Artifacts(): Check[] {
       // two predicates. A future refactor that drops `and(` and tries
       // to chain `.where(...).where(...)` (which Drizzle silently
       // composes via AND but is less obvious) would fail here.
-      /and\(\s*eq\(users\.clerkUserId/.test(ctx),
+      /and\(\s*eq\(users\.clerkUserId/.test(ctxNoComments),
       `${ctxPath}: user lookup uses and(eq(users.clerkUserId, ...), ...) combinator (ADR-027)`,
       "ADR-027 and() combinator missing — predicates not explicitly composed",
     );
@@ -1287,7 +1296,7 @@ function checkPhase3G1Artifacts(): Check[] {
       // while editing context.ts the file fails to compile, but the
       // assertion gives a clearer ADR-tagged error than a bare tsc
       // ReferenceError.
-      /import\s*\{[^}]*\band\b[^}]*\}\s*from\s*['"]drizzle-orm['"]/.test(ctx),
+      /import\s*\{[^}]*\band\b[^}]*\}\s*from\s*['"]drizzle-orm['"]/.test(ctxNoComments),
       `${ctxPath}: imports { and, ... } from 'drizzle-orm' (ADR-027)`,
       "ADR-027 drizzle-orm `and` import missing",
     );
