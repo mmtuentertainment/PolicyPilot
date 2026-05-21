@@ -43,6 +43,13 @@
       "when": 1779400015116,
       "tag": "0005_initial_batch_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779400184048,
+      "tag": "0006_rls_batch_jobs",
+      "breakpoints": true
     }
   ]
 }
