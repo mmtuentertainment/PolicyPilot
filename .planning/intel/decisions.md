@@ -548,8 +548,20 @@ Every `throw` inside `lib/auth/` uses a typed error class declared in `lib/auth/
 Class hierarchy (`lib/auth/errors.ts`):
 
 ```typescript
+// Stable wire-format discriminant for the BootstrapError hierarchy.
+// Pre-merge type-design review pinned this as a literal union (not
+// `string`) so a typo at a concrete-subclass initializer is a
+// compile-time error, not a silent log-router miss. Adding a new
+// BootstrapError subclass requires adding the literal here first.
+export type BootstrapErrorCode =
+  | 'NOT_AUTHENTICATED'
+  | 'NO_ACTIVE_ORGANIZATION'
+  | 'INVALID_ROLE'
+  | 'ORG_NOT_PROVISIONED'
+  | 'USER_NOT_PROVISIONED';
+
 abstract class BootstrapError extends Error {
-  abstract readonly code: string;
+  abstract readonly code: BootstrapErrorCode;
 }
 
 class NotAuthenticatedError extends BootstrapError {

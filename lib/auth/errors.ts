@@ -8,14 +8,32 @@
 // Constructor shape matches lib/policies/state-machine.ts:33-40
 // (IllegalTransitionError): `public readonly` params + explicit
 // `this.name = 'ClassName'`. Each class additionally exposes a stable
-// `code: string` constant for Phase-7+ structured logging — the
-// hierarchy has multiple concrete classes so `name` alone is not enough
-// to discriminate in log queries.
+// `code: BootstrapErrorCode` (or `'CLERK_AUTH_FAILED'` for the non-
+// BootstrapError infra marker) constant for Phase-7+ structured logging —
+// the hierarchy has multiple concrete classes so `name` alone is not
+// enough to discriminate in log queries.
 //
 // Message strings preserved verbatim from the v0 string-literal throws
 // at super(message) so operator log-greps for "No active organization"
 // etc. continue to match err.message; future structured-logging swaps
 // can read err.code (stable across translations and message refactors).
+
+/**
+ * Stable wire-format discriminant for the `BootstrapError` hierarchy. The
+ * abstract `code` field on `BootstrapError` is typed as this union so a
+ * typo at a concrete-subclass initializer (e.g. `'NO_ACTIVE_ORG'` instead
+ * of `'NO_ACTIVE_ORGANIZATION'`) is a compile-time error rather than a
+ * silent log-router miss. Adding a new `BootstrapError` subclass requires
+ * adding the literal here first — that's the point. Pre-merge type-design
+ * review recommendation; codes paired with concrete classes are also
+ * locked at runtime by the uniqueness test in bootstrap-errors.test.ts.
+ */
+export type BootstrapErrorCode =
+  | 'NOT_AUTHENTICATED'
+  | 'NO_ACTIVE_ORGANIZATION'
+  | 'INVALID_ROLE'
+  | 'ORG_NOT_PROVISIONED'
+  | 'USER_NOT_PROVISIONED';
 
 /**
  * Marker abstract base for errors that lib/auth/context.ts throws during
@@ -30,7 +48,7 @@
  * future "DRY refactor" cannot quietly fold it into the hierarchy.
  */
 export abstract class BootstrapError extends Error {
-  abstract readonly code: string;
+  abstract readonly code: BootstrapErrorCode;
 }
 
 /**
@@ -129,6 +147,11 @@ export class UserNotProvisionedError extends ProvisioningRaceError {
  * (Node 22 runtime supports it but compile-time signature isn't
  * guaranteed at the lower target). The explicit field with `override`
  * gives equivalent diagnostic value at any target.
+ *
+ * The `code` literal is the universal log-discriminant (orthogonal to
+ * the `BootstrapErrorCode` union — this class is intentionally NOT a
+ * `BootstrapError`); structured-logging consumers can switch on
+ * `err.code` to route both bootstrap and infra failures.
  */
 export class ClerkAuthFailedError extends Error {
   readonly code = 'CLERK_AUTH_FAILED';

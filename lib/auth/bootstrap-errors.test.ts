@@ -147,3 +147,78 @@ describe('ProvisioningRaceError abstract base matches both concrete subclasses',
     expect(new NoActiveOrganizationError() instanceof ProvisioningRaceError).toBe(false);
   });
 });
+
+// Pre-merge type-design review additions — symmetric to the
+// `ClerkAuthFailedError ∉ BootstrapError` test above. The negative case
+// guards the rethrow contract; these positive cases guard the converse
+// invariant — every concrete BootstrapError subclass actually IS a
+// BootstrapError. Without these, a future refactor that reparents (e.g.)
+// `NotAuthenticatedError extends Error` (skipping BootstrapError) would
+// pass the divergence-lock tests but silently break any downstream code
+// that catches `instanceof BootstrapError` as a wholesale net.
+describe('BootstrapError positive inheritance (every subclass IS a BootstrapError)', () => {
+  it('NotAuthenticatedError instanceof BootstrapError', () => {
+    expect(new NotAuthenticatedError() instanceof BootstrapError).toBe(true);
+  });
+
+  it('NoActiveOrganizationError instanceof BootstrapError', () => {
+    expect(new NoActiveOrganizationError() instanceof BootstrapError).toBe(true);
+  });
+
+  it('InvalidRoleError instanceof BootstrapError', () => {
+    expect(new InvalidRoleError('x') instanceof BootstrapError).toBe(true);
+  });
+
+  it('OrgNotProvisionedError instanceof BootstrapError (via ProvisioningRaceError)', () => {
+    expect(new OrgNotProvisionedError('org_***') instanceof BootstrapError).toBe(true);
+  });
+
+  it('UserNotProvisionedError instanceof BootstrapError (via ProvisioningRaceError)', () => {
+    expect(new UserNotProvisionedError('user_***') instanceof BootstrapError).toBe(true);
+  });
+});
+
+// Pre-merge test-coverage review additions — close the matcher's
+// fail-open surface and lock the wire-format uniqueness invariant that
+// the literal-union BootstrapErrorCode (errors.ts) ensures at compile
+// time but cannot enforce uniqueness for.
+describe('matchesErrorClass edge cases + code-uniqueness invariant', () => {
+  it('returns false on empty class array (fail-CLOSED guard)', () => {
+    // Currently safe via Array.prototype.some semantics — but a future
+    // refactor swapping `.some` for a sentinel-default (e.g.
+    // `classes.length === 0 ? true : ...`) would silently make every
+    // consumer's "no allow-list yet" call match everything, a fail-open
+    // security hazard. One assertion locks the behavior.
+    expect(matchesErrorClass(new NotAuthenticatedError(), [])).toBe(false);
+    expect(matchesErrorClass(new Error('anything'), [])).toBe(false);
+    expect(matchesErrorClass('string', [])).toBe(false);
+  });
+
+  it('every exported error class has a unique code', () => {
+    // The BootstrapErrorCode literal union (errors.ts) catches typos at
+    // compile time but not duplicates. This runtime test pins each
+    // concrete error class to a distinct `code` value, so adding a new
+    // class with a typo'd-duplicate code fails CI.
+    const instances: { code: string }[] = [
+      new NotAuthenticatedError(),
+      new NoActiveOrganizationError(),
+      new InvalidRoleError('test'),
+      new OrgNotProvisionedError('org_***test'),
+      new UserNotProvisionedError('user_***test'),
+      new ClerkAuthFailedError(new Error('test')),
+    ];
+    const codes = instances.map((e) => e.code);
+    expect(new Set(codes).size).toBe(codes.length);
+    // Strict-match positive lock: also assert the exact code values so
+    // an accidental rename (e.g. 'NOT_AUTHENTICATED' → 'UNAUTHENTICATED')
+    // fails here, since rename would silently rot Phase-7+ log routers.
+    expect(codes).toEqual([
+      'NOT_AUTHENTICATED',
+      'NO_ACTIVE_ORGANIZATION',
+      'INVALID_ROLE',
+      'ORG_NOT_PROVISIONED',
+      'USER_NOT_PROVISIONED',
+      'CLERK_AUTH_FAILED',
+    ]);
+  });
+});
