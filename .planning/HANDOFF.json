@@ -1,0 +1,161 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-05-21T13:20:49.356Z",
+  "context": "between-phases",
+  "phase": "03",
+  "phase_name": "admin-ui",
+  "phase_dir": ".planning/phases/03-admin-ui",
+  "phase_status": "complete",
+  "plan": null,
+  "task": null,
+  "total_tasks": null,
+  "status": "paused_at_phase_boundary",
+  "branch": "main",
+  "main_head": "bd2257a",
+  "completed_tasks": [
+    {
+      "id": "session-1",
+      "name": "PR #7 (ADR-027 lookup-scoping fast-follow 2/3) CR comment-stripping fix",
+      "status": "done",
+      "commit": "fb2b512",
+      "merged_at": "c6dca6a",
+      "ref": "scripts/check-artifacts.ts ctxNoComments hardening — CR's exact suggested diff"
+    },
+    {
+      "id": "session-2",
+      "name": "PR #8 (Phase 3 security audit cascade 1/3) CR handoff-leak fix",
+      "status": "done",
+      "commit": "17e4397",
+      "merged_at": "5a57000",
+      "ref": "one-shot handoff cleanup per resume-project workflow line 94; SECURED 67/67 STRIDE"
+    },
+    {
+      "id": "session-3",
+      "name": "PR #8 CR auto-fix over-scope incident → Option B surgical revert",
+      "status": "done",
+      "commit": "062f341",
+      "ref": "CR's auto-fix 687b6d9 bumped ~30 transitive deps + resurrected deleted CardAction; surgical revert restored card.tsx + pnpm-lock.yaml to 687b6d9^ state while keeping CR's legitimate STATE.md path-redaction"
+    },
+    {
+      "id": "session-4",
+      "name": "PR #10 (validation audit refresh cascade 2/3) opened + shipped",
+      "status": "done",
+      "commit": "8d906f6",
+      "merged_at": "85aebed",
+      "ref": "Background gsd-nyquist-auditor with stage-gated prompt — PARTIALLY VALIDATED 28-COVERED / 18-PARTIAL / 2-MISSING"
+    },
+    {
+      "id": "session-5",
+      "name": "PR #9 (VALIDATION-2.7 closure test) opened + shipped",
+      "status": "done",
+      "commit": "07ea1ea",
+      "merged_at": "d185efc",
+      "ref": "scripts/check-policies-list-filters.ts — 10 integration assertions (q / status / compound / LIMIT-100 / cross-org); wired into verify:phase-3 chain via new gate + chain-inclusion regex (CR's Round-1 quick-win addition)"
+    },
+    {
+      "id": "session-6",
+      "name": "PR #11 (UAT second-pass cascade 3/3) opened + shipped",
+      "status": "done",
+      "commit": "ae9bfcc",
+      "merged_at": "28f646e",
+      "ref": "Delta-analysis + claude-in-chrome MCP live spot-check on /dashboard — VERIFIED 6/6 PASS"
+    },
+    {
+      "id": "session-7",
+      "name": "PR #12 (state bookkeeping for cascade closure) opened + shipped",
+      "status": "done",
+      "commit": "56cae4e",
+      "merged_at": "6b95eaa",
+      "ref": "STATE.md frontmatter rewrite + locked-decisions 26→27 + new session-continuity bullet"
+    },
+    {
+      "id": "session-8",
+      "name": "PR #13 (ADR-028 PolicyId brand + UserNotProvisioned subCode + tenant-isolation) opened + shipped",
+      "status": "done",
+      "commit_chain": ["2b11de1", "2ec6423", "d4d90ae", "363a798", "9e3d7cd"],
+      "merged_at": "bd2257a",
+      "ref": "3+2 commits, 18 files, +716/-63 LOC. Foundation + threading + verify gate + Round-2 CR fixes (tenant-isolation predicates + silent-pass closure)"
+    },
+    {
+      "id": "session-9",
+      "name": "Branch cleanup",
+      "status": "done",
+      "ref": "5 stale local branches deleted (chore/state-adr-026-shipped, chore/state-phase3-shipped, gsd/phase-3-admin-ui, refactor/typed-errors, refactor/lookup-scoping) + lingering origin/refactor/lookup-scoping remote branch deleted"
+    }
+  ],
+  "remaining_tasks": [
+    {
+      "id": "phase-4-entry",
+      "name": "Phase 4 (AI Layer) — context gathering + planning",
+      "status": "not_started",
+      "options": {
+        "discuss_first": "/gsd-discuss-phase 4 — standard HOW-decision gathering",
+        "spec_first": "/gsd-spec-phase 4 — clarify WHAT delivers + ambiguity scoring first",
+        "ai_integration": "/gsd-ai-integration-phase 4 — formal AI-SPEC.md with eval planning + framework selection"
+      },
+      "note": "Phase 4 is the AI Layer: Anthropic Claude API integration for Draft generation + TL;DR summaries + employee Q&A + Consistency Check. Per CLAUDE.md AI rules: Sonnet 4.6 primary for draft/Q&A/consistency, Haiku 4.5 for TL;DR. Prompt caching required on repeated system prompts. Batch API for consistency check (50% cost reduction). All Claude calls stored in ai_generations table."
+    },
+    {
+      "id": "state-bookkeeping-bundling",
+      "name": "Optional: bundle ADR-028 ship + Phase 4 start into next state-bookkeeping PR",
+      "status": "deferred",
+      "note": "Locked decisions count needs to go 27 → 28. Fast-follow backlog can be cleared (all 3 fast-follows shipped). Per the resuming-agent recommendation: bundle with first Phase-4 state update rather than ship as standalone PR — less PR overhead, STATE.md touched once."
+    }
+  ],
+  "blockers": [],
+  "human_actions_pending": [
+    {
+      "action": "Pick Phase 4 entry path (discuss / spec / ai-integration)",
+      "context": "Phase 4 is the AI Layer. Three workflow choices listed in remaining_tasks.phase-4-entry.options. Default = /gsd-discuss-phase 4 (standard). /gsd-spec-phase 4 first if Phase 4's WHAT-deliverables feel ambiguous. /gsd-ai-integration-phase 4 if PolicyPilot wants formal AI-SPEC rigor (eval planning + framework selection — extra structure for AI-heavy phases).",
+      "blocking": false
+    }
+  ],
+  "decisions": [
+    {
+      "decision": "Audit cascade shipped as 3 separate PRs (security/validation/verification) rather than one bundle",
+      "rationale": "Operator's option-2 decision at the prior context-warning checkpoint. Each audit gets its own short-lived branch + PR; lower review fatigue than bundling. Matches PR #4/#6 state-bookkeeping precedent.",
+      "phase": "3"
+    },
+    {
+      "decision": "Option B surgical revert pattern for CR auto-fix over-scope",
+      "rationale": "CR's auto-apply on PR #8 ran pnpm install as a side-effect, bumping ~30 unrelated transitive deps + resurrecting a deleted CardAction component. Three options: (A) git reset --hard + force-push, (B) additive revert commit restoring just the unwanted files, (C) merge as-is. Chose B — surgical (preserves CR's legitimate STATE.md path-redaction), no force-push, history preserved, additive. Documented in PR #8 commit `062f341`.",
+      "phase": "3"
+    },
+    {
+      "decision": "ADR-028 bundle: PolicyId brand + UserNotProvisionedError subCode + info-disclosure boundary in single PR",
+      "rationale": "Operator explicit choice. Three concerns share scope (type-safety for the policy domain) and are independently small but conceptually adjacent. Splitting into 3 PRs adds review overhead for little benefit.",
+      "phase": "3.3"
+    },
+    {
+      "decision": "PolicyId branded; UserId/OrgId NOT branded yet (slippery-slope policy)",
+      "rationale": "PolicyId threaded through 7 transition orchestrators + 5 repository methods + 7 Server Actions — highest cross-confusion risk. UserId/OrgId mostly stay inside OrgContext/OrgScope — well-contained. Brand coverage is opportunistic; future PRs touching User/Org-heavy code MAY brand if friction warrants.",
+      "phase": "3.3"
+    },
+    {
+      "decision": "UserNotProvisionedError.subCode is REQUIRED parameter (not optional with default)",
+      "rationale": "Optional with default would let new throw sites silently ship without discriminating — exactly the 'distinction without behavioral difference' failure mode ADR-027 worried about. Required parameter forces every author to make the discrimination call explicit at the throw point. Mechanical update for existing tests.",
+      "phase": "3.3"
+    },
+    {
+      "decision": "Signature-only ts-morph gate (compiler catches callers)",
+      "rationale": "TS compiler already rejects callers that pass `string` where `PolicyId` is expected. Gate value is signature-drift prevention. Matches check-error-discipline.ts discipline.",
+      "phase": "3.3"
+    },
+    {
+      "decision": "Tenant-isolation predicate added to 6 direct policies updates in transitions.ts",
+      "rationale": "CR PR #13 outside-diff finding surfaced a CLAUDE.md ALWAYS-rule violation: every DB query MUST include org_id. The 6 .update(policies).where(eq(policies.id, ...)) calls in transitions.ts only filtered by id. Defense-in-depth held at runtime (RLS + Policies.findById did filter by org_id), but app-layer predicate was missing. Now: and(eq(policies.orgId, s.orgId), eq(policies.id, policyId)) at all 6 sites.",
+      "phase": "3.3"
+    }
+  ],
+  "uncommitted_files": [],
+  "untracked_workspace_files": [
+    ".agents/",
+    ".claude/",
+    ".mcp.json",
+    ".wiki/",
+    "audit-cache/",
+    "localhost-1779237331998.log"
+  ],
+  "next_action": "Pick Phase 4 entry workflow per human_actions_pending. Default suggestion: `/gsd-discuss-phase 4` against `main @ bd2257a`. State-bookkeeping for ADR-028 ship can bundle with first Phase-4 state update.",
+  "context_notes": "Long session — 7 PRs merged (#7, #8, #9, #10, #11, #12, #13) + 5 PRs opened + 1 CR over-scope incident handled via Option B + 2 background-spawned audit agents (gsd-security-auditor v2 + gsd-nyquist-auditor) + 1 live claude-in-chrome MCP UAT spot-check + 1 PolicyId brand refactor with 17 signature touches across 17 files. Phase 3 is now FULLY closed: shipped (PR #3) + 3 fast-followed (PR #5/#7/#13) + 3-audit cascade (PR #8/#10/#11) + closure test (PR #9) + state bookkept (PR #12). main is at bd2257a with locked decisions running 27 (ADR-001..027) — ADR-028 ratified in PR #13 should bump count to 28 in next state PR. Comment-discipline lesson re-fired this session in a draft commit message but was self-caught + corrected before push (amended commit with verified experiment output). Continues to be a developing structural habit, not yet auto-suppressed."
+}
