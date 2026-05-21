@@ -95,6 +95,19 @@ project.addSourceFilesAtPaths([
   '!lib/auth/**/*.d.ts',
   '!lib/auth/**/__mocks__/**',
   '!lib/auth/**/__tests__/**',
+  // Phase 4 D-16: extend scan scope to lib/stripe/ — mirrors lib/auth scope.
+  // TierLimitExceededError lives in lib/stripe/errors.ts (excluded below; it's the typed-error
+  // definition file — the rule applies to consumers, not the definition site).
+  'lib/stripe/**/*.ts',
+  'lib/stripe/**/*.tsx',
+  '!lib/stripe/errors.ts',
+  '!lib/stripe/**/*.test.ts',
+  '!lib/stripe/**/*.test.tsx',
+  '!lib/stripe/**/*.spec.ts',
+  '!lib/stripe/**/*.spec.tsx',
+  '!lib/stripe/**/*.d.ts',
+  '!lib/stripe/**/__mocks__/**',
+  '!lib/stripe/**/__tests__/**',
 ]);
 
 interface Violation {
@@ -161,7 +174,7 @@ if (violations.length > 0) {
 
 const checkedCount = project.getSourceFiles().length;
 console.log(
-  `OK — ADR-026: ${checkedCount} file(s) scanned in lib/auth/; ` +
+  `OK — ADR-026 + Phase 4 D-16: ${checkedCount} file(s) scanned in lib/auth/ + lib/stripe/; ` +
     `no direct built-in Error throws (new or no-new form, ${BANNED_BUILTIN_ERRORS.size} banned constructors).`,
 );
 process.exit(0);
