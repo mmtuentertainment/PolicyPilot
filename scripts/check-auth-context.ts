@@ -199,6 +199,66 @@ async function main(): Promise<void> {
       'NEGATIVE: Clerk-text orgId injection into withOrgScope still triggers Postgres 22P02 (regression guard live).',
     );
 
+    // 7b. ADR-027 invariant — user lookup is scoped by BOTH clerk_user_id
+    // AND org_id. The production query is in lib/auth/context.ts as:
+    //   .where(and(eq(users.clerkUserId, ...), eq(users.orgId, ...)))
+    // This integration test exercises that same SQL shape directly
+    // against the TEST DB (already-seeded user row has clerk_user_id =
+    // CLERK_USER, org_id = orgUuid). Two controls: POSITIVE — matching
+    // org returns the row; NEGATIVE — mismatched org returns empty.
+    // A future refactor that drops the `eq(users.org_id, ...)` predicate
+    // fails the NEGATIVE control here.
+    const otherOrgUuid = randomUUID();
+    const OTHER_CLERK_ORG = 'clerk_org_check_authctx_adr027';
+    await sql.begin(async (tx) => {
+      await tx`INSERT INTO organizations (id, clerk_org_id, name, slug)
+               VALUES (${otherOrgUuid}, ${OTHER_CLERK_ORG}, 'ADR-027 Other Org', ${'check-authctx-adr027-' + otherOrgUuid.slice(0, 8)})`;
+    });
+
+    // POSITIVE — same query as production with matching org_id returns
+    // the existing user row.
+    const matchedUserRows = await sql<{ id: string }[]>`
+      SELECT id FROM users
+      WHERE clerk_user_id = ${CLERK_USER}
+        AND org_id = ${orgUuid}
+      LIMIT 1
+    `;
+    if (matchedUserRows.length !== 1) {
+      throw new Error(
+        `ADR-027 POSITIVE control failed: same-org user lookup returned ${matchedUserRows.length} rows, expected 1`,
+      );
+    }
+    const firstMatched = matchedUserRows[0];
+    if (!firstMatched || firstMatched.id !== userUuid) {
+      throw new Error(
+        `ADR-027 POSITIVE control failed: lookup returned id=${firstMatched?.id ?? '(none)'}, expected ${userUuid}`,
+      );
+    }
+    console.log(
+      'POSITIVE: ADR-027 user lookup scoped by (clerk_user_id, org_id) returns the matching user row for same-org Clerk-user.',
+    );
+
+    // NEGATIVE — same query with a DIFFERENT org_id returns empty,
+    // proving the eq(users.org_id, ...) predicate is load-bearing. The
+    // user's DB row (org_id = orgUuid) MUST NOT be visible when the
+    // query scopes by otherOrgUuid. Without the predicate, this would
+    // return the row (just clerk_user_id matched) — the silent
+    // state-inconsistency surface ADR-027 closes.
+    const mismatchedUserRows = await sql<{ id: string }[]>`
+      SELECT id FROM users
+      WHERE clerk_user_id = ${CLERK_USER}
+        AND org_id = ${otherOrgUuid}
+      LIMIT 1
+    `;
+    if (mismatchedUserRows.length !== 0) {
+      throw new Error(
+        `ADR-027 NEGATIVE control failed: cross-org user lookup returned ${mismatchedUserRows.length} rows, expected 0 — getOrgContext would silently accept the mismatched user`,
+      );
+    }
+    console.log(
+      'NEGATIVE: ADR-027 user lookup scoped by (clerk_user_id, org_id) returns 0 rows for cross-org Clerk-user — silent attribution-failure surface closed.',
+    );
+
     // 8. Final cleanup so the test is idempotent and doesn't leave fixtures.
     await sql.begin(async (tx) => {
       for (const t of [

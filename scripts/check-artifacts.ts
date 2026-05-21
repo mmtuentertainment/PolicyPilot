@@ -1260,6 +1260,37 @@ function checkPhase3G1Artifacts(): Check[] {
       `${ctxPath}: missing-user path throws UserNotProvisionedError (03-G1 + ADR-026)`,
       "missing-user error class throw missing",
     );
+    // ADR-027 — the user lookup must be scoped by org_id as well as
+    // clerk_user_id. Production shape: `and(eq(users.clerkUserId, ...),
+    // eq(users.orgId, orgRow.id))`. Drop either predicate (or the and()
+    // combinator) and an assertion below fails — pins the state-
+    // consistency invariant captured in ADR-027.
+    assert(
+      out,
+      ctx.includes("eq(users.orgId, orgRow.id)"),
+      `${ctxPath}: user lookup scopes by org_id with eq(users.orgId, orgRow.id) (ADR-027)`,
+      "ADR-027 lookup-scoping predicate missing",
+    );
+    assert(
+      out,
+      // The `and(eq(users.clerkUserId, ...), ...)` shape combines the
+      // two predicates. A future refactor that drops `and(` and tries
+      // to chain `.where(...).where(...)` (which Drizzle silently
+      // composes via AND but is less obvious) would fail here.
+      /and\(\s*eq\(users\.clerkUserId/.test(ctx),
+      `${ctxPath}: user lookup uses and(eq(users.clerkUserId, ...), ...) combinator (ADR-027)`,
+      "ADR-027 and() combinator missing — predicates not explicitly composed",
+    );
+    assert(
+      out,
+      // The drizzle-orm import must include `and`. If someone drops it
+      // while editing context.ts the file fails to compile, but the
+      // assertion gives a clearer ADR-tagged error than a bare tsc
+      // ReferenceError.
+      /import\s*\{[^}]*\band\b[^}]*\}\s*from\s*['"]drizzle-orm['"]/.test(ctx),
+      `${ctxPath}: imports { and, ... } from 'drizzle-orm' (ADR-027)`,
+      "ADR-027 drizzle-orm `and` import missing",
+    );
   }
 
   // lib/auth/errors.ts — ADR-026 class hierarchy. The 03-G1 message-
