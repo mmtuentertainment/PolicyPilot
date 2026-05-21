@@ -314,3 +314,28 @@ describe('approve', () => {
     expect(pvCreateMock).toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 4 D-19 — SP-3 graceful-degrade: publish() auto-triggers TL;DR but
+// summary failures MUST NOT propagate. The state transition stays committed.
+// Plan 04-03 Wave-0 RED stubs — Plan 04-11 modifies lib/policies/transitions.ts
+// to add the post-commit generateSummaryForPolicy call wrapped in try/catch
+// AND adds a vi.mock for @/lib/ai/summary at the top of this file.
+// ---------------------------------------------------------------------------
+describe('publish — D-19 post-commit summary graceful-degrade (SP-3, SPEC R3)', () => {
+  it('on generateSummaryForPolicy throw: publish() does NOT throw; state transition stays committed', async () => {
+    // Plan 04-11 modifies lib/policies/transitions.ts:publish to add the post-commit
+    // generateSummaryForPolicy call wrapped in try/catch. This test mocks the helper
+    // to throw, asserts publish() resolves cleanly, and asserts the policy is now
+    // status='published' + tldrSummary IS NULL.
+    expect.fail('TODO: Plan 04-11 — mock generateSummaryForPolicy to throw, assert no propagation');
+  });
+
+  it('on Anthropic-success path: publish() calls generateSummaryForPolicy ONCE after state commit', async () => {
+    expect.fail('TODO: Plan 04-11 — assert helper called exactly once with (policyId, ctx) after state-machine commit');
+  });
+
+  it('logs "[publish] summary failed" with policyId on graceful-degrade path (D-19 + D-36 sanitized)', async () => {
+    expect.fail('TODO: Plan 04-11 — capture console.error, assert message starts with "[publish] summary failed"');
+  });
+});
