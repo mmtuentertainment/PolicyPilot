@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: "Phase 03 — Admin UI SHIPPED 2026-05-20 (PR #3 squash-merged to main @ edebab7; 5 CodeRabbit cycles + 2 pr-review-toolkit cycles; final state 8 gates + 270/270 artifacts + 76/76 vitest). Next: /gsd-discuss-phase 4 (AI Layer)."
-last_updated: "2026-05-20T20:35:00.000Z"
+status: "Phase 03 SHIPPED 2026-05-20 (PR #3 @ edebab7). Fast-follow 1/2 SHIPPED 2026-05-20 (PR #5 ADR-026 typed errors @ bf65712; 1 CR cycle + 1 5-agent pr-review-toolkit cycle + 1 inline CR follow-up; final state 8 gates + 278/278 artifacts + 88/88 vitest). Next: PR 3.2 (ADR-027 lookup-scoping defense-in-depth) → PR 3.3 (ADR-028 PolicyId brand) → /gsd-discuss-phase 4 (AI Layer)."
+last_updated: "2026-05-20T22:30:00.000Z"
 progress:
   total_phases: 8
   completed_phases: 3
@@ -43,12 +43,15 @@ Next phase: 4 (AI Layer) — not yet planned
 [███░░░░░] 3/8 phases  —  Foundation ✓  ·  Data Layer ✓  ·  Admin UI ✓
 ```
 
-**Next action**: `/gsd-discuss-phase 4` to begin Phase 4 (AI Layer — Draft, TL;DR, Q&A, Consistency Check; depends on Phase 3 admin shell).
+**Next action**: PR 3.2 (ADR-027 lookup-scoping defense-in-depth) → PR 3.3 (ADR-028 PolicyId brand) → then `/gsd-discuss-phase 4` to begin Phase 4 (AI Layer — Draft, TL;DR, Q&A, Consistency Check; depends on Phase 3 admin shell).
 
-**Fast-follow PR backlog** (deferred from PR #3 per operator's explicit scoping — architecture changes that require a BLUEPRINT.md update first, per CLAUDE.md ASK FIRST rule #2):
-- Typed error class hierarchy in `lib/auth/context.ts` (replaces the current `String.includes(needle)` allow-list in `lib/auth/bootstrap-errors.ts` — pinned by 8 divergence tests but architecturally fragile).
-- `PolicyId` branded type threaded through repository signatures (currently UUIDs are bare `string` everywhere; branded type would enforce "this string came from PolicyIdSchema parse" at the type level).
-- Surface to operator BEFORE starting Phase 4: scope as Phase 3.1 polish PR vs roll into Phase 4 prelude.
+**Fast-follow PR backlog** (3 sequential PRs, originally scoped from PR #3 carry-forward):
+
+- **PR 3.1 — ADR-026 typed error classes** — **SHIPPED 2026-05-20 @ `bf65712`** (PR #5). `BootstrapError` abstract base + 5 concrete subclasses + `ProvisioningRaceError` abstract base + `ClerkAuthFailedError` (intentionally NOT a `BootstrapError`). Consumers narrow via `err instanceof Class` with class-constructor allow-lists; v0 substring matcher removed. `BootstrapError.code` is a literal union (`BootstrapErrorCode`) catching typos at compile time. New `scripts/check-error-discipline.ts` ts-morph gate forbids `throw new Error(...)` (and 7 other built-in Error subclasses, with-or-without `new`) in `lib/auth/**.ts(x)` — wired into `verify:phase-3`. 21 vitest cases in `bootstrap-errors.test.ts` lock the hierarchy contracts (including positive `instanceof BootstrapError` × 5, empty-array fail-CLOSED, code-uniqueness, the divergence-lock between dashboard race-recovery + trampoline hard-fail). Review loop: 1 CR cycle (APPROVED + 1 outside-diff finding deferred to PR 3.2) + 1 5-agent pr-review-toolkit cycle (3 v2 polish commits closing ~10 findings) + 1 CR inline finding (closed in 1 commit).
+
+- **PR 3.2 — ADR-027 lookup-scoping defense-in-depth** — pending. Was deferred from PR #5's CR outside-diff finding (`lib/auth/context.ts:126-145` filters user lookup only by `clerk_user_id`, not also by `org_id`). Real concern is state inconsistency for multi-org Clerk users, not cross-tenant data access (RLS in `withOrgScope` is the binding boundary). Fix: sequential lookup with `eq(users.orgId, orgRow.id)`. Has product implications (locks out multi-org Clerk users acting in non-most-recently-joined org) — ADR-027 captures the invariant + the deferred full-multi-org-support decision. Will first verify Clerk webhook handler's `organizationMembership.created` overwrite behavior to ground the ADR's multi-org claim.
+
+- **PR 3.3 — ADR-028 PolicyId branded type** — pending. Brand `PolicyIdSchema = z.string().uuid().brand<'PolicyId'>()`; thread `PolicyId` type through `policyIdFrom` return, `Policies` repository method signatures, `lib/policies/transitions.ts` orchestrators. ts-morph verify gate forbidding bare `string` in repository policyId params. Slippery-slope policy in ADR: do NOT brand `UserId`/`OrgId` yet; opportunistic adoption.
 
 **Carry-forward queue** (deferred to later phases; all gaps surfaced in Phase 3 UAT are CLOSED in this PR — see 03-G3 SUMMARY):
 
@@ -74,7 +77,7 @@ Next phase: 4 (AI Layer) — not yet planned
 | Phase 3 context | drafted 2026-05-19 (`--all` autonomous; 13 HOW decisions D-01..D-13 + 5 USER-LOCKED constraints L-01..L-05) |
 | Phase 2 plans executed | 6 / 6 code-complete (02-01 ~7min/3 commits/4 files; 02-02 partial ~unknown/0 source commits + SF-DB-1 closed by operator pre-02-06; 02-03 14min/3 commits/9 files + post-commit Task 4; 02-04 ~4min15s/2 commits/9 files — tsc baseline closed; 02-05 ~9m46s/3 commits/1 created + 3 modified files — SF-M4 fully closed; 02-06 Tasks 1-5 ~17m33s/5 commits/4 created + 4 modified files — verify:phase-2 7/7 OK against live TEST DB; Task 6 operator checkpoint OPEN) |
 | Requirements mapped | 17 / 17 |
-| Locked decisions | 25 (ADRs 001–025) |
+| Locked decisions | 26 (ADRs 001–026) |
 | Phase implementation decisions | Phase 1: 15 (D-01..D-15); Phase 2: 9 (D-01..D-09) + 6 USER-LOCKED (L-01..L-06) |
 | Constraints (SPEC) extracted | 28 |
 | Acceptance criteria pending | 8 + 1 meta |
