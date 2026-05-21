@@ -1,27 +1,56 @@
-// lib/ai/schemas.test.ts — Plan 04-03 Wave-0 RED stub.
-// AC-33 (D-42): Zod .strict() rejects extra keys + length-exceed.
-// SUT module `lib/ai/schemas.ts` does NOT exist yet — Plan 04-04 creates it.
+// lib/ai/schemas.test.ts — Plan 04-04 GREEN: DraftSchema + SummarySchema + QaSchema
+// .strict() bodies + BLOCKER-2 z.enum(POLICY_CATEGORIES) on DraftSchema.policyType.
+// AC-33 satisfied.
 import { describe, expect, it } from 'vitest';
+import { DraftSchema, SummarySchema, QaSchema } from '@/lib/ai/schemas';
+import { POLICY_CATEGORIES } from '@/lib/policies/categories';
 
-describe('lib/ai/schemas — Zod .strict() bodies (D-42)', () => {
-  it('DraftSchema rejects extra keys (.strict() per AC-33)', async () => {
-    // Plan 04-04 creates lib/ai/schemas.ts.
-    expect.fail('TODO: Plan 04-04 — DraftSchema.parse({prompt:"x",extra:"evil"}) throws ZodError');
+describe('lib/ai/schemas — Zod .strict() bodies (D-42 + BLOCKER-2 enum)', () => {
+  it('DraftSchema rejects extra keys (.strict() per AC-33)', () => {
+    const r = DraftSchema.safeParse({ prompt: 'x', extra: 'evil' });
+    expect(r.success).toBe(false);
   });
 
-  it('DraftSchema rejects prompt > 10_000 chars', async () => {
-    expect.fail('TODO: Plan 04-04 — prompt.max(10_000)');
+  it('DraftSchema rejects prompt > 10_000 chars', () => {
+    const r = DraftSchema.safeParse({ prompt: 'x'.repeat(10_001) });
+    expect(r.success).toBe(false);
   });
 
-  it('SummarySchema rejects non-uuid policyId', async () => {
-    expect.fail('TODO: Plan 04-04 — z.string().uuid()');
+  it('DraftSchema rejects policyType outside POLICY_CATEGORIES (BLOCKER-2 enum constraint)', () => {
+    const r = DraftSchema.safeParse({ prompt: 'x', policyType: 'NotARealCategory' });
+    expect(r.success).toBe(false);
   });
 
-  it('QaSchema rejects question > 2_000 chars (AC-33 fixture)', async () => {
-    expect.fail('TODO: Plan 04-04 — question.max(2_000); body { question: "x".repeat(2001) } ⇒ 400');
+  it('DraftSchema accepts each valid POLICY_CATEGORIES value', () => {
+    for (const cat of POLICY_CATEGORIES) {
+      const r = DraftSchema.safeParse({ prompt: 'x', policyType: cat });
+      expect(r.success, `category=${cat} should parse`).toBe(true);
+    }
   });
 
-  it('QaSchema rejects extra keys (.strict())', async () => {
-    expect.fail('TODO: Plan 04-04 — { question: "valid", extraKey: "evil" } ⇒ ZodError');
+  it('DraftSchema accepts omitted policyType (optional)', () => {
+    const r = DraftSchema.safeParse({ prompt: 'x' });
+    expect(r.success).toBe(true);
+  });
+
+  it('SummarySchema rejects non-uuid policyId', () => {
+    const r = SummarySchema.safeParse({ policyId: 'not-a-uuid' });
+    expect(r.success).toBe(false);
+  });
+
+  it('QaSchema rejects question > 2_000 chars (AC-33 fixture)', () => {
+    const r = QaSchema.safeParse({ question: 'x'.repeat(2_001) });
+    expect(r.success).toBe(false);
+  });
+
+  it('QaSchema rejects extra keys (.strict())', () => {
+    const r = QaSchema.safeParse({ question: 'valid', extraKey: 'evil' });
+    expect(r.success).toBe(false);
+  });
+
+  it('All 3 schemas accept happy-path inputs', () => {
+    expect(DraftSchema.safeParse({ prompt: 'Write a vacation policy' }).success).toBe(true);
+    expect(SummarySchema.safeParse({ policyId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }).success).toBe(true);
+    expect(QaSchema.safeParse({ question: 'How many sick days do I get?' }).success).toBe(true);
   });
 });
