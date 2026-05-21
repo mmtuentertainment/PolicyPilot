@@ -48,3 +48,17 @@ void Policies.create(ORG_SCOPE_STUB, { tldrSummary: 'x' });
 void PolicyVersions.update;
 // @ts-expect-error — PolicyVersions must not expose `delete` (L-05 / ADR-018-spirit)
 void PolicyVersions.delete;
+
+// ---- ADR-028 PolicyId brand invariant ----
+// The branded `PolicyId` nominal type (from `lib/policies/types.ts`) MUST
+// reject raw-string assignment at compile time. If the brand erodes (e.g.
+// a future refactor that swaps `z.string().uuid().brand<'PolicyId'>()` for
+// `z.string().uuid()` without the brand), tsc SUCCEEDS on the line below
+// and fails the build — that is the intended failure mode of the
+// inverted-polarity guard. scripts/check-policy-id-brand.ts is the
+// complementary signature-level gate.
+import type { PolicyId } from '@/lib/policies/types';
+
+// @ts-expect-error — PolicyId must not accept a raw `string` via assignment (ADR-028 brand)
+const _policyIdBrandTest: PolicyId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+void _policyIdBrandTest;

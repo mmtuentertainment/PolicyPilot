@@ -35,6 +35,7 @@ import {
   editPublished,
 } from '@/lib/policies/transitions';
 import { IllegalTransitionError } from '@/lib/policies/state-machine';
+import { PolicyIdSchema, type PolicyId } from '@/lib/policies/types';
 
 export type ActionState = { ok: true } | { ok: false; error: string };
 
@@ -45,7 +46,13 @@ export type ActionState = { ok: true } | { ok: false; error: string };
 // representation error → unhandled exception → Next.js 500. Validating
 // here keeps the typed ActionState contract intact for ANY malformed
 // input, not just empty strings.
-const PolicyIdSchema = z.string().uuid();
+//
+// ADR-028 — `PolicyIdSchema` is the SHARED branded Zod schema imported from
+// `@/lib/policies/types`. Previously this file had its own local
+// `z.string().uuid()`. The shared schema brands the parsed value as
+// `PolicyId`, so `parsed.data.policyId` (in EditPublishedSchema /
+// UpdateDraftSchema below) carries the brand into the orchestrator calls
+// downstream. Single source of truth — see ADR-028 § Decision.
 
 // CR-PR3-postreview-v3 — same idea for users.id (also a Postgres `uuid`).
 // `reviewerId` flows into the WorkflowStages row inside submitForReview;
@@ -61,11 +68,16 @@ const OptionalReviewerIdSchema = z.string().uuid().nullable();
  * action's try/catch and surface as a Next.js 500 (CR-PR3-#18 +
  * CR-PR3-#23 — UUID enforcement extends the same idea to type-level).
  */
-function policyIdFrom(formData: FormData): string | null {
+function policyIdFrom(formData: FormData): PolicyId | null {
   const raw = formData.get('policyId');
   if (typeof raw !== 'string') return null;
   const id = raw.trim();
-  if (PolicyIdSchema.safeParse(id).success) return id;
+  // ADR-028: `safeParse(id).data` carries the `PolicyId` brand (see
+  // `@/lib/policies/types`). Returning `parsed.data` lifts the raw
+  // string into the branded nominal type so downstream orchestrator
+  // calls receive the right type without a separate cast.
+  const parsed = PolicyIdSchema.safeParse(id);
+  if (parsed.success) return parsed.data;
   // CR-PR3-postreview-v2 (CodeRabbit follow-up): log non-sensitive
   // diagnostics ONLY — length + reason. Earlier version included an
   // 8-char sample of the rejected value to help ops triage honest-typo

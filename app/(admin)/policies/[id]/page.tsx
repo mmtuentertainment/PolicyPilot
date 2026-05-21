@@ -34,6 +34,7 @@ import { PolicyHeaderActions } from "@/components/policy/PolicyHeaderActions";
 import { PolicyVersionHistory } from "@/components/policy/PolicyVersionHistory";
 import { EditPolicyForm } from "@/components/policy/EditPolicyForm";
 import type { PolicyStatus } from "@/lib/policies/state-machine";
+import { PolicyIdSchema } from "@/lib/policies/types";
 
 export default async function EditPolicyPage({
   params,
@@ -46,8 +47,19 @@ export default async function EditPolicyPage({
   const sp = await searchParams;
   const editPublished = sp.edit === "1";
 
+  // ADR-028 + CR-PR3-#23 spirit at the page boundary. The URL `id` segment
+  // is a raw string; `policies.id` is a Postgres `uuid` column. A non-UUID
+  // value would previously trigger 22P02 invalid_text_representation at
+  // the DB layer → unhandled exception → Next.js 500 — a latent bug
+  // surfaced when the PolicyId brand was threaded through Policies.findById
+  // and tsc rejected the untyped pass-through. Per D-10 "advertise
+  // nothing", malformed URLs return the same 404 as a missing/cross-org
+  // policy, not a 500 (which would leak that the route validates UUIDs).
+  const idParsed = PolicyIdSchema.safeParse(id);
+  if (!idParsed.success) notFound();
+
   const ctx = await getOrgContext();
-  const rows = await withOrgScope(ctx, async (s) => Policies.findById(s, id));
+  const rows = await withOrgScope(ctx, async (s) => Policies.findById(s, idParsed.data));
   const policy = rows[0];
   if (!policy) notFound();
   const status = policy.status as PolicyStatus;
@@ -83,7 +95,7 @@ export default async function EditPolicyPage({
           />
         </div>
         <aside className="lg:col-span-2">
-          <PolicyVersionHistory policyId={policy.id} />
+          <PolicyVersionHistory policyId={idParsed.data} />
         </aside>
       </div>
     </div>
