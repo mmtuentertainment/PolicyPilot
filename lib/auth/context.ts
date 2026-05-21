@@ -20,7 +20,7 @@
 // per the operational invariant in D-04.
 import 'server-only';
 import { auth } from '@clerk/nextjs/server';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { organizations, users } from '@/lib/db/schema';
 import {
@@ -88,7 +88,7 @@ function maskClerkOrgId(id: string): string {
  * @throws NoActiveOrganizationError if the session has no `orgId`.
  * @throws InvalidRoleError if the session role claim is missing or not one of the allowed role strings.
  * @throws OrgNotProvisionedError when the Clerk org id has no matching row in `organizations`.
- * @throws UserNotProvisionedError when the Clerk user id has no matching row in `users`.
+ * @throws UserNotProvisionedError when the user lookup returns no rows — covers BOTH "no row at all for this Clerk user" AND (per ADR-027) "user row exists but its `org_id` doesn't match the session's resolved org" (the multi-org Clerk lockout case).
  */
 export async function getOrgContext(): Promise<OrgContext> {
   let session;
@@ -115,25 +115,34 @@ export async function getOrgContext(): Promise<OrgContext> {
   // (e.g. `user_3DpHee...`, `org_3Dy5O...`). Every tenant-scoped query
   // filters by an internal UUID column. Translate text → UUID via the
   // unique columns `users.clerk_user_id` and `organizations.clerk_org_id`.
-  // Parallelized — each query hits a UNIQUE index.
+  //
+  // ADR-027 — Sequential `org → user` flow with the user query
+  // additionally scoped by `eq(users.org_id, orgRow.id)`. Trades 1 RTT
+  // (parallel → sequential) for state-consistency: a user whose DB row's
+  // `org_id` doesn't match the session's resolved org now throws
+  // `UserNotProvisionedError` (the existing ProvisioningRaceError
+  // subclass per ADR-026) rather than silently returning an OrgContext
+  // with mismatched IDs. See ADR-027 § "Open question" for the multi-org
+  // Clerk lockout implication this enforces (intentional: PolicyPilot's
+  // one-user-one-org data model can't represent multi-org membership;
+  // ADR-027 surfaces the inconsistency as an explicit error class
+  // instead of silent attribution-join breakage downstream).
   const clerkOrgId = orgId;
   const clerkUserId = userId;
-  const [orgRows, userRows] = await Promise.all([
-    db
-      .select({ id: organizations.id })
-      .from(organizations)
-      .where(eq(organizations.clerkOrgId, clerkOrgId))
-      .limit(1),
-    db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.clerkUserId, clerkUserId))
-      .limit(1),
-  ]);
+  const orgRows = await db
+    .select({ id: organizations.id })
+    .from(organizations)
+    .where(eq(organizations.clerkOrgId, clerkOrgId))
+    .limit(1);
   const orgRow = orgRows[0];
   if (!orgRow) {
     throw new OrgNotProvisionedError(maskClerkOrgId(clerkOrgId));
   }
+  const userRows = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.clerkUserId, clerkUserId), eq(users.orgId, orgRow.id)))
+    .limit(1);
   const userRow = userRows[0];
   if (!userRow) {
     throw new UserNotProvisionedError(maskClerkId(clerkUserId));
