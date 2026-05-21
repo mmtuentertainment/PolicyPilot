@@ -1,15 +1,19 @@
 ---
 phase: 03-admin-ui
 verified: 2026-05-19T23:00:00Z
-status: human_needed
-score: 11/11 must-haves verified (code-path level); 5 ROADMAP SCs require live operator walkthrough
+status: closed
+status_history:
+  - 2026-05-19T23:00:00Z: human_needed (code-path level only; 5 ROADMAP SCs flagged for live walkthrough)
+  - 2026-05-20T07:00:00Z: human_verified (first-pass 6/6 PASS recorded in 03-HUMAN-UAT.md @ edebab7)
+  - 2026-05-21T05:31:11Z: closed (second-pass 6/6 PASS recorded in 03-UAT.md @ 5a57000 — audit cascade 3/3)
+score: 11/11 must-haves verified (code-path) + 6/6 ROADMAP SCs verified (first-pass + second-pass)
 overrides_applied: 0
 roadmap_sc_status:
-  sc1_create_draft: HUMAN-VERIFY-NEEDED (code paths present)
-  sc2_state_machine_enforced: HUMAN-VERIFY-NEEDED (server-side enforced via 24 unit tests; UI rejection unverified)
-  sc3_edit_published_new_version: HUMAN-VERIFY-NEEDED (orchestrator + Server Action present + transition tests pass)
-  sc4_org_scoped_list: HUMAN-VERIFY-NEEDED (withOrgScope + RLS verified; cross-org browser test pending)
-  sc5_search_scoped: HUMAN-VERIFY-NEEDED (listWithFilters + URL state present; runtime walkthrough pending)
+  sc1_create_draft: VERIFIED (first-pass 03-HUMAN-UAT.md§1; second-pass pass-by-construction 03-UAT.md§1)
+  sc2_state_machine_enforced: VERIFIED (first-pass 03-HUMAN-UAT.md§2; second-pass pass-by-construction 03-UAT.md§2)
+  sc3_edit_published_new_version: VERIFIED (first-pass 03-HUMAN-UAT.md§3; second-pass pass-by-construction 03-UAT.md§3)
+  sc4_org_scoped_list: VERIFIED (first-pass 03-HUMAN-UAT.md§4; second-pass live spot-check 03-UAT.md§4 against `main @ 5a57000`)
+  sc5_search_scoped: VERIFIED (first-pass 03-HUMAN-UAT.md§5; second-pass pass-by-construction 03-UAT.md§5; PR #9 adds 10 vitest-level assertions)
 re_verification:
   previous_status: gaps-found-via-smoke
   previous_score: 252/252 artifact + 51/51 vitest, but 3 LIVE-SMOKE gaps
