@@ -23,6 +23,14 @@ import { auth } from '@clerk/nextjs/server';
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { organizations, users } from '@/lib/db/schema';
+import {
+  ClerkAuthFailedError,
+  InvalidRoleError,
+  NoActiveOrganizationError,
+  NotAuthenticatedError,
+  OrgNotProvisionedError,
+  UserNotProvisionedError,
+} from '@/lib/auth/errors';
 
 export type Role = 'admin' | 'reviewer' | 'employee';
 export type OrgContext = {
@@ -42,11 +50,11 @@ export type OrgContext = {
  *
  * @param value - The session claim value to validate as a role
  * @returns The validated role as a `Role`
- * @throws Error if `value` is not `'admin'`, `'reviewer'`, or `'employee'`; the error message includes the stringified received value
+ * @throws InvalidRoleError if `value` is not `'admin'`, `'reviewer'`, or `'employee'`; the error preserves the received value as a `public readonly` field for diagnostic logging.
  */
 function asRole(value: unknown): Role {
   if (value === 'admin' || value === 'reviewer' || value === 'employee') return value;
-  throw new Error(`Invalid role on session claims: ${String(value)}`);
+  throw new InvalidRoleError(value);
 }
 
 /**
@@ -68,24 +76,19 @@ function maskClerkOrgId(id: string): string {
 }
 
 /**
- * Resolve the current server-side organization authentication context from the active Clerk session.
+ * Resolve the current tenant-scoped authentication context from the active Clerk session.
  *
- * This function wraps Clerk's auth call and rethrows a clearer error if Clerk auth fails, enforces that a
- * valid session with `userId` and `orgId` exists, validates the session's role claim is one of
- * `'admin' | 'reviewer' | 'employee'`, and then translates Clerk's text identifiers into the
- * internal UUIDs stored in `organizations.id` / `users.id` via a per-request DB lookup against
- * the `clerk_org_id` / `clerk_user_id` unique columns. The two lookups are parallelized.
+ * Validates that a session with `userId` and `orgId` exists, narrows and validates the session
+ * role to one of `'admin' | 'reviewer' | 'employee'`, and maps Clerk text identifiers to the
+ * internal UUIDs used by the database.
  *
- * @returns An object containing `orgId` (internal UUID), `userId` (internal UUID),
- *   `clerkOrgId` (Clerk text), `clerkUserId` (Clerk text), and `role`.
- * @throws Error when Clerk's `auth()` call fails (message prefixed with `Clerk auth() failed: ...`).
- * @throws Error with message `Not authenticated: no Clerk session` if the session has no `userId`.
- * @throws Error with message `No active organization` if the session has no `orgId`.
- * @throws Error if the session role claim is missing or not one of the allowed role strings.
- * @throws Error containing `Org not provisioned in DB for ...` when the Clerk org id has no
- *   matching row in `organizations` (Clerk → DB drift).
- * @throws Error containing `User not provisioned in DB for ...` when the Clerk user id has no
- *   matching row in `users` (Clerk → DB drift).
+ * @returns An object containing `orgId` (internal UUID), `userId` (internal UUID), `clerkOrgId` (Clerk text id), `clerkUserId` (Clerk text id), and `role`.
+ * @throws ClerkAuthFailedError when Clerk's `auth()` call fails.
+ * @throws NotAuthenticatedError if the session has no `userId`.
+ * @throws NoActiveOrganizationError if the session has no `orgId`.
+ * @throws InvalidRoleError if the session role claim is missing or not one of the allowed role strings.
+ * @throws OrgNotProvisionedError when the Clerk org id has no matching row in `organizations`.
+ * @throws UserNotProvisionedError when the Clerk user id has no matching row in `users`.
  */
 export async function getOrgContext(): Promise<OrgContext> {
   let session;
@@ -96,13 +99,11 @@ export async function getOrgContext(): Promise<OrgContext> {
     // with no observability hook.
     session = await auth();
   } catch (err) {
-    throw new Error(
-      `Clerk auth() failed: ${err instanceof Error ? `${err.name}: ${err.message}` : String(err)}`,
-    );
+    throw new ClerkAuthFailedError(err);
   }
   const { userId, orgId, sessionClaims } = session;
-  if (!userId) throw new Error('Not authenticated: no Clerk session');
-  if (!orgId) throw new Error('No active organization');
+  if (!userId) throw new NotAuthenticatedError();
+  if (!orgId) throw new NoActiveOrganizationError();
   // Narrow `role` from `unknown` (stricter than middleware.ts's
   // `{ role?: string }` cast) so asRole() must do explicit literal-string
   // comparisons. No `any` anywhere; the asRole() throw branch is the only
@@ -131,15 +132,11 @@ export async function getOrgContext(): Promise<OrgContext> {
   ]);
   const orgRow = orgRows[0];
   if (!orgRow) {
-    throw new Error(
-      `Org not provisioned in DB for ${maskClerkOrgId(clerkOrgId)} — Clerk organization.created webhook may not have fired or DB-Clerk drift`,
-    );
+    throw new OrgNotProvisionedError(maskClerkOrgId(clerkOrgId));
   }
   const userRow = userRows[0];
   if (!userRow) {
-    throw new Error(
-      `User not provisioned in DB for ${maskClerkId(clerkUserId)} — Clerk user.created webhook may not have fired or DB-Clerk drift`,
-    );
+    throw new UserNotProvisionedError(maskClerkId(clerkUserId));
   }
   return {
     orgId: orgRow.id,

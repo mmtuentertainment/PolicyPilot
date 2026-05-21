@@ -14,44 +14,68 @@
 // after the webhook and the dashboard mounts normally.
 import Link from "next/link";
 import { getOrgContext } from "@/lib/auth/context";
-import { matchesErrorMessage } from "@/lib/auth/bootstrap-errors";
+import { matchesErrorClass } from "@/lib/auth/bootstrap-errors";
+import {
+  InvalidRoleError,
+  NoActiveOrganizationError,
+  ProvisioningRaceError,
+} from "@/lib/auth/errors";
 import { withOrgScope } from "@/lib/db/scoped";
 import { Policies } from "@/lib/db/repositories/policies";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 
 // Errors getOrgContext() throws in the brief sign-up → webhook landing
-// window (W7 fallback below renders for these). CR-PR3-#14 closure.
+// window (W7 fallback below renders for these). CR-PR3-#14 closure,
+// upgraded to typed classes per ADR-026.
 //
-// Sourced verbatim from lib/auth/context.ts throw sites (line numbers
-// as of 2026-05-20 — re-grep if the file moves):
-//   - 'No active organization'               (getOrgContext line 105 — !orgId)
-//   - 'Org not provisioned in DB for ...'    (getOrgContext line 134-136 —
-//                                              orgs lookup empty after webhook race)
-//   - 'User not provisioned in DB for ...'   (getOrgContext line 140-142 —
-//                                              users lookup empty after webhook race)
-//   - 'Invalid role on session claims: ...'  (asRole line 49 — value not in enum)
-// Backend-failure shapes that DELIBERATELY rethrow (NOT in the allow-list):
-//   - 'Clerk auth() failed: ...'             (line 99-101 — auth() threw; Clerk down)
-//   - 'Not authenticated: no Clerk session'  (line 104 — !userId; middleware
-//                                              should redirect before this fires)
+// The class hierarchy in lib/auth/errors.ts is the source of truth for
+// what each error means; this list is the policy-level decision about
+// which classes the dashboard treats as RACE (soft retry with 2s
+// meta-refresh) vs RETHROW (let bubble to a real 500). The
+// ProvisioningRaceError abstract base catches both OrgNotProvisionedError
+// and UserNotProvisionedError as a single conceptual condition (Clerk
+// webhook race). ClerkAuthFailedError is intentionally NOT a
+// BootstrapError so it cannot accidentally land in this list — see
+// lib/auth/bootstrap-errors.test.ts § hierarchy-contract for the lock.
 //
 // Cross-reference: app/(auth)/post-sign-in/page.tsx BOOTSTRAP_ERRORS list
-// intentionally EXCLUDES 'Org/User not provisioned' (the trampoline treats
-// DB drift as a hard failure, not a refresh-loop). The asymmetry is
+// intentionally EXCLUDES ProvisioningRaceError (the trampoline treats DB
+// drift as a hard failure, not a refresh-loop). The asymmetry is
 // documented: dashboard = soft retry on webhook race; trampoline = hard
 // fail on DB drift.
 const ONBOARDING_RACE_ERRORS = [
-  'No active organization',
-  'Org not provisioned',
-  'User not provisioned',
-  'Invalid role',
+  NoActiveOrganizationError,
+  ProvisioningRaceError,
+  InvalidRoleError,
 ] as const;
 
+/**
+ * Determines whether an error should be treated as an onboarding race condition.
+ *
+ * Checks if `err` matches any known onboarding-related error classes (e.g., provisioning or organization-not-ready errors).
+ *
+ * @param err - The error to classify
+ * @returns `true` if the error is an onboarding race error, `false` otherwise.
+ */
 function isOnboardingRaceError(err: unknown): boolean {
-  return matchesErrorMessage(err, ONBOARDING_RACE_ERRORS);
+  return matchesErrorClass(err, ONBOARDING_RACE_ERRORS);
 }
 
+/**
+ * Render the admin dashboard, or — when the request's bootstrap context is
+ * incomplete (any of the classes listed in `ONBOARDING_RACE_ERRORS`:
+ * `NoActiveOrganizationError`, `ProvisioningRaceError` and its Org/User
+ * subclasses, or `InvalidRoleError`) — render a brief
+ * "Setting up your organization..." panel that triggers a 2s meta-refresh.
+ *
+ * @returns The dashboard page element on the happy path; the race-recovery
+ *   panel when `getOrgContext()` throws an `ONBOARDING_RACE_ERRORS` class.
+ *
+ * @throws Any error not in `ONBOARDING_RACE_ERRORS` (e.g. `ClerkAuthFailedError`
+ *   from a real Clerk outage, `NotAuthenticatedError` indicating a middleware
+ *   bypass, or any other thrown value) is rethrown so it surfaces as a 500.
+ */
 export default async function DashboardPage(): Promise<React.JSX.Element> {
   // W7: Clerk webhook race mitigation (Option B — brief loading state).
   // If the user signed in and reached /dashboard before the

@@ -533,3 +533,184 @@ A fourth alternative considered and rejected: switching the **connection-level**
 
 - **No change to:** ADR-003 (Drizzle), ADR-009 / ADR-024 (middleware), ADR-011 (Supabase), ADR-018 (append-only), ADR-005 (cache-at-publish), ADR-023 allow-list. Only the ADR-023 repository signature is amended (from `OrgContext` first-param to `OrgScope` first-param).
 
+---
+
+## ADR-026: Typed Error Classes for `lib/auth/`
+
+- source: pr-review-toolkit type-design-analyzer FLAG against PR #3 (2026-05-20); deferred from PR #3 per CLAUDE.md ASK FIRST rule #2; closed in this fast-follow PR
+- status: locked (2026-05-20)
+- scope: error-handling discipline in `lib/auth/` only; establishes a pattern other layers may adopt later
+
+### Decision
+
+Every `throw` inside `lib/auth/` uses a typed error class declared in `lib/auth/errors.ts`. The v0 substring-matcher in `lib/auth/bootstrap-errors.ts` is removed entirely (no transition state); consumer pages narrow via `err instanceof Class`.
+
+Class hierarchy (`lib/auth/errors.ts`):
+
+```typescript
+// Stable wire-format discriminant for the BootstrapError hierarchy.
+// Pre-merge type-design review pinned this as a literal union (not
+// `string`) so a typo at a concrete-subclass initializer is a
+// compile-time error, not a silent log-router miss. Adding a new
+// BootstrapError subclass requires adding the literal here first.
+export type BootstrapErrorCode =
+  | 'NOT_AUTHENTICATED'
+  | 'NO_ACTIVE_ORGANIZATION'
+  | 'INVALID_ROLE'
+  | 'ORG_NOT_PROVISIONED'
+  | 'USER_NOT_PROVISIONED';
+
+abstract class BootstrapError extends Error {
+  abstract readonly code: BootstrapErrorCode;
+}
+
+class NotAuthenticatedError extends BootstrapError {
+  readonly code = 'NOT_AUTHENTICATED';
+  constructor() {
+    super('Not authenticated: no Clerk session');
+    this.name = 'NotAuthenticatedError';
+  }
+}
+
+class NoActiveOrganizationError extends BootstrapError {
+  readonly code = 'NO_ACTIVE_ORGANIZATION';
+  constructor() {
+    super('No active organization');
+    this.name = 'NoActiveOrganizationError';
+  }
+}
+
+class InvalidRoleError extends BootstrapError {
+  readonly code = 'INVALID_ROLE';
+  constructor(public readonly value: unknown) {
+    super(`Invalid role on session claims: ${String(value)}`);
+    this.name = 'InvalidRoleError';
+  }
+}
+
+abstract class ProvisioningRaceError extends BootstrapError {}
+
+class OrgNotProvisionedError extends ProvisioningRaceError {
+  readonly code = 'ORG_NOT_PROVISIONED';
+  constructor(public readonly maskedClerkOrgId: string) {
+    super(
+      `Org not provisioned in DB for ${maskedClerkOrgId} — Clerk organization.created webhook may not have fired or DB-Clerk drift`,
+    );
+    this.name = 'OrgNotProvisionedError';
+  }
+}
+
+class UserNotProvisionedError extends ProvisioningRaceError {
+  readonly code = 'USER_NOT_PROVISIONED';
+  constructor(public readonly maskedClerkUserId: string) {
+    super(
+      `User not provisioned in DB for ${maskedClerkUserId} — Clerk user.created webhook may not have fired or DB-Clerk drift`,
+    );
+    this.name = 'UserNotProvisionedError';
+  }
+}
+
+// Intentionally NOT a BootstrapError — infrastructure failure must rethrow
+// past both bootstrap consumers. See Rationale § "Why ClerkAuthFailedError
+// is not a BootstrapError" below.
+class ClerkAuthFailedError extends Error {
+  readonly code = 'CLERK_AUTH_FAILED';
+  constructor(public readonly cause: unknown) {
+    const detail =
+      cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause);
+    super(`Clerk auth() failed: ${detail}`);
+    this.name = 'ClerkAuthFailedError';
+  }
+}
+```
+
+Throw-site mapping in `lib/auth/context.ts` (keyed by stable anchors so the mapping survives line-number drift from future edits — e.g. the CR docstring autofix that shifted these by 6-8 lines):
+
+| Throw site (anchor) | v0 message | new class |
+|---------------------|-----------|-----------|
+| `asRole(value)` (Role validation) | `Invalid role on session claims: ${value}` | `InvalidRoleError(value)` |
+| `auth()` catch | `Clerk auth() failed: ${detail}` | `ClerkAuthFailedError(cause)` |
+| `!userId` guard | `Not authenticated: no Clerk session` | `NotAuthenticatedError()` |
+| `!orgId` guard | `No active organization` | `NoActiveOrganizationError()` |
+| `!orgRow` guard (org lookup empty) | `Org not provisioned in DB for ${masked}...` | `OrgNotProvisionedError(masked)` |
+| `!userRow` guard (user lookup empty) | `User not provisioned in DB for ${masked}...` | `UserNotProvisionedError(masked)` |
+
+`super(message)` preserves the existing message strings verbatim so log-greps for "No active organization" continue to match `err.message`. Future structured-logging swaps can switch to `err.code` (stable across translations and message refactors).
+
+Matcher refactor in `lib/auth/bootstrap-errors.ts`:
+
+```typescript
+export function matchesErrorClass(
+  err: unknown,
+  classes: readonly (abstract new (...args: never[]) => Error)[],
+): boolean {
+  return classes.some((C) => err instanceof C);
+}
+```
+
+The v0 `matchesErrorMessage(err, needles: readonly string[])` export is removed; no transition state.
+
+Consumer pages keep their documented asymmetric allow-lists, now typed as class references rather than string literals:
+
+```typescript
+// app/(admin)/dashboard/page.tsx — race-recovery (2s meta-refresh UX)
+const ONBOARDING_RACE_ERRORS = [
+  NoActiveOrganizationError,
+  ProvisioningRaceError,  // catches both Org + User subclasses via base
+  InvalidRoleError,
+] as const;
+
+// app/(auth)/post-sign-in/page.tsx — hard-fail (rethrow on DB drift)
+const BOOTSTRAP_ERRORS = [
+  NotAuthenticatedError,
+  InvalidRoleError,
+  NoActiveOrganizationError,
+] as const;
+// INTENTIONALLY excludes ProvisioningRaceError — trampoline treats DB
+// drift as a real outage (hard-fail), dashboard treats it as a race window
+// (soft retry). Divergence by design — see consumer file comment blocks.
+```
+
+Verify gate (`scripts/check-error-discipline.ts`): a ts-morph script scans `lib/auth/**.ts` (excluding `errors.ts` itself and test files) and fails CI if any `throw new Error(...)` syntax survives. Wired into the `verify:phase-3` chain via a new `pnpm check:error-discipline` script. The gate is intentionally scoped to `lib/auth/` only; other layers may have their own typed-error ADRs later.
+
+Naming conventions:
+- Class names: PascalCase, `*Error` suffix.
+- `this.name`: set explicitly to the class name (for log readability and serialization).
+- `code`: SCREAMING_SNAKE_CASE string constant, declared `readonly`, abstract on `BootstrapError` and concrete on subclasses.
+- Extra data: captured as `public readonly` constructor parameters (matches the `IllegalTransitionError` precedent in `lib/policies/state-machine.ts:33-40`).
+
+### Rationale
+
+**Why typed classes over the v0 substring matcher.** The matcher was a runtime contract pretending to be a type contract. If `context.ts` reflows a throw-string — say "No active organization" becomes "No active organization (please sign in again)", or all messages gain an "Auth error: " prefix — the consumer allow-lists silently rot. The user sees a raw 500 where the dashboard meant to render "Setting up your organization..." or where the trampoline meant to redirect to `/onboarding/create-org`. The 8 divergence-lock tests in `bootstrap-errors.test.ts` mitigate this for specific reflow shapes (they pin specific message snippets), but a uniform reflow defeats them all simultaneously. `instanceof` is the type-level discriminator that survives any message edit.
+
+**Why `ProvisioningRaceError` is an abstract base class, not just two flat subclasses of `BootstrapError`.** Dashboard catches "Clerk-webhook-hasn't-landed-yet" as a single conceptual condition (the 2s meta-refresh handles both org-side and user-side races identically). With a marker base, the dashboard allow-list reads `[NoActiveOrganizationError, ProvisioningRaceError, InvalidRoleError]` — three concepts. Without the base, the same allow-list reads `[NoActiveOrganizationError, OrgNotProvisionedError, UserNotProvisionedError, InvalidRoleError]` — four concepts that the reader has to mentally re-group. The trampoline's divergence ("I do NOT want to catch the race subclasses") is also expressed more cleanly: the absence of `ProvisioningRaceError` from `BOOTSTRAP_ERRORS` is a single visible omission, not two.
+
+**Why `ClerkAuthFailedError` is NOT a `BootstrapError`.** Clerk's `auth()` call itself failing is an infrastructure signal — Clerk outage, network timeout, malformed Clerk response. Treating it as a bootstrap condition would mask real outages as onboarding race-windows (the dashboard would show "Setting up your organization..." indefinitely while Clerk is actually down). Both consumers MUST rethrow it; that's enforced by `ClerkAuthFailedError` not extending `BootstrapError` so neither allow-list can include it. A test in `bootstrap-errors.test.ts` asserts `ClerkAuthFailedError` does NOT match either consumer's allow-list — if someone later "DRYs the hierarchy" by making `ClerkAuthFailedError extends BootstrapError`, that test fails immediately.
+
+**Why preserve message strings verbatim at `super(message)`.** Operator log-greps (and any Sentry filters that may be wired up later) currently key on the message text. A refactor that drops the messages would invalidate that observability surface silently. The `code` field provides the path forward: structured logs can switch from message-grep to `err.code` lookup at their own pace, and message-text can drift independently once the migration is done.
+
+**Why the verify gate scopes to `lib/auth/` only.** Other layers — Stripe webhook (Phase 6), Claude API errors (Phase 4), repository invariants (already partially typed via `IllegalTransitionError`) — have richer error surfaces that warrant their own typed-error decisions. Locking the convention project-wide right now would either force premature refactors or create dead-letter clauses in the gate. Scoping narrowly keeps the gate enforceable and lets the convention spread organically as each layer earns its ADR.
+
+### Rejected alternatives
+
+- **Keep the substring matcher; add typed errors only at throw sites.** Loses the type-level discriminator at the consume site — the matcher remains a runtime contract pretending to be a type contract.
+- **Single `AuthError` class with a discriminant `kind: 'no-active-org' | 'invalid-role' | ...` field.** Discriminated unions of class instances are more cumbersome to narrow than separate classes (`err instanceof AuthError && err.kind === 'no-active-org'` vs `err instanceof NoActiveOrganizationError`). Standard TS guidance prefers separate classes for distinct conditions; the codebase already has this pattern via `IllegalTransitionError`.
+- **Discriminated union of plain objects, no classes.** Drops the `instanceof` ergonomic; consumer code becomes `if (isAuthError(err) && err.kind === '...')` with no automatic `name` property for log output. Classes earn their weight here.
+- **Bind the typed-error convention project-wide in this ADR.** Stripe webhook (Phase 6), Claude API integration (Phase 4), repository violations all have richer error surfaces and warrant their own typed-error decisions when they ship. Pre-committing the project to a convention before its application is understood at each layer creates retroactive cleanup work and dead-letter clauses in the verify gate.
+- **Use ES2022 `Error.cause` via the 2-arg `super(message, { cause })` constructor.** tsconfig target is ES2017 — `Error.cause` works at runtime (Node 22) but the 2-arg constructor signature isn't guaranteed at the lower target. Storing the cause as a `public readonly cause: unknown` field is equivalent in diagnostic value with no target-version dependency. The `IllegalTransitionError` precedent doesn't capture cause; this ADR extends that pattern only where the diagnostic value is real (the `ClerkAuthFailedError` case).
+
+### Consequences
+
+- New file: `lib/auth/errors.ts` (~100 LOC including JSDoc).
+- `lib/auth/context.ts` throws refactored at 6 sites (no behavior change in resolved cases; message strings preserved at `super(message)`).
+- `lib/auth/bootstrap-errors.ts` exports `matchesErrorClass`; `matchesErrorMessage` removed entirely.
+- `lib/auth/bootstrap-errors.test.ts` — all 5 divergence-lock test names + intents preserved; assertion shapes change from `new Error('string')` + `string[]` allow-lists to `new ConcreteErrorClass()` + class-constructor allow-lists. Three additional tests are added to lock the `ClerkAuthFailedError` rethrow contract (asserting it does NOT match either consumer's allow-list).
+- Consumer pages (`app/(admin)/dashboard/page.tsx` + `app/(auth)/post-sign-in/page.tsx`) update their allow-list constants from `string[]` to `Class[]` and call `matchesErrorClass`. The "Sourced verbatim from lib/auth/context.ts" comment blocks are simplified — the type system now sources the truth, no line-number tracking required.
+- New file: `scripts/check-error-discipline.ts` (~50 LOC) — ts-morph AST scan, fails on any `throw new Error(...)` syntax in `lib/auth/**.ts`. Uses the existing `ts-morph: 28.0.0` devDependency.
+- New `pnpm check:error-discipline` script; wired into the `verify:phase-3` chain.
+- `scripts/check-artifacts.ts` extended to assert the new script declaration in `package.json` (mirrors how `verify:phase-2` was registered there).
+- Future structured-logging swap (Phase 7+) can read `err.code` as the stable log-discriminant instead of substring-matching messages.
+- No change to ADR-023 (repository pattern), ADR-024 (middleware shape), or ADR-025 (RLS mechanism). This ADR refines the error-handling layer on top of those.
+
+Full text mirrored in `.planning/PROJECT.md` short-form ADR-026.
+

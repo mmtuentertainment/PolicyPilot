@@ -1,33 +1,32 @@
-// lib/auth/bootstrap-errors.ts — CR-PR3-postreview (pr-test-analyzer FLAG).
+// lib/auth/bootstrap-errors.ts — ADR-026 typed matcher for bootstrap
+// error classes from lib/auth/errors.ts.
 //
-// Extracted from app/(admin)/dashboard/page.tsx and app/(auth)/post-sign-in/page.tsx
-// so the two error-message allow-lists are independently unit-testable.
-// Both consumers continue to define their own typed const arrays (the
-// dashboard race-error list intentionally includes 'Org/User not provisioned'
-// while the trampoline bootstrap-error list intentionally excludes them —
-// see the comment blocks in each consumer for the asymmetry rationale).
+// Replaces the v0 `matchesErrorMessage(err, needles: string[])` substring
+// matcher with `matchesErrorClass(err, classes[])`. The substring matcher
+// was a runtime contract pretending to be a type contract: if
+// lib/auth/context.ts reflowed a throw-string ("No active organization"
+// → "no active organization", or all messages gain a uniform prefix),
+// the consumer allow-lists silently rotted. `instanceof` is the
+// type-level discriminator that survives any message reflow.
 //
-// This module ships ONLY the matcher helper. The lists themselves stay
-// inline at each call site so the divergence stays explicit + grep-able
-// from each consumer file.
-//
-// Future improvement (deferred to a fast-follow per CR-PR3 type-design
-// agent FLAG): replace the substring-matching helper with `instanceof`
-// checks against typed error classes thrown from lib/auth/context.ts.
+// Both consumers (app/(admin)/dashboard/page.tsx race-recovery and
+// app/(auth)/post-sign-in/page.tsx hard-fail) maintain their own class
+// allow-list and call matchesErrorClass(err, ALLOW_LIST). The
+// intentional asymmetry (dashboard catches ProvisioningRaceError;
+// trampoline rethrows it) is preserved by each consumer's list
+// composition — see the comment blocks in those files for the
+// asymmetry rationale.
 
 /**
- * Returns true iff `err` is an Error whose message contains any of the
- * provided needle substrings. Used as a defensive runtime narrower
- * across the bootstrap-error allow-lists.
+ * Check whether a caught value is an instance of any provided Error class constructors.
  *
- * @param err Unknown thrown value (caller's `catch (err)`).
- * @param needles Readonly array of substring fragments that the error
- *                message must contain at least one of for a match.
+ * @param err - The value from a `catch (err)` to test.
+ * @param classes - Readonly array of Error class constructors to match against. Abstract base classes are valid; `instanceof` will match subclasses via the prototype chain.
+ * @returns `true` if `err` is an instance of any constructor in `classes`, `false` otherwise.
  */
-export function matchesErrorMessage(
+export function matchesErrorClass(
   err: unknown,
-  needles: readonly string[],
+  classes: readonly (abstract new (...args: never[]) => Error)[],
 ): boolean {
-  if (!(err instanceof Error)) return false;
-  return needles.some((needle) => err.message.includes(needle));
+  return classes.some((C) => err instanceof C);
 }
