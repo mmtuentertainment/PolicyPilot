@@ -24,18 +24,11 @@ import { z } from 'zod';
 import { getOrgContext } from '@/lib/auth/context';
 import { withOrgScope } from '@/lib/db/scoped';
 import { Policies } from '@/lib/db/repositories/policies';
-
-// UI-SPEC Microcopy table — fixed Phase 3 category list (REQ-policy-library).
-const POLICY_CATEGORIES = [
-  'HR',
-  'Safety',
-  'IT',
-  'Finance',
-  'Operations',
-  'Compliance',
-  'Legal',
-  'Other',
-] as const;
+// Phase 4 BLOCKER-2 — POLICY_CATEGORIES is the single shared source-of-truth in
+// lib/policies/categories.ts. The previous inline declaration is removed; the import
+// below preserves the behavior of `z.enum(POLICY_CATEGORIES, ...)` in CreatePolicySchema
+// (line 60 below) unchanged.
+import { POLICY_CATEGORIES } from '@/lib/policies/categories';
 
 // TipTap JSONContent has a recursive shape (type/content/text/attrs/marks).
 // Structural validation is sufficient — generateHTML on the read side
