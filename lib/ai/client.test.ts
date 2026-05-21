@@ -1,39 +1,37 @@
-// lib/ai/client.test.ts — Plan 04-03 Wave-0 RED stub.
-// AC-28 (D-33): singleton + maxRetries:0 + timeout:25_000.
-// SUT module `lib/ai/client.ts` does NOT exist yet — Plan 04-04 creates it.
-// Tests are RED until then.
+// @vitest-environment node
+// lib/ai/client.test.ts — Plan 04-04 GREEN: lib/ai/client.ts created with
+// singleton + CLIENT_OPTIONS per D-02 + D-33. AC-28 satisfied.
+//
+// Rule-3 deviation (Plan 04-04 Task 1): vitest.config.ts sets `environment: 'jsdom'`
+// globally (Phase 3 setup for React component tests). The Anthropic SDK's BaseAnthropic
+// constructor refuses to instantiate when it detects a browser-like env (CVE-style
+// guard against bundling secrets into client code) — it throws unless
+// `dangerouslyAllowBrowser: true` is passed. Since `lib/ai/client.ts` is a server-only
+// module by design (D-02 + CLAUDE.md NEVER #2), the correct fix is to force the
+// 'node' environment for this test file via the file-level docblock above. This is
+// the documented vitest pattern for per-file environment override.
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-
-// Variable-indirection so TS module resolution doesn't fail at compile time
-// before Plan 04-04 lands lib/ai/client.ts. Vitest still resolves the path at
-// runtime, where the SUT module's absence is the RED failure surface.
-const CLIENT_PATH = '@/lib/ai/client';
 
 describe('lib/ai/client — singleton + retry/timeout config (D-02 + D-33)', () => {
   beforeEach(() => {
     vi.resetModules();
+    process.env.ANTHROPIC_API_KEY = 'sk-test-fixture';
   });
 
   it('exports getAnthropicClient as lazy singleton (D-02)', async () => {
-    // Plan 04-04 creates lib/ai/client.ts with `let cached: Anthropic | null = null;`
-    // and `getAnthropicClient` returns the cached singleton on 2nd+ calls.
-    process.env.ANTHROPIC_API_KEY = 'sk-test';
-    const m: { getAnthropicClient: () => unknown } = await import(CLIENT_PATH);
+    const m = await import('@/lib/ai/client');
     const c1 = m.getAnthropicClient();
     const c2 = m.getAnthropicClient();
     expect(c1).toBe(c2);
   });
 
   it('configures maxRetries: 0 (D-33 — SPEC R7 no auto-retry)', async () => {
-    process.env.ANTHROPIC_API_KEY = 'sk-test';
-    // Anthropic SDK exposes options at runtime via _options or similar — alternative is to
-    // construct the SDK in a separate file the test can introspect.
-    // Acceptable Plan-04-04 strategy: re-export `CLIENT_OPTIONS` const used at instantiation.
-    // This test will assert maxRetries === 0 against that const.
-    expect.fail('TODO: Plan 04-04 — assert CLIENT_OPTIONS.maxRetries === 0');
+    const m = await import('@/lib/ai/client');
+    expect(m.CLIENT_OPTIONS.maxRetries).toBe(0);
   });
 
   it('configures timeout: 25_000 (D-33 — 25s bounded ahead of Vercel default)', async () => {
-    expect.fail('TODO: Plan 04-04 — assert CLIENT_OPTIONS.timeout === 25_000');
+    const m = await import('@/lib/ai/client');
+    expect(m.CLIENT_OPTIONS.timeout).toBe(25_000);
   });
 });
