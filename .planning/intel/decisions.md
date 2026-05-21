@@ -894,7 +894,7 @@ if (!userRow) {
 
 ### Carry-forward
 
-- `OrgScope` itself remains `{ tx, orgId: string, userId: string }`. Branding `OrgScope.orgId` / `OrgScope.userId` is deferred to a future PR with explicit ADR (probably ADR-029+) when friction warrants.
+- `OrgScope` itself remains `{ tx, orgId: string, userId: string }`. Branding `OrgScope.orgId` / `OrgScope.userId` is deferred to a future PR with explicit ADR (ADR-030+ — ADR-029 is now taken by the phase-parallelization amendment) when friction warrants.
 - `scripts/check-policy-id-brand.ts` covers the 6 files listed in §(1). If future repository files (e.g. when Phase 5's `Acknowledgments.findByPolicyId` lands) add policyId parameters, the gate's hardcoded file list must be extended in the same PR — failure to extend leaves a silent gap. Matches `check-error-discipline.ts`'s hardcoded scope pattern.
 - Phase-7+ structured-logging consumers can now route on `UserNotProvisionedError.subCode` without parsing message strings. Future log-router PR should document the routing table.
 - The 2 deferred MEDIUMs from PR #7's 4-agent review (`UserNotProvisionedError subCode discriminant` + `orgRow.id exposure in error message`) are CLOSED by this ADR — discriminant per §(3), info-disclosure boundary per §(4).
@@ -907,4 +907,88 @@ if (!userRow) {
 - Schema-inferred insert input types (Drizzle `$inferInsert`) still carry `policyId: string`. ADR-028 §(2) documents the boundary explicitly.
 
 Full text mirrored in `.planning/PROJECT.md` short-form ADR-028 (operator-managed; this ADR-intel doc is the authoritative ratification record).
+
+---
+
+## ADR-029: Phase Parallelization Under Green-On-Main Constraint (amends ADR-007)
+
+- source: operator directive 2026-05-21 following `/gsd-manager --analyze-deps` review (post-Phase-3-ship, pre-Phase-4-entry)
+- status: locked (2026-05-21; amends ADR-007 — does not supersede)
+- scope: gating rule between in-flight ASSEMBLY phases; relaxes ADR-007's "Phase N+1 cannot start until Phase N compiles clean" while preserving phase ordering and clean phase-boundary discipline
+
+### Decision
+
+ADR-007's phase ORDER is preserved unchanged: Foundation → Data Layer → Admin UI → AI Layer → Employee Portal → Billing → Crons + Email → Validation. ADR-007's clean-boundary intent is preserved unchanged: every phase's squash commit on `main` must exit `tsc --noEmit` 0 AND `verify:phase-N` 0 before the phase is considered shipped.
+
+ADR-007's gating between in-flight phases is amended:
+
+**Phase boundaries must remain green on `main`, but in-flight phases may run on parallel branches off a common `main` ancestor.**
+
+Operationally:
+
+- Each phase still lives on its own `gsd/phase-N-<slug>` branch (per existing Git Workflow in `CLAUDE.md`).
+- Two or more in-flight phases may have their branches diverging from `main` simultaneously, planned and executed concurrently.
+- The first branch to merge to `main` defines the new `main` HEAD; the second branch rebases on top.
+- `main` MUST remain green between every squash-merge: the merging branch's `verify:phase-N` exits 0 on the post-merge `main` HEAD.
+- Each phase still produces one squash commit to `main` per the existing PR convention; nothing about audit cascade, code review, or human-UAT gates changes.
+- Cross-phase semantic dependencies still hold — Phase 6 still requires Phase 4's `checkTierLimit` to exist; Phase 7 still requires Phase 5's acknowledgment flow. The amendment relaxes only the *gating between phases that are semantically independent* (e.g. Phase 4 ‖ Phase 5; Phase 6 ‖ Phase 7).
+
+True minimum `Depends on` chain after this amendment (from `/gsd-manager --analyze-deps` 2026-05-21):
+
+| Phase | New `Depends on` | Was | Reason |
+|-------|------------------|-----|--------|
+| Phase 4 | Phase 3 | Phase 3 | unchanged — Q&A needs published policies + admin shell |
+| Phase 5 | Phase 3 | Phase 4 | employee dashboard + ack flow consume Phase 2 schema + Phase 3 published policies — not Phase 4 AI surfaces |
+| Phase 6 | Phase 4 | Phase 5 | `checkTierLimit` (built in Phase 4 per Phase 4 SC #1/#5) is the binding dependency, not the employee portal |
+| Phase 7 | Phase 5 | Phase 6 | `ack_reminder` cron requires the Phase 5 acknowledgment flow, not billing |
+| Phase 8 | Phase 6 + Phase 7 | Phase 7 | **changed** — under the old linear chain Phase 7 transitively covered Phase 6, so `Depends on: 7` sufficed. Under the new DAG Phase 7 → Phase 5 doesn't reach Phase 6, but Phase 8 SC #4 explicitly requires Phase 6's Stripe renewal test. Both Wave 2 outputs (6 + 7) are required. Together {6, 7} transitively covers {3, 4, 5, 6, 7} so the chain still reaches everything. |
+
+Resulting parallelization opportunity:
+
+- **Wave 1**: Phase 4 (AI Layer) ‖ Phase 5 (Employee Portal) — both `Depends on: 3`.
+- **Wave 2**: Phase 6 (Billing) — `Depends on: 4`; ‖ Phase 7 (Crons + Email) — `Depends on: 5`.
+- **Wave 3**: Phase 8 (Validation) — `Depends on: 6 + 7` (both Wave 2 outputs; together they transitively cover 1–7).
+
+Theoretical timeline compression if Wave 1 + Wave 2 paired: 30-40% wall-clock. Real cost: two-PR-streams merge discipline + `scripts/check-artifacts.ts` rebase cadence + lockfile rebase on `package.json` deps.
+
+### Rationale
+
+**Why now.** Phases 1-3 shipped under ADR-007's strict-sequential rule. The discipline delivered clean phase boundaries (every shipped phase has `verify:phase-N` exiting 0 on its squash commit), 100% audit-cascade pass-through (Phase 3: 6/6 HUMAN-UAT PASS, 67/67 STRIDE SECURED, 28-COVERED + 18-PARTIAL + 2-MISSING validation, 6/6 verification second-pass), and a clean ADR/PR/audit feedback loop. The sequential discipline did its job for the foundation. Continuing strict-sequential for Phases 4-8 would over-specify dependencies that don't exist at the semantic level (per `/gsd-manager --analyze-deps`); the cost is wall-clock time on a solo-dev project where plan-while-execute is a real lever.
+
+**Why preserve "green on main."** The phase-boundary discipline is the load-bearing part of ADR-007. Audit cascade, code review, and human-UAT all depend on `main` HEAD being a single clean checkpoint per shipped phase. A full DAG (parallel phases that merge in arbitrary order with no `main`-checkpoint requirement) would lose the clean-checkpoint property that makes Phase 8's compliance dashboard + cross-phase verification possible. Green-on-`main` is the smallest constraint that preserves the property while allowing parallelism.
+
+**Why not full DAG.** A full DAG with no `main`-checkpoint gating would (a) make `verify:phase-N` semantics ambiguous (verify against which `main` HEAD?), (b) defer the audit-cascade obligation in ways that conflict with the operator's strict per-phase audit cadence (PR #8 security, PR #10 validation, PR #11 verification all run against a shipped `main` HEAD), and (c) require operator bandwidth to triage cross-branch conflicts that the green-on-`main` constraint resolves naturally via rebase-on-merge.
+
+**Why solo-dev still benefits.** Solo dev means one operator at a time, but planning + executing alternate within a session. The operator can: (a) draft `/gsd-plan-phase 4` artifacts while `/gsd-execute-phase 5` runs in a background agent on a different branch, (b) interleave PR review on Phase 5 while drafting Phase 6, (c) parallelize audit-cascade work on shipped phases against in-flight work on next. Parallelism is **opportunity, not mandate** — operator chooses per-phase whether to run sequentially or in parallel based on bandwidth and the specific phase pairing.
+
+### Rejected alternatives
+
+- **Keep ADR-007 strict-sequential.** Preferred for Phases 1-3 (foundation discipline). Over-conservative for Phases 4-8 where semantic minimum dependencies allow real parallelism. Continuing strict-sequential loses 30-40% of available wall-clock without earning anything ADR-007's spirit can't already get from green-on-`main`.
+- **Full DAG, no `main`-checkpoint constraint.** Loses the clean phase-boundary property that makes per-phase audit cascade + Phase 8 cross-phase validation possible. See "Why not full DAG" above.
+- **Add a new "post-MVP" flag to phases that allows parallelism only for Phase 6+.** Over-engineered. The dependency analysis showed Phase 4 ‖ Phase 5 is the highest-value pairing (most independent + most adjacent in time); excluding Wave 1 would defeat the primary use case.
+- **Mandate parallel execution.** Inverts the operator's authority over execution cadence. Parallelism must be opt-in per-phase, not mandated. The current ADR text says "may run" — not "must."
+
+### File-collision risk register
+
+The amendment doesn't change file-overlap risk; it changes how the operator manages overlap. When parallel branches both touch the files below, the later-merged branch rebases.
+
+- **`scripts/check-artifacts.ts`** — extended by every phase. Convention: each phase appends a `// === Phase N: ... ===` block at the FILE BOTTOM. Append-only blocks merge cleanly when on parallel branches as long as no phase inserts assertions inside another phase's block. Operator must enforce file-bottom append in PR review for parallel-branch phases.
+- **`package.json`** + **`pnpm-lock.yaml`** — every phase adds dependencies. Lockfile collision is the dominant merge-conflict source (see 2026-05-21 CR auto-fix incident in STATE.md for the historical pattern). Convention: the later-merged branch rebases the lockfile from the new `main` HEAD, runs `pnpm install` clean, commits the regenerated lockfile.
+- **`tests/types.ts`** — Phase 4 + Phase 5 may both add type tests (D-07 invariants). Append-only block at file bottom; same convention as `check-artifacts.ts`.
+- **`middleware.ts`** — Phase 5 adds `isEmployeeRoute` matcher; Phase 6 does not modify middleware (per ADR-024). Low collision risk.
+- **`.planning/STATE.md`** — bookkept by every phase. Convention: bookkeep at the end of the phase (post-merge), not concurrently. A "bundled state update" pattern (per HANDOFF.json `state-bookkeeping-bundling`) handles multiple ratifications in one pass.
+- **`.planning/PROJECT.md` `<decisions>` block** — new ADRs ratified in parallel phases must be appended sequentially after merge. Operator coordinates.
+
+### Consequences
+
+- `.planning/ROADMAP.md` line-3 header constraint text amended to reference ADR-029; `Depends on` entries updated for Phases 5/6/7 per the table above.
+- `CLAUDE.md` (root) "Build Sequence" section amended to reflect ADR-029.
+- `/gsd-manager` dispatcher may execute multiple phases in parallel waves when operator chooses; no change required to the dispatcher logic itself (the workflow already supports background agents per the GSD `manager.md` playbook).
+- Phase 4 + Phase 5 plan-phase artifacts may be authored concurrently (`.planning/phases/04-ai-layer/` and `.planning/phases/05-employee-portal/` are distinct directories — no file-collision at the planning-artifact layer).
+- No code changes. No test changes. No schema changes. No new dependencies.
+- `verify:phase-N` semantics unchanged: each phase's verify gate exits 0 on its squash commit on `main`. The notion of "Phase N+1 starts" is now decoupled from "Phase N is fully shipped" — Phase N+1 may start on its branch while Phase N is still in CR or audit cascade, as long as Phase N+1's true minimum `Depends on` chain has already shipped to `main`.
+- ADR-007 remains LOCKED as originally ratified; this ADR amends its gating rule explicitly without retracting its order or boundary discipline. ADR-007's phase ORDER (1→2→3→4→5→6→7→8) is unchanged.
+- Locked decision count: 28 → 29.
+
+Full text mirrored in `.planning/PROJECT.md` short-form ADR-029.
 
