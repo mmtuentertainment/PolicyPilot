@@ -62,3 +62,29 @@ import type { PolicyId } from '@/lib/policies/types';
 // @ts-expect-error — PolicyId must not accept a raw `string` via assignment (ADR-028 brand)
 const _policyIdBrandTest: PolicyId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 void _policyIdBrandTest;
+
+// ---------------------------------------------------------------------------
+// Phase 4 D-43 — Compile-time assertion: parseQaResponse return.citations must
+// remain { title: string; id: string }[] forever. If a future refactor regresses
+// citation shape to legacy string[] (or any other shape), `pnpm tsc --noEmit` fails.
+//
+// Reference: API-SPEC.md amended contract (Plan 04-01 Task 6) +
+// SPEC.md R4 acceptance text (line 116).
+// ---------------------------------------------------------------------------
+import type { parseQaResponse } from '@/lib/ai/qa-parser';
+
+type _QaCitations = ReturnType<typeof parseQaResponse>['citations'];
+
+// POSITIVE assertion: shape matches API-SPEC.md amended contract { title, id }[].
+const _qaCitationsCheck: { title: string; id: string }[] = [] as _QaCitations;
+void _qaCitationsCheck;
+
+// NEGATIVE assertion: prevent regression to legacy string[] shape.
+// If a future refactor regresses citations to `string[]`, the assignment below
+// becomes valid (string[] ↔ string[]) and the @ts-expect-error directive has
+// nothing to suppress — TS then emits "Unused '@ts-expect-error' directive"
+// which breaks the build. That is the intended failure mode of this inverted-
+// polarity guard (mirrors the PolicyId brand pattern at line 62 above).
+// @ts-expect-error — citations must be {title, id}[], not string[]
+const _qaCitationsRegress: string[] = [] as _QaCitations;
+void _qaCitationsRegress;
