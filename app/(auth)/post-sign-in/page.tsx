@@ -1,6 +1,11 @@
 import { redirect } from 'next/navigation';
 import { getOrgContext } from '@/lib/auth/context';
-import { matchesErrorMessage } from '@/lib/auth/bootstrap-errors';
+import { matchesErrorClass } from '@/lib/auth/bootstrap-errors';
+import {
+  InvalidRoleError,
+  NoActiveOrganizationError,
+  NotAuthenticatedError,
+} from '@/lib/auth/errors';
 
 /**
  * L-03 / REG-P1-01 closure (Plan 03-02 Task 3). Replaces the Phase 1
@@ -28,34 +33,27 @@ import { matchesErrorMessage } from '@/lib/auth/bootstrap-errors';
 // CR-PR3-#19 closure — narrow the catch so backend failures (Clerk auth
 // outage, DB unreachable, malformed Clerk text IDs) surface as real 500s
 // instead of being masked as legitimate onboarding state. Only the three
-// "user-bootstrap-incomplete" shapes route to /onboarding/create-org.
+// "user-bootstrap-incomplete" classes route to /onboarding/create-org.
+// Upgraded to typed classes per ADR-026; the class hierarchy in
+// lib/auth/errors.ts is the source of truth for what each error means.
 //
-// Sourced verbatim from lib/auth/context.ts throw sites (line numbers
-// as of 2026-05-20 — re-grep if the file moves):
-//   - 'Not authenticated: no Clerk session'  (getOrgContext line 104 — !userId)
-//   - 'No active organization'               (getOrgContext line 105 — !orgId)
-//   - 'Invalid role on session claims: ...'  (asRole line 49 — value not in enum)
-// Backend-failure shapes that DELIBERATELY rethrow (NOT in the allow-list):
-//   - 'Clerk auth() failed: ...'             (line 99-101 — auth() threw)
-//   - 'Org not provisioned in DB for ...'    (line 134-136 — race AFTER sign-in
-//                                              but trampoline treats DB drift
-//                                              as real outage; dashboard/page.tsx
-//                                              treats the SAME shape as race-with-
-//                                              meta-refresh — divergence by design)
-//   - 'User not provisioned in DB for ...'   (line 140-142 — same as above)
-//
-// Cross-reference: app/(admin)/dashboard/page.tsx ONBOARDING_RACE_ERRORS
-// list intentionally INCLUDES 'Org not provisioned' + 'User not provisioned'
-// (race window after first sign-up gets a 2s meta-refresh). The asymmetry
-// is documented: trampoline = hard fail on DB drift; dashboard = soft retry.
+// INTENTIONALLY EXCLUDES ProvisioningRaceError (and its OrgNotProvisioned
+// + UserNotProvisioned subclasses) — the trampoline treats Clerk → DB
+// drift as a real outage (hard-fail / 500), while
+// app/(admin)/dashboard/page.tsx treats the same condition as a race
+// window (soft retry with 2s meta-refresh). The divergence is by design:
+// dashboard = soft retry on webhook race; trampoline = hard fail on DB
+// drift. ClerkAuthFailedError is intentionally NOT a BootstrapError so it
+// also cannot land here — see lib/auth/bootstrap-errors.test.ts §
+// hierarchy-contract for the lock.
 const BOOTSTRAP_ERRORS = [
-  'Not authenticated',
-  'Invalid role',
-  'No active organization',
+  NotAuthenticatedError,
+  InvalidRoleError,
+  NoActiveOrganizationError,
 ] as const;
 
 function isBootstrapError(err: unknown): boolean {
-  return matchesErrorMessage(err, BOOTSTRAP_ERRORS);
+  return matchesErrorClass(err, BOOTSTRAP_ERRORS);
 }
 
 export default async function PostSignInPage(): Promise<never> {

@@ -1245,17 +1245,66 @@ function checkPhase3G1Artifacts(): Check[] {
       `${ctxPath}: imports db from @/lib/db (03-G1 ADR-023 allow-list entry)`,
       "db barrel import missing",
     );
+    // ADR-026 — the literal error message strings moved from inline
+    // throws in context.ts to typed-class constructors in errors.ts.
+    // The 03-G1 invariant still holds (the missing-org / missing-user
+    // paths must surface these specific messages); the source of truth
+    // is now the class definitions, and context.ts throws the right
+    // classes at the right sites.
     assert(
       out,
-      ctx.includes("Org not provisioned in DB for"),
-      `${ctxPath}: missing-org error path uses 'Org not provisioned in DB for' (03-G1)`,
-      "missing-org error message missing",
+      ctx.includes("throw new OrgNotProvisionedError"),
+      `${ctxPath}: missing-org path throws OrgNotProvisionedError (03-G1 + ADR-026)`,
+      "missing-org error class throw missing",
     );
     assert(
       out,
-      ctx.includes("User not provisioned in DB for"),
-      `${ctxPath}: missing-user error path uses 'User not provisioned in DB for' (03-G1)`,
-      "missing-user error message missing",
+      ctx.includes("throw new UserNotProvisionedError"),
+      `${ctxPath}: missing-user path throws UserNotProvisionedError (03-G1 + ADR-026)`,
+      "missing-user error class throw missing",
+    );
+  }
+
+  // lib/auth/errors.ts — ADR-026 class hierarchy. The 03-G1 message-
+  // string invariant now lives here (in class super(message) calls).
+  const errorsPath = "lib/auth/errors.ts";
+  if (!exists(errorsPath)) {
+    out.push(fail(`${errorsPath} exists`, "missing (ADR-026)"));
+  } else {
+    const errors = read(errorsPath);
+    assert(
+      out,
+      errors.includes("Org not provisioned in DB for"),
+      `${errorsPath}: OrgNotProvisionedError carries 'Org not provisioned in DB for' (03-G1 invariant under ADR-026)`,
+      "missing-org error message moved without preserving string",
+    );
+    assert(
+      out,
+      errors.includes("User not provisioned in DB for"),
+      `${errorsPath}: UserNotProvisionedError carries 'User not provisioned in DB for' (03-G1 invariant under ADR-026)`,
+      "missing-user error message moved without preserving string",
+    );
+    assert(
+      out,
+      errors.includes("abstract class BootstrapError"),
+      `${errorsPath}: BootstrapError abstract base declared (ADR-026)`,
+      "BootstrapError base class missing",
+    );
+    assert(
+      out,
+      errors.includes("abstract class ProvisioningRaceError"),
+      `${errorsPath}: ProvisioningRaceError abstract base declared (ADR-026)`,
+      "ProvisioningRaceError base class missing",
+    );
+    assert(
+      out,
+      // ClerkAuthFailedError must NOT extend BootstrapError — pinned by
+      // the hierarchy-contract test, but also greppable as a literal
+      // structural check here for fast CI failure on this specific
+      // mistake.
+      /class\s+ClerkAuthFailedError\s+extends\s+Error\b/.test(errors),
+      `${errorsPath}: ClerkAuthFailedError extends Error directly, NOT BootstrapError (ADR-026 hierarchy contract)`,
+      "ClerkAuthFailedError must NOT be a BootstrapError",
     );
   }
 
