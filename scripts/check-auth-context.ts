@@ -171,6 +171,7 @@ async function main(): Promise<void> {
       orgId: 'org_3Dy5O_buggy_clerk_text_form', // bug shape: text instead of UUID
     };
     let bugTriggered = false;
+    let bugDetail = '';
     try {
       await withOrgScope(buggyCtx, async (s) => Policies.statusCounts(s));
     } catch (err) {
@@ -182,17 +183,30 @@ async function main(): Promise<void> {
         err instanceof Error && err.cause instanceof Error
           ? err.cause.message
           : '';
-      const detail = `${outer}\n${cause}`;
+      bugDetail = `${outer}\n${cause}`;
       if (
-        detail.includes('22P02') ||
-        /invalid input syntax for type uuid/i.test(detail)
+        bugDetail.includes('22P02') ||
+        /invalid input syntax for type uuid/i.test(bugDetail)
       ) {
         bugTriggered = true;
       }
     }
     if (!bugTriggered) {
+      // Surface the actual caught detail so a fixture-shape regression
+      // (e.g. withOrgScope itself throwing a TypeError) doesn't get
+      // misdiagnosed as "22P02 didn't fire." Without this, the operator
+      // sees the failure message below but no signal about what DID happen.
+      if (bugDetail) {
+        console.error(
+          `[check-auth-context] negative-control caught a NON-22P02 error:\n${bugDetail}`,
+        );
+      } else {
+        console.error(
+          '[check-auth-context] negative-control caught NOTHING — withOrgScope accepted Clerk-text orgId silently',
+        );
+      }
       throw new Error(
-        'Negative control failed: Clerk-text orgId did NOT trigger Postgres 22P02 — RLS or column type may have drifted from UUID',
+        'Negative control failed: Clerk-text orgId did NOT trigger Postgres 22P02 — RLS or column type may have drifted from UUID (see [check-auth-context] log line above for the actual caught detail)',
       );
     }
     console.log(
@@ -208,6 +222,16 @@ async function main(): Promise<void> {
     // org returns the row; NEGATIVE — mismatched org returns empty.
     // A future refactor that drops the `eq(users.org_id, ...)` predicate
     // fails the NEGATIVE control here.
+    //
+    // SCOPE-OF-RESPONSIBILITY NOTE: these controls pin BEHAVIOR (the
+    // SQL semantics work as expected against a real Postgres). They do
+    // NOT pin SOURCE SHAPE — a refactor that replaces `and(eq(...),
+    // eq(...))` with chained `.where(...).where(...)` (which Drizzle
+    // silently AND-composes) would still pass here. Source-shape
+    // pinning lives in `scripts/check-artifacts.ts:1268-1292` (3
+    // ADR-027 assertions: predicate text, and() combinator, drizzle-orm
+    // import). Both layers together are load-bearing; either alone
+    // isn't.
     const otherOrgUuid = randomUUID();
     const OTHER_CLERK_ORG = 'clerk_org_check_authctx_adr027';
     await sql.begin(async (tx) => {
