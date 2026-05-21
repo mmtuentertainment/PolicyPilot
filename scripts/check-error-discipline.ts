@@ -2,8 +2,12 @@
 //
 // Fails CI if any `throw new Error(...)` (or related built-in Error
 // subclass — TypeError, RangeError, etc., with or without the `new`
-// keyword) survives in lib/auth/**.ts (excluding the error class
-// declarations in errors.ts itself and test/mock files). The convention
+// keyword) survives in lib/auth/ TypeScript files (both .ts and .tsx —
+// .tsx is unlikely in lib/auth given the server-only convention but
+// architecturally permitted, so the scope is symmetric to avoid a
+// silent enforcement gap if a .tsx ever lands here), excluding the
+// error class declarations in errors.ts itself and test/mock files.
+// The convention
 // from ADR-026: every throw in lib/auth/ uses a class from
 // lib/auth/errors.ts, narrowable by `err instanceof Class` against the
 // typed allow-lists in app/(admin)/dashboard/page.tsx and
@@ -64,21 +68,30 @@ const project = new Project({
   skipAddingFilesFromTsConfig: true,
 });
 
-// Scope: lib/auth/**/*.ts EXCLUDING errors.ts itself (where the class
-// hierarchy lives — its body should never `throw new Error` either, but
-// excluding it keeps the gate's intent crisp: "consumers of errors.ts
-// must use the classes") and test/mock files (Vitest's own `expect(...).
-// toThrowError(new Error('...'))` would otherwise trip the gate).
+// Scope: lib/auth/**/*.ts and lib/auth/**/*.tsx EXCLUDING errors.ts
+// itself (where the class hierarchy lives — its body should never
+// `throw new Error` either, but excluding it keeps the gate's intent
+// crisp: "consumers of errors.ts must use the classes") and test/mock
+// files (Vitest's own `expect(...).toThrowError(new Error('...'))`
+// would otherwise trip the gate).
+//
+// .tsx is included for scope symmetry: lib/auth is server-only by
+// convention and has no .tsx files today, but the gate's stated intent
+// is "every throw in lib/auth" — a future .tsx landing here (someone
+// breaking the server-only convention) should not silently bypass.
 //
 // Broadened exclusion globs to cover Vitest's discovered file patterns
-// (Vitest picks up .test.ts AND .spec.ts by default), plus the standard
-// __mocks__/ and __tests__/ directory conventions, and any future-
-// generated .d.ts declarations.
+// (Vitest picks up .test.ts/.spec.ts AND .test.tsx/.spec.tsx by
+// default), plus the standard __mocks__/ and __tests__/ directory
+// conventions, and any future-generated .d.ts declarations.
 project.addSourceFilesAtPaths([
   'lib/auth/**/*.ts',
+  'lib/auth/**/*.tsx',
   '!lib/auth/errors.ts',
   '!lib/auth/**/*.test.ts',
+  '!lib/auth/**/*.test.tsx',
   '!lib/auth/**/*.spec.ts',
+  '!lib/auth/**/*.spec.tsx',
   '!lib/auth/**/*.d.ts',
   '!lib/auth/**/__mocks__/**',
   '!lib/auth/**/__tests__/**',
