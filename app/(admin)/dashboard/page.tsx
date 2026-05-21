@@ -50,10 +50,25 @@ const ONBOARDING_RACE_ERRORS = [
   InvalidRoleError,
 ] as const;
 
+/**
+ * Determines whether an error should be treated as an onboarding race condition.
+ *
+ * Checks if `err` matches any known onboarding-related error classes (e.g., provisioning or organization-not-ready errors).
+ *
+ * @param err - The error to classify
+ * @returns `true` if the error is an onboarding race error, `false` otherwise.
+ */
 function isOnboardingRaceError(err: unknown): boolean {
   return matchesErrorClass(err, ONBOARDING_RACE_ERRORS);
 }
 
+/**
+ * Render the admin dashboard or, if organization provisioning appears to be in progress, a brief "Setting up your organization..." panel that triggers a meta-refresh.
+ *
+ * @returns The dashboard page element; if onboarding provisioning is detected, returns a panel that refreshes after 2 seconds.
+ *
+ * @throws Any non-onboarding organization-context errors are rethrown so they surface as real failures.
+ */
 export default async function DashboardPage(): Promise<React.JSX.Element> {
   // W7: Clerk webhook race mitigation (Option B — brief loading state).
   // If the user signed in and reached /dashboard before the

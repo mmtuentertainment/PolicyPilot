@@ -76,24 +76,19 @@ function maskClerkOrgId(id: string): string {
 }
 
 /**
- * Resolve the current server-side organization authentication context from the active Clerk session.
+ * Resolve the current tenant-scoped authentication context from the active Clerk session.
  *
- * This function wraps Clerk's auth call and rethrows a clearer error if Clerk auth fails, enforces that a
- * valid session with `userId` and `orgId` exists, validates the session's role claim is one of
- * `'admin' | 'reviewer' | 'employee'`, and then translates Clerk's text identifiers into the
- * internal UUIDs stored in `organizations.id` / `users.id` via a per-request DB lookup against
- * the `clerk_org_id` / `clerk_user_id` unique columns. The two lookups are parallelized.
+ * Validates that a session with `userId` and `orgId` exists, narrows and validates the session
+ * role to one of `'admin' | 'reviewer' | 'employee'`, and maps Clerk text identifiers to the
+ * internal UUIDs used by the database.
  *
- * @returns An object containing `orgId` (internal UUID), `userId` (internal UUID),
- *   `clerkOrgId` (Clerk text), `clerkUserId` (Clerk text), and `role`.
- * @throws ClerkAuthFailedError when Clerk's `auth()` call itself throws. NOT a `BootstrapError` — both bootstrap consumers must rethrow.
+ * @returns An object containing `orgId` (internal UUID), `userId` (internal UUID), `clerkOrgId` (Clerk text id), `clerkUserId` (Clerk text id), and `role`.
+ * @throws ClerkAuthFailedError when Clerk's `auth()` call fails.
  * @throws NotAuthenticatedError if the session has no `userId`.
  * @throws NoActiveOrganizationError if the session has no `orgId`.
  * @throws InvalidRoleError if the session role claim is missing or not one of the allowed role strings.
- * @throws OrgNotProvisionedError when the Clerk org id has no matching row in `organizations` (Clerk → DB drift). Subclass of `ProvisioningRaceError`.
- * @throws UserNotProvisionedError when the Clerk user id has no matching row in `users` (Clerk → DB drift). Subclass of `ProvisioningRaceError`.
- *
- * See `lib/auth/errors.ts` (ADR-026) for the class hierarchy.
+ * @throws OrgNotProvisionedError when the Clerk org id has no matching row in `organizations`.
+ * @throws UserNotProvisionedError when the Clerk user id has no matching row in `users`.
  */
 export async function getOrgContext(): Promise<OrgContext> {
   let session;

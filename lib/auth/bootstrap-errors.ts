@@ -18,15 +18,11 @@
 // asymmetry rationale.
 
 /**
- * Returns true iff `err` is an instance of any of the provided error
- * class constructors. Used as the runtime narrower across bootstrap-
- * error allow-lists.
+ * Check whether a caught value is an instance of any provided Error class constructors.
  *
- * @param err Unknown thrown value (caller's `catch (err)`).
- * @param classes Readonly array of error class constructors to match
- *                against. Abstract bases (e.g. `ProvisioningRaceError`)
- *                ARE valid entries — `instanceof` works on the prototype
- *                chain so passing a base catches all concrete subclasses.
+ * @param err - The value from a `catch (err)` to test.
+ * @param classes - Readonly array of Error class constructors to match against. Abstract base classes are valid; `instanceof` will match subclasses via the prototype chain.
+ * @returns `true` if `err` is an instance of any constructor in `classes`, `false` otherwise.
  */
 export function matchesErrorClass(
   err: unknown,

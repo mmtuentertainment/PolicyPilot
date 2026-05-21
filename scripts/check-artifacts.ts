@@ -1199,12 +1199,9 @@ function checkPhase3FileExistence(): Check[] {
 }
 
 /**
- * Phase 3 gap-closure 03-G1 — artifact regression assertions for the
- * Clerk-text → internal-UUID translation inside getOrgContext + the new
- * scripts/check-auth-context.ts integration test + its wiring into the
- * verify orchestrator + the bumped allow-list positive control.
+ * Validate Phase 3 (03-G1) artifact and wiring invariants for auth-context Clerk-text → UUID translation, error-class hierarchy, and related verification scripts.
  *
- * @returns An array of `Check` results indicating which 03-G1 invariants passed or failed.
+ * @returns An array of `Check` results where each entry records whether a specific 03-G1 invariant passed and optional failure detail.
  */
 function checkPhase3G1Artifacts(): Check[] {
   const out: Check[] = [];

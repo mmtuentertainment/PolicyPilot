@@ -52,10 +52,27 @@ const BOOTSTRAP_ERRORS = [
   NoActiveOrganizationError,
 ] as const;
 
+/**
+ * Determines whether an error represents an incomplete/auth bootstrap state.
+ *
+ * @param err - The value to test as an error
+ * @returns `true` if `err` is an instance of `NotAuthenticatedError`, `InvalidRoleError`, or `NoActiveOrganizationError`; `false` otherwise.
+ */
 function isBootstrapError(err: unknown): boolean {
   return matchesErrorClass(err, BOOTSTRAP_ERRORS);
 }
 
+/**
+ * Redirects the user after sign-in according to organization and role state.
+ *
+ * If the session/organization state is incomplete (not authenticated, invalid role,
+ * or no active organization), redirects to the onboarding create-org page.
+ * If the user has the `admin` role, redirects to the dashboard; otherwise redirects
+ * to the user's policies page.
+ *
+ * @throws Re-throws any error that is not identified as a bootstrap (incomplete-state) error.
+ * @returns Never — this function always issues a redirect and does not return a value.
+ */
 export default async function PostSignInPage(): Promise<never> {
   let ctx;
   try {
