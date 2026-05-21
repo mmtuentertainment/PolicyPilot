@@ -50,6 +50,13 @@
       "when": 1779400184048,
       "tag": "0006_rls_batch_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1779400538815,
+      "tag": "0007_ai_generations_audit_extensions",
+      "breakpoints": true
     }
   ]
 }
