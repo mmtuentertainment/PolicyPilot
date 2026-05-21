@@ -118,13 +118,54 @@ export class OrgNotProvisionedError extends ProvisioningRaceError {
 }
 
 /**
+ * Stable wire-format sub-discriminant for the two `UserNotProvisionedError`
+ * throw paths inside `lib/auth/context.ts:getOrgContext` after ADR-027
+ * lookup-scoping:
+ *   - `'CLERK_USER_NOT_IN_DB'` — no `users` row at all matches
+ *     `clerk_user_id` (the v0 case before ADR-027). Webhook user.created
+ *     hasn't fired yet OR DB has drifted from Clerk.
+ *   - `'USER_ORG_MISMATCH'` — `users` row exists for `clerk_user_id` but
+ *     its `org_id` doesn't match the session's resolved org (the ADR-027
+ *     case — multi-org Clerk user acting in non-most-recently-joined
+ *     org; per ADR-027 this is product behavior, not bug).
+ *
+ * ADR-027 punted on this discriminant ("if structured logging Phase 7+
+ * ever needs to distinguish... `code` field can be supplemented or split
+ * then"). ADR-028 reconsiders that punt — the 4-agent pre-merge review on
+ * PR #7 flagged the missing discriminant as a binding finding because
+ * Phase-7+ structured logging is closer than originally scoped and the
+ * supplement is cheap to add now (one extra indexed DB lookup on the
+ * already-error path; no happy-path cost).
+ *
+ * INFO-DISCLOSURE BOUNDARY: the discriminant lives on a typed field, NOT
+ * in the `super(message)` string. The internal `orgRow.id` UUID never
+ * appears in the error message OR in any exposed `public readonly` field
+ * — only the masked clerkUserId + the typed subCode. Consumers route on
+ * `err.subCode === 'USER_ORG_MISMATCH'` without parsing prose; future
+ * structured-logging routers don't need to ingest internal IDs to triage.
+ */
+export type UserNotProvisionedSubCode =
+  | 'CLERK_USER_NOT_IN_DB'
+  | 'USER_ORG_MISMATCH';
+
+/**
  * users.clerk_user_id lookup empty — the Clerk user.created webhook
- * hasn't created the DB row yet, or DB has drifted from Clerk.
- * Subclass of ProvisioningRaceError.
+ * hasn't created the DB row yet, OR DB has drifted from Clerk, OR (per
+ * ADR-027/028) the users row exists for `clerk_user_id` but its `org_id`
+ * doesn't match the session's resolved org (multi-org Clerk user
+ * acting in non-most-recently-joined org). Subclass of
+ * ProvisioningRaceError.
+ *
+ * The `subCode` field discriminates the two cases for Phase-7+
+ * structured-logging triage. See `UserNotProvisionedSubCode` for the
+ * full rationale + info-disclosure boundary.
  */
 export class UserNotProvisionedError extends ProvisioningRaceError {
   readonly code = 'USER_NOT_PROVISIONED';
-  constructor(public readonly maskedClerkUserId: string) {
+  constructor(
+    public readonly maskedClerkUserId: string,
+    public readonly subCode: UserNotProvisionedSubCode,
+  ) {
     super(
       `User not provisioned in DB for ${maskedClerkUserId} — Clerk user.created webhook may not have fired or DB-Clerk drift`,
     );

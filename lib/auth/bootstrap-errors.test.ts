@@ -56,7 +56,7 @@ describe('matchesErrorClass', () => {
   it('returns true when the error is an instance of any allow-listed class', () => {
     expect(matchesErrorClass(new NoActiveOrganizationError(), ONBOARDING_RACE_ERRORS)).toBe(true);
     expect(matchesErrorClass(new OrgNotProvisionedError('org_***1234'), ONBOARDING_RACE_ERRORS)).toBe(true);
-    expect(matchesErrorClass(new UserNotProvisionedError('user_***5678'), ONBOARDING_RACE_ERRORS)).toBe(true);
+    expect(matchesErrorClass(new UserNotProvisionedError('user_***5678', 'CLERK_USER_NOT_IN_DB'), ONBOARDING_RACE_ERRORS)).toBe(true);
     expect(matchesErrorClass(new InvalidRoleError('foo'), ONBOARDING_RACE_ERRORS)).toBe(true);
   });
 
@@ -73,12 +73,12 @@ describe('ONBOARDING_RACE_ERRORS vs BOOTSTRAP_ERRORS divergence (locks the desig
   // catches it.
   it('dashboard treats Org/User-not-provisioned as RACE (soft retry)', () => {
     expect(matchesErrorClass(new OrgNotProvisionedError('org_***'), ONBOARDING_RACE_ERRORS)).toBe(true);
-    expect(matchesErrorClass(new UserNotProvisionedError('user_***'), ONBOARDING_RACE_ERRORS)).toBe(true);
+    expect(matchesErrorClass(new UserNotProvisionedError('user_***', 'CLERK_USER_NOT_IN_DB'), ONBOARDING_RACE_ERRORS)).toBe(true);
   });
 
   it('trampoline treats Org/User-not-provisioned as HARD-FAIL (rethrow)', () => {
     expect(matchesErrorClass(new OrgNotProvisionedError('org_***'), BOOTSTRAP_ERRORS)).toBe(false);
-    expect(matchesErrorClass(new UserNotProvisionedError('user_***'), BOOTSTRAP_ERRORS)).toBe(false);
+    expect(matchesErrorClass(new UserNotProvisionedError('user_***', 'CLERK_USER_NOT_IN_DB'), BOOTSTRAP_ERRORS)).toBe(false);
   });
 
   it('trampoline catches Not-authenticated (dashboard does NOT — middleware should preempt)', () => {
@@ -140,7 +140,7 @@ describe('ProvisioningRaceError abstract base matches both concrete subclasses',
   });
 
   it('UserNotProvisionedError is a ProvisioningRaceError', () => {
-    expect(new UserNotProvisionedError('user_***') instanceof ProvisioningRaceError).toBe(true);
+    expect(new UserNotProvisionedError('user_***', 'CLERK_USER_NOT_IN_DB') instanceof ProvisioningRaceError).toBe(true);
   });
 
   it('NoActiveOrganizationError is NOT a ProvisioningRaceError (different concept)', () => {
@@ -174,7 +174,7 @@ describe('BootstrapError positive inheritance (every subclass IS a BootstrapErro
   });
 
   it('UserNotProvisionedError instanceof BootstrapError (via ProvisioningRaceError)', () => {
-    expect(new UserNotProvisionedError('user_***') instanceof BootstrapError).toBe(true);
+    expect(new UserNotProvisionedError('user_***', 'CLERK_USER_NOT_IN_DB') instanceof BootstrapError).toBe(true);
   });
 });
 
@@ -204,7 +204,7 @@ describe('matchesErrorClass edge cases + code-uniqueness invariant', () => {
       new NoActiveOrganizationError(),
       new InvalidRoleError('test'),
       new OrgNotProvisionedError('org_***test'),
-      new UserNotProvisionedError('user_***test'),
+      new UserNotProvisionedError('user_***test', 'CLERK_USER_NOT_IN_DB'),
       new ClerkAuthFailedError(new Error('test')),
     ];
     const codes = instances.map((e) => e.code);
@@ -220,5 +220,46 @@ describe('matchesErrorClass edge cases + code-uniqueness invariant', () => {
       'USER_NOT_PROVISIONED',
       'CLERK_AUTH_FAILED',
     ]);
+  });
+});
+
+describe('UserNotProvisionedError.subCode discriminant (ADR-028)', () => {
+  // ADR-028 supplements the v0 `code: 'USER_NOT_PROVISIONED'` with a
+  // typed `subCode` to discriminate the two throw paths in
+  // lib/auth/context.ts:getOrgContext after ADR-027 lookup-scoping.
+  // Phase-7+ structured logging consumers route on `err.subCode` without
+  // parsing the prose message.
+  it('preserves CLERK_USER_NOT_IN_DB subCode (v0 webhook-race case)', () => {
+    const err = new UserNotProvisionedError('user_***abcd', 'CLERK_USER_NOT_IN_DB');
+    expect(err.subCode).toBe('CLERK_USER_NOT_IN_DB');
+    expect(err.code).toBe('USER_NOT_PROVISIONED');
+    expect(err).toBeInstanceOf(UserNotProvisionedError);
+    expect(err).toBeInstanceOf(ProvisioningRaceError);
+    expect(err).toBeInstanceOf(BootstrapError);
+  });
+
+  it('preserves USER_ORG_MISMATCH subCode (ADR-027 multi-org lockout case)', () => {
+    const err = new UserNotProvisionedError('user_***abcd', 'USER_ORG_MISMATCH');
+    expect(err.subCode).toBe('USER_ORG_MISMATCH');
+    expect(err.code).toBe('USER_NOT_PROVISIONED');
+    // Class hierarchy unchanged — subCode is on a leaf field, not a
+    // new abstract layer. The dashboard / trampoline allow-lists keyed
+    // on ProvisioningRaceError still match both subCodes.
+    expect(err).toBeInstanceOf(UserNotProvisionedError);
+    expect(err).toBeInstanceOf(ProvisioningRaceError);
+    expect(err).toBeInstanceOf(BootstrapError);
+  });
+
+  it('message text is identical regardless of subCode (ADR-028 info-disclosure boundary)', () => {
+    // Critical invariant: the new subCode signal lives ONLY on the typed
+    // field, NEVER in the prose message. The internal orgRow.id UUID
+    // must not appear in the message OR in any exposed public field.
+    // If a future refactor "helpfully" appends subCode info to the
+    // message string (e.g. ` (USER_ORG_MISMATCH)`), this test fails.
+    const e1 = new UserNotProvisionedError('user_***abcd', 'CLERK_USER_NOT_IN_DB');
+    const e2 = new UserNotProvisionedError('user_***abcd', 'USER_ORG_MISMATCH');
+    expect(e1.message).toBe(e2.message);
+    expect(e1.message).not.toMatch(/CLERK_USER_NOT_IN_DB|USER_ORG_MISMATCH/);
+    expect(e1.message).not.toMatch(/org_id|orgRow|mismatch/i);
   });
 });

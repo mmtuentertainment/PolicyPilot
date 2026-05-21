@@ -145,7 +145,24 @@ export async function getOrgContext(): Promise<OrgContext> {
     .limit(1);
   const userRow = userRows[0];
   if (!userRow) {
-    throw new UserNotProvisionedError(maskClerkId(clerkUserId));
+    // ADR-028 — discriminate "no users row at all for this clerkUserId"
+    // (CLERK_USER_NOT_IN_DB — webhook race / DB drift) vs "users row
+    // exists but for a different org_id" (USER_ORG_MISMATCH — ADR-027
+    // multi-org Clerk lockout, product behavior not bug). One extra
+    // cheap indexed lookup ONLY on the already-error path; result
+    // routes onto UserNotProvisionedError.subCode for Phase-7+
+    // structured-logging triage. The internal orgRow.id NEVER leaks
+    // into the error message or fields — only the typed subCode signals
+    // which case fired.
+    const clerkOnlyRows = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.clerkUserId, clerkUserId))
+      .limit(1);
+    const subCode = clerkOnlyRows.length === 0
+      ? 'CLERK_USER_NOT_IN_DB'
+      : 'USER_ORG_MISMATCH';
+    throw new UserNotProvisionedError(maskClerkId(clerkUserId), subCode);
   }
   return {
     orgId: orgRow.id,

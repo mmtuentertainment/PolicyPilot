@@ -815,3 +815,96 @@ Resolution is deferred — not blocking ADR-027's narrower decision.
 
 Full text mirrored in `.planning/PROJECT.md` short-form ADR-027.
 
+---
+
+## ADR-028: PolicyId Branded Type + UserNotProvisionedError Sub-Discriminant
+
+- source: PR 3.3 ratification (last queued fast-follow from PR #3 carry-forward; bundled the 2 deferred MEDIUM findings from PR #7's 4-agent pre-merge review per operator decision 2026-05-21)
+- status: locked (2026-05-21)
+- scope: nominal-type branding for `policies.id` in repository/orchestrator/Server-Action signatures (`lib/policies/types.ts` + 5 repository files + `lib/policies/transitions.ts` + `app/(admin)/policies/[id]/actions.ts`); supplements `UserNotProvisionedError` (ADR-026 class) with a `subCode` discriminant for the two throw paths created by ADR-027 lookup-scoping; pins both invariants via `scripts/check-policy-id-brand.ts` (new ts-morph gate) + extended `tests/types.ts` (`@ts-expect-error` line)
+
+### Decision
+
+**(1) `PolicyId` branded nominal type.** A new module `lib/policies/types.ts` exports:
+
+```typescript
+export const PolicyIdSchema = z.string().uuid().brand<'PolicyId'>();
+export type PolicyId = z.infer<typeof PolicyIdSchema>;
+export function policyIdFromString(value: string): PolicyId {
+  return PolicyIdSchema.parse(value);
+}
+```
+
+`PolicyId` is threaded through these signature positions (all explicit policyId parameters in business-logic / orchestration boundaries):
+
+| File | Method / Function | policyId parameter position |
+|------|-------------------|----------------------------|
+| `lib/db/repositories/policies.ts` | `findById`, `updateDraft`, `incrementVersion` | 2nd arg after `OrgScope` |
+| `lib/db/repositories/policy_versions.ts` | `create` (input field), `listForPolicy`, `findByVersionNumber` | object field `policyId` / 2nd arg |
+| `lib/db/repositories/policy_assignments.ts` | `listForPolicy` | 2nd arg after `OrgScope` |
+| `lib/db/repositories/workflow_stages.ts` | `recordSubmission`, `listForPolicy` | 2nd arg after `OrgScope` |
+| `lib/policies/transitions.ts` | `submitForReview`, `approve`, `reject`, `publish`, `archive`, `restore`, `editPublished`, `loadAndAssertTransition` | 1st arg (after no-scope) / 2nd arg (after scope in helper) |
+| `app/(admin)/policies/[id]/actions.ts` | `policyIdFrom(formData)` helper returns `PolicyId \| null`; `EditPublishedSchema.policyId` + `UpdateDraftSchema.policyId` use shared `PolicyIdSchema` | return type / Zod-parsed field type |
+
+Lift-into-brand happens at one trust boundary per Server Action — the action's local `policyIdFrom(formData)` helper. Underlying repository / orchestrator code receives the already-branded value; tsc rejects accidental cross-assignment from a `string` or a different-entity UUID.
+
+**(2) Schema-inferred insert input types are intentionally OUT OF brand scope.** Drizzle's `$inferInsert` types (used by `PolicyVersions.create` legacy input shape, `PolicyAssignments.create`, `Acknowledgments.record`) infer `policyId: string` from the schema's `uuid('policy_id')` column type. Branding those would require hand-constructing the input type (no `$inferInsert`), losing the schema-as-source-of-truth invariant from ADR-003 (Drizzle ORM). The brand only covers EXPLICIT policyId parameter positions in method signatures where a future refactor could trivially mistype a different UUID. FK + RLS catch any cross-org policyId at insert time regardless.
+
+**(3) `UserNotProvisionedError` gains a required `subCode: UserNotProvisionedSubCode` field.** The discriminant is a literal-union type:
+
+```typescript
+export type UserNotProvisionedSubCode =
+  | 'CLERK_USER_NOT_IN_DB'    // v0 case: no users row at all for clerk_user_id
+  | 'USER_ORG_MISMATCH';      // ADR-027 case: row exists but org_id mismatch
+```
+
+The `lib/auth/context.ts` throw site adds ONE extra indexed DB lookup (only on the already-error path) to determine which case fired:
+
+```typescript
+if (!userRow) {
+  const clerkOnlyRows = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.clerkUserId, clerkUserId))
+    .limit(1);
+  const subCode = clerkOnlyRows.length === 0
+    ? 'CLERK_USER_NOT_IN_DB'
+    : 'USER_ORG_MISMATCH';
+  throw new UserNotProvisionedError(maskClerkId(clerkUserId), subCode);
+}
+```
+
+**(4) Info-disclosure boundary.** The discriminant lives ONLY on the typed `subCode` field — never in the `super(message)` string. The internal `orgRow.id` UUID never appears in error message OR in any exposed `public readonly` field. Future structured-logging consumers route on `err.subCode === 'USER_ORG_MISMATCH'` without ingesting internal IDs.
+
+**(5) Verification.** A new `scripts/check-policy-id-brand.ts` ts-morph gate scans the 6 files listed in (1) and asserts that the named methods declare their policyId parameters as `PolicyId` (signature-only check; compiler catches caller-side violations). Wired into `verify:phase-3` chain (now 10 gates). `tests/types.ts` (D-07) gains a `@ts-expect-error` line proving `const id: PolicyId = "raw-uuid-string"` rejects at compile time. `lib/auth/bootstrap-errors.test.ts` gains 3 new cases pinning the subCode discriminant + the message-text invariance contract.
+
+### Rationale
+
+**Why brand `PolicyId` but not `UserId` / `OrgId` yet (slippery-slope policy).** PolicyId is the primary cross-method-threaded entity ID — through 7 transition orchestrators + 5 repository methods + 7 Server Actions. Brand coverage there pays for itself by catching cross-confusion (e.g. accidentally passing a `userId` UUID into `Policies.findById`). UserId and OrgId mostly stay inside `OrgContext` / `OrgScope`, both of which are constructed at one trust boundary (`getOrgContext`) and consumed via a typed wrapper (`withOrgScope`) — well-contained, lower cross-confusion risk, brand coverage there would add ~20 more signature touches with marginal additional safety. Brand coverage is opportunistic — future PRs touching User/Org-heavy code MAY brand those if friction warrants.
+
+**Why reconsider ADR-027's punt on `subCode`.** ADR-027 § "Why throw `UserNotProvisionedError` rather than a new dedicated class" deferred the discriminant: "If structured logging (Phase 7+) ever needs to distinguish the two cases for triage, the `code` field on the existing class can be supplemented or split then." Two factors flipped the call: (a) The 4-agent pre-merge review on PR #7 surfaced the missing discriminant as a binding MEDIUM finding — the absence makes the multi-org-lockout case indistinguishable from a webhook-race in operational triage, which is the primary case where the two cause different remediation. (b) The supplement is cheap (single typed field + one DB lookup on the error path; no class hierarchy churn; no consumer allow-list updates needed because the matched class is unchanged). The cost of deferring grows with each new dashboard/trampoline error-handling addition that would assume the discriminant is available.
+
+**Why required (not optional) subCode parameter.** Making `subCode` optional with a default would let new throw sites silently ship without discriminating — exactly the "distinction without behavioral difference" failure mode ADR-027 worried about, just re-emerged at the throw-site level. Required parameter forces every author to make the discrimination call explicit at the throw point. Existing tests (6 call sites in `lib/auth/bootstrap-errors.test.ts`) pass `'CLERK_USER_NOT_IN_DB'` (the v0 case) — mechanical update.
+
+**Why the extra DB lookup is acceptable.** Fires ONLY on the error path (rare — only when the primary `clerk_user_id + org_id` lookup misses). Indexed lookup on `users.clerk_user_id`. Same connection. <5ms typical. Zero happy-path cost. ADR-027 added 1 RTT to the happy path for state-consistency; ADR-028 adds 0 RTT to the happy path + 1 RTT to the error path for triage-actionability. The asymmetry is correct — happy path is hot, error path is rare and observability-bound.
+
+**Why signature-only ts-morph gate.** TypeScript's compiler already rejects callers that pass `string` where `PolicyId` is expected (the branded type system does the work). The ts-morph gate's value is signature-drift prevention: a future refactor that "simplifies" `findById(scope: OrgScope, id: PolicyId)` back to `findById(scope: OrgScope, id: string)` would compile (because callers would then receive `string`, which is broader than `PolicyId`) but silently erase the brand. The signature gate catches this at CI before the brand erodes. Scope matches `check-error-discipline.ts` discipline — pin the surface, trust the compiler for the rest.
+
+**Why bundle all 3 changes into one PR.** The three concerns share scope (type-safety for the policy domain) and are independently small but conceptually adjacent. Splitting into a PolicyId-only PR + a subCode-only PR + an info-disclosure-only PR adds review overhead for little benefit — each piece is reviewable inline. The bundled PR ratifies the ADR + threads the brand + lands the discriminant in one merge.
+
+### Carry-forward
+
+- `OrgScope` itself remains `{ tx, orgId: string, userId: string }`. Branding `OrgScope.orgId` / `OrgScope.userId` is deferred to a future PR with explicit ADR (probably ADR-029+) when friction warrants.
+- `scripts/check-policy-id-brand.ts` covers the 6 files listed in §(1). If future repository files (e.g. when Phase 5's `Acknowledgments.findByPolicyId` lands) add policyId parameters, the gate's hardcoded file list must be extended in the same PR — failure to extend leaves a silent gap. Matches `check-error-discipline.ts`'s hardcoded scope pattern.
+- Phase-7+ structured-logging consumers can now route on `UserNotProvisionedError.subCode` without parsing message strings. Future log-router PR should document the routing table.
+- The 2 deferred MEDIUMs from PR #7's 4-agent review (`UserNotProvisionedError subCode discriminant` + `orgRow.id exposure in error message`) are CLOSED by this ADR — discriminant per §(3), info-disclosure boundary per §(4).
+
+### Consequences
+
+- `lib/auth/errors.ts` exports a new type (`UserNotProvisionedSubCode`) — 6 vitest call sites + 1 production throw site updated mechanically.
+- New CI gate `pnpm check:policy-id-brand` adds ~2-3s to `verify:phase-3` chain (now 10 gates).
+- Server Action authors at new policy-related Server Action sites must call `policyIdFromString(...)` (or use `PolicyIdSchema.safeParse(...).data`) to lift FormData strings into `PolicyId` before passing into orchestrators. Existing actions (`actions.ts`) refactored in this PR.
+- Schema-inferred insert input types (Drizzle `$inferInsert`) still carry `policyId: string`. ADR-028 §(2) documents the boundary explicitly.
+
+Full text mirrored in `.planning/PROJECT.md` short-form ADR-028 (operator-managed; this ADR-intel doc is the authoritative ratification record).
+
