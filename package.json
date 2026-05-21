@@ -24,11 +24,12 @@
     "check:db-imports": "tsx --env-file=.env.local scripts/check-db-imports.ts",
     "check:rls": "tsx --env-file=.env.local scripts/check-rls.ts",
     "check:auth-context": "tsx --conditions=react-server --env-file=.env.local scripts/check-auth-context.ts",
+    "check:policies-list-filters": "tsx --conditions=react-server --env-file=.env.local scripts/check-policies-list-filters.ts",
     "check:admin-routes": "tsx scripts/check-admin-routes.ts",
     "check:error-discipline": "tsx scripts/check-error-discipline.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "verify:phase-3": "pnpm typecheck && pnpm check:db-imports && pnpm check:rls && pnpm check:auth-context && pnpm check:admin-routes && pnpm check:error-discipline && pnpm check:artifacts && pnpm test && node -e \"require('fs').rmSync('.tmp/svix-url.json', { force: true })\""
+    "verify:phase-3": "pnpm typecheck && pnpm check:db-imports && pnpm check:rls && pnpm check:auth-context && pnpm check:policies-list-filters && pnpm check:admin-routes && pnpm check:error-discipline && pnpm check:artifacts && pnpm test && node -e \"require('fs').rmSync('.tmp/svix-url.json', { force: true })\""
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
