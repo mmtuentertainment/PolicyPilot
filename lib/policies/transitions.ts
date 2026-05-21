@@ -31,7 +31,7 @@
 // for any direct policies-table updates. scripts/check-db-imports.ts
 // (Phase 2) enforces this at CI; the file's path is NOT in ALLOWLIST.
 import 'server-only';
-import { sql, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { withOrgScope, type OrgScope } from '@/lib/db/scoped';
 import { getOrgContext } from '@/lib/auth/context';
 import { Policies } from '@/lib/db/repositories/policies';
@@ -106,7 +106,7 @@ export async function submitForReview(
     await s.tx
       .update(policies)
       .set({ status: 'under_review', updatedAt: sql`now()` })
-      .where(eq(policies.id, policyId));
+      .where(and(eq(policies.orgId, s.orgId), eq(policies.id, policyId)));
   });
 }
 
@@ -132,7 +132,7 @@ export async function reject(policyId: PolicyId, _reason?: string): Promise<void
     await s.tx
       .update(policies)
       .set({ status: 'draft', updatedAt: sql`now()` })
-      .where(eq(policies.id, policyId));
+      .where(and(eq(policies.orgId, s.orgId), eq(policies.id, policyId)));
   });
 }
 
@@ -167,7 +167,7 @@ export async function publish(policyId: PolicyId): Promise<void> {
     await s.tx
       .update(policies)
       .set({ status: 'published', updatedAt: sql`now()` })
-      .where(eq(policies.id, policyId));
+      .where(and(eq(policies.orgId, s.orgId), eq(policies.id, policyId)));
   });
 }
 
@@ -183,7 +183,7 @@ export async function archive(policyId: PolicyId): Promise<void> {
     await s.tx
       .update(policies)
       .set({ status: 'archived', updatedAt: sql`now()` })
-      .where(eq(policies.id, policyId));
+      .where(and(eq(policies.orgId, s.orgId), eq(policies.id, policyId)));
   });
 }
 
@@ -211,7 +211,7 @@ export async function restore(policyId: PolicyId): Promise<void> {
         currentVersion: policy.currentVersion + 1,
         updatedAt: sql`now()`,
       })
-      .where(eq(policies.id, policyId));
+      .where(and(eq(policies.orgId, s.orgId), eq(policies.id, policyId)));
   });
 }
 
@@ -261,6 +261,6 @@ export async function editPublished(
         currentVersion: policy.currentVersion + 1,
         updatedAt: sql`now()`,
       })
-      .where(eq(policies.id, policyId));
+      .where(and(eq(policies.orgId, s.orgId), eq(policies.id, policyId)));
   });
 }
