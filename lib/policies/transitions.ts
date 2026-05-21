@@ -43,6 +43,7 @@ import {
   IllegalTransitionError,
   type PolicyStatus,
 } from './state-machine';
+import type { PolicyId } from './types';
 
 // Narrowed row shape returned by Policies.findById. The drizzle column
 // types come back as `string` for status and `unknown` for contentJson
@@ -66,7 +67,7 @@ type PolicyRow = {
  */
 async function loadAndAssertTransition(
   s: OrgScope,
-  policyId: string,
+  policyId: PolicyId,
   to: PolicyStatus,
 ): Promise<PolicyRow> {
   const rows = await Policies.findById(s, policyId);
@@ -90,13 +91,18 @@ async function loadAndAssertTransition(
  * either write fails, both roll back.
  */
 export async function submitForReview(
-  policyId: string,
+  policyId: PolicyId,
   reviewerId: string | null,
 ): Promise<void> {
   const ctx = await getOrgContext();
   await withOrgScope(ctx, async (s) => {
-    const policy = await loadAndAssertTransition(s, policyId, 'under_review');
-    await WorkflowStages.recordSubmission(s, policy.id, reviewerId);
+    await loadAndAssertTransition(s, policyId, 'under_review');
+    // ADR-028: use the branded `policyId` (already in scope) rather than
+    // `policy.id` (DB-row field typed as raw string) — semantically
+    // identical (`policy.id` comes from a query keyed on `policyId`),
+    // structurally cleaner because the orchestrator already holds the
+    // branded form. Avoids needing a type cast on the row.
+    await WorkflowStages.recordSubmission(s, policyId, reviewerId);
     await s.tx
       .update(policies)
       .set({ status: 'under_review', updatedAt: sql`now()` })
@@ -111,7 +117,7 @@ export async function submitForReview(
  * over the publish() body so the snapshot-and-flip logic stays in one
  * place during Phase 3.
  */
-export async function approve(policyId: string): Promise<void> {
+export async function approve(policyId: PolicyId): Promise<void> {
   await publish(policyId);
 }
 
@@ -119,7 +125,7 @@ export async function approve(policyId: string): Promise<void> {
  * under_review → draft (reject the submission). Does NOT touch
  * policy_versions — versions only track the published lineage (D-04).
  */
-export async function reject(policyId: string, _reason?: string): Promise<void> {
+export async function reject(policyId: PolicyId, _reason?: string): Promise<void> {
   const ctx = await getOrgContext();
   await withOrgScope(ctx, async (s) => {
     await loadAndAssertTransition(s, policyId, 'draft');
@@ -142,15 +148,18 @@ export async function reject(policyId: string, _reason?: string): Promise<void> 
  *      to v(N+1).
  * Both steps inside one withOrgScope tx — partial state impossible.
  */
-export async function publish(policyId: string): Promise<void> {
+export async function publish(policyId: PolicyId): Promise<void> {
   const ctx = await getOrgContext();
   await withOrgScope(ctx, async (s) => {
     const policy = await loadAndAssertTransition(s, policyId, 'published');
     // D-04: create policy_versions row capturing the about-to-be-published
     // content. L-05: append-only — PolicyVersions doesn't even export
     // update/delete, so this cannot accidentally mutate prior rows.
+    // ADR-028: pass the branded `policyId` (orchestrator input) into
+    // PolicyVersions.create's branded `policyId` field — `policy.id` is
+    // the same value but typed as raw `string` from the DB row.
     await PolicyVersions.create(s, {
-      policyId: policy.id,
+      policyId,
       versionNumber: policy.currentVersion,
       contentJson: policy.contentJson,
       createdBy: s.userId,
@@ -167,7 +176,7 @@ export async function publish(policyId: string): Promise<void> {
  * (the published vN row already exists in policy_versions from the
  * publish() call that landed it).
  */
-export async function archive(policyId: string): Promise<void> {
+export async function archive(policyId: PolicyId): Promise<void> {
   const ctx = await getOrgContext();
   await withOrgScope(ctx, async (s) => {
     await loadAndAssertTransition(s, policyId, 'archived');
@@ -191,7 +200,7 @@ export async function archive(policyId: string): Promise<void> {
  * the primary fix because it preserves the semantic intent that
  * restore→republish is a NEW version event (auditors expect a new vN row).
  */
-export async function restore(policyId: string): Promise<void> {
+export async function restore(policyId: PolicyId): Promise<void> {
   const ctx = await getOrgContext();
   await withOrgScope(ctx, async (s) => {
     const policy = await loadAndAssertTransition(s, policyId, 'draft');
@@ -224,7 +233,7 @@ export async function restore(policyId: string): Promise<void> {
  * rejects, and would otherwise be a phantom version row).
  */
 export async function editPublished(
-  policyId: string,
+  policyId: PolicyId,
   newContent: unknown,
   changeSummary?: string,
 ): Promise<void> {
@@ -235,8 +244,10 @@ export async function editPublished(
       throw new IllegalTransitionError(policy.status, 'draft');
     }
     // Snapshot the prior published version BEFORE overwriting (D-04 + L-05).
+    // ADR-028: pass branded `policyId` (orchestrator input) instead of
+    // `policy.id` (DB-row field typed as raw string).
     await PolicyVersions.create(s, {
-      policyId: policy.id,
+      policyId,
       versionNumber: policy.currentVersion,
       contentJson: policy.contentJson,
       createdBy: s.userId,

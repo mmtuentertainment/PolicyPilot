@@ -108,6 +108,16 @@ import {
   restore,
 } from './transitions';
 import { IllegalTransitionError } from './state-machine';
+import type { PolicyId } from './types';
+
+// ADR-028 — orchestrator signatures now require `policyId: PolicyId` (the
+// branded nominal type from `@/lib/policies/types`). Tests bypass the
+// runtime UUID validation (these are pure-orchestrator unit tests with
+// mocked repositories — `'p1'` is a fixture identifier, not a real UUID),
+// so we cast through the brand at the fixture boundary. The cast is safe
+// because the mocks never call the runtime validator; production callers
+// MUST go through `policyIdFromString(...)` or `PolicyIdSchema.parse(...)`.
+const POLICY_ID_FIXTURE = 'p1' as unknown as PolicyId;
 
 beforeEach(() => {
   findByIdMock.mockReset();
@@ -121,21 +131,21 @@ beforeEach(() => {
 describe('publish (REQ-policy-lifecycle SC#2)', () => {
   it('throws "Policy not found" when findById is empty', async () => {
     findByIdMock.mockResolvedValueOnce([]);
-    await expect(publish('p1')).rejects.toThrow('Policy not found');
+    await expect(publish(POLICY_ID_FIXTURE)).rejects.toThrow('Policy not found');
   });
 
   it('throws IllegalTransitionError on archived → published', async () => {
     findByIdMock.mockResolvedValueOnce([
       { id: 'p1', status: 'archived', currentVersion: 1, contentJson: {} },
     ]);
-    await expect(publish('p1')).rejects.toBeInstanceOf(IllegalTransitionError);
+    await expect(publish(POLICY_ID_FIXTURE)).rejects.toBeInstanceOf(IllegalTransitionError);
   });
 
   it('creates a policy_versions snapshot of currentVersion before flipping status (draft → published)', async () => {
     findByIdMock.mockResolvedValueOnce([
       { id: 'p1', status: 'draft', currentVersion: 2, contentJson: { type: 'doc' } },
     ]);
-    await publish('p1');
+    await publish(POLICY_ID_FIXTURE);
     expect(pvCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({ orgId: 'org_1', userId: 'user_1', role: 'admin' }),
       expect.objectContaining({
@@ -152,7 +162,7 @@ describe('publish (REQ-policy-lifecycle SC#2)', () => {
     findByIdMock.mockResolvedValueOnce([
       { id: 'p1', status: 'under_review', currentVersion: 1, contentJson: {} },
     ]);
-    await expect(publish('p1')).resolves.toBeUndefined();
+    await expect(publish(POLICY_ID_FIXTURE)).resolves.toBeUndefined();
   });
 });
 
@@ -161,7 +171,7 @@ describe('editPublished (REQ-policy-lifecycle SC#3)', () => {
     findByIdMock.mockResolvedValueOnce([
       { id: 'p1', status: 'draft', currentVersion: 1, contentJson: {} },
     ]);
-    await expect(editPublished('p1', { type: 'doc' })).rejects.toBeInstanceOf(
+    await expect(editPublished(POLICY_ID_FIXTURE, { type: 'doc' })).rejects.toBeInstanceOf(
       IllegalTransitionError,
     );
   });
@@ -175,7 +185,7 @@ describe('editPublished (REQ-policy-lifecycle SC#3)', () => {
       type: 'doc',
       content: [{ type: 'paragraph', content: [{ type: 'text', text: 'edited' }] }],
     };
-    await editPublished('p1', newContent, 'fixed typo');
+    await editPublished(POLICY_ID_FIXTURE, newContent, 'fixed typo');
 
     // 1. PolicyVersions.create called with the OLD content + OLD version number
     expect(pvCreateMock).toHaveBeenCalledWith(
@@ -198,7 +208,7 @@ describe('submitForReview', () => {
     findByIdMock.mockResolvedValueOnce([
       { id: 'p1', status: 'archived', currentVersion: 1, contentJson: {} },
     ]);
-    await expect(submitForReview('p1', null)).rejects.toBeInstanceOf(
+    await expect(submitForReview(POLICY_ID_FIXTURE, null)).rejects.toBeInstanceOf(
       IllegalTransitionError,
     );
   });
@@ -207,7 +217,7 @@ describe('submitForReview', () => {
     findByIdMock.mockResolvedValueOnce([
       { id: 'p1', status: 'draft', currentVersion: 1, contentJson: {} },
     ]);
-    await submitForReview('p1', null);
+    await submitForReview(POLICY_ID_FIXTURE, null);
     expect(wfSubmitMock).toHaveBeenCalledWith(expect.anything(), 'p1', null);
     expect(txUpdateMock).toHaveBeenCalled();
   });
@@ -218,7 +228,7 @@ describe('reject', () => {
     findByIdMock.mockResolvedValueOnce([
       { id: 'p1', status: 'under_review', currentVersion: 1, contentJson: {} },
     ]);
-    await expect(reject('p1')).resolves.toBeUndefined();
+    await expect(reject(POLICY_ID_FIXTURE)).resolves.toBeUndefined();
     expect(txUpdateMock).toHaveBeenCalled();
   });
 
@@ -226,7 +236,7 @@ describe('reject', () => {
     findByIdMock.mockResolvedValueOnce([
       { id: 'p1', status: 'draft', currentVersion: 1, contentJson: {} },
     ]);
-    await expect(reject('p1')).rejects.toBeInstanceOf(IllegalTransitionError);
+    await expect(reject(POLICY_ID_FIXTURE)).rejects.toBeInstanceOf(IllegalTransitionError);
   });
 });
 
@@ -235,21 +245,21 @@ describe('archive + restore', () => {
     findByIdMock.mockResolvedValueOnce([
       { id: 'p1', status: 'published', currentVersion: 1, contentJson: {} },
     ]);
-    await expect(archive('p1')).resolves.toBeUndefined();
+    await expect(archive(POLICY_ID_FIXTURE)).resolves.toBeUndefined();
   });
 
   it('archive throws on draft → archived (illegal)', async () => {
     findByIdMock.mockResolvedValueOnce([
       { id: 'p1', status: 'draft', currentVersion: 1, contentJson: {} },
     ]);
-    await expect(archive('p1')).rejects.toBeInstanceOf(IllegalTransitionError);
+    await expect(archive(POLICY_ID_FIXTURE)).rejects.toBeInstanceOf(IllegalTransitionError);
   });
 
   it('restore flips archived → draft', async () => {
     findByIdMock.mockResolvedValueOnce([
       { id: 'p1', status: 'archived', currentVersion: 1, contentJson: {} },
     ]);
-    await expect(restore('p1')).resolves.toBeUndefined();
+    await expect(restore(POLICY_ID_FIXTURE)).resolves.toBeUndefined();
   });
 
   // 03-G3 T5 — close DUP-VN: restore() now bumps currentVersion so the
@@ -259,7 +269,7 @@ describe('archive + restore', () => {
     findByIdMock.mockResolvedValueOnce([
       { id: 'p1', status: 'archived', currentVersion: 3, contentJson: {} },
     ]);
-    await restore('p1');
+    await restore(POLICY_ID_FIXTURE);
     expect(txSetMock).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'draft', currentVersion: 4 }),
     );
@@ -270,13 +280,13 @@ describe('archive + restore', () => {
     findByIdMock.mockResolvedValueOnce([
       { id: 'p1', status: 'published', currentVersion: 1, contentJson: { type: 'doc' } },
     ]);
-    await archive('p1');
+    await archive(POLICY_ID_FIXTURE);
 
     // Step 2: restore → must bump currentVersion to 2
     findByIdMock.mockResolvedValueOnce([
       { id: 'p1', status: 'archived', currentVersion: 1, contentJson: { type: 'doc' } },
     ]);
-    await restore('p1');
+    await restore(POLICY_ID_FIXTURE);
     expect(txSetMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ status: 'draft', currentVersion: 2 }),
     );
@@ -287,7 +297,7 @@ describe('archive + restore', () => {
     findByIdMock.mockResolvedValueOnce([
       { id: 'p1', status: 'draft', currentVersion: 2, contentJson: { type: 'doc' } },
     ]);
-    await publish('p1');
+    await publish(POLICY_ID_FIXTURE);
     expect(pvCreateMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ policyId: 'p1', versionNumber: 2 }),
@@ -300,7 +310,7 @@ describe('approve', () => {
     findByIdMock.mockResolvedValueOnce([
       { id: 'p1', status: 'under_review', currentVersion: 1, contentJson: { type: 'doc' } },
     ]);
-    await expect(approve('p1')).resolves.toBeUndefined();
+    await expect(approve(POLICY_ID_FIXTURE)).resolves.toBeUndefined();
     expect(pvCreateMock).toHaveBeenCalled();
   });
 });

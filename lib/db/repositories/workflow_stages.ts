@@ -21,6 +21,7 @@ import 'server-only';
 import type { OrgScope } from '@/lib/db/scoped';
 import { workflowStages } from '@/lib/db/schema';
 import { and, desc, eq, sql } from 'drizzle-orm';
+import type { PolicyId } from '@/lib/policies/types';
 
 export const WorkflowStages = {
   listAll: (s: OrgScope) =>
@@ -50,7 +51,7 @@ export const WorkflowStages = {
    */
   recordSubmission: (
     s: OrgScope,
-    policyId: string,
+    policyId: PolicyId,
     reviewerId: string | null,
   ) =>
     s.tx
@@ -97,7 +98,7 @@ export const WorkflowStages = {
    * `workflowStages` has no createdAt column today — stageOrder is the
    * canonical sequencing field. Feeds reviewer audit views.
    */
-  listForPolicy: (s: OrgScope, policyId: string) =>
+  listForPolicy: (s: OrgScope, policyId: PolicyId) =>
     s.tx
       .select()
       .from(workflowStages)

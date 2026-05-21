@@ -22,6 +22,7 @@ import type { OrgScope } from '@/lib/db/scoped';
 import { policies } from '@/lib/db/schema';
 import { and, desc, eq, ilike, or, sql } from 'drizzle-orm';
 import type { PolicyStatus } from '@/lib/policies/state-machine';
+import type { PolicyId } from '@/lib/policies/types';
 
 /**
  * Input type for Policies.create. Drizzle's $inferInsert produces the
@@ -48,7 +49,7 @@ export const Policies = {
   listAll: (s: OrgScope) =>
     s.tx.select().from(policies).where(eq(policies.orgId, s.orgId)),
 
-  findById: (s: OrgScope, id: string) =>
+  findById: (s: OrgScope, id: PolicyId) =>
     s.tx
       .select()
       .from(policies)
@@ -107,7 +108,7 @@ export const Policies = {
    */
   updateDraft: (
     s: OrgScope,
-    id: string,
+    id: PolicyId,
     patch: { title?: string; category?: string; contentJson?: unknown },
   ) =>
     s.tx
@@ -122,7 +123,7 @@ export const Policies = {
    * policy_versions row. Returns the new value for caller use.
    * WHERE includes BOTH orgId AND id (T-03-04-04 mitigation).
    */
-  incrementVersion: (s: OrgScope, id: string) =>
+  incrementVersion: (s: OrgScope, id: PolicyId) =>
     s.tx
       .update(policies)
       .set({

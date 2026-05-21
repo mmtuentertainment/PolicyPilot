@@ -29,6 +29,7 @@ import 'server-only';
 import type { OrgScope } from '@/lib/db/scoped';
 import { policyVersions } from '@/lib/db/schema';
 import { and, desc, eq } from 'drizzle-orm';
+import type { PolicyId } from '@/lib/policies/types';
 
 export const PolicyVersions = {
   listAll: (s: OrgScope) =>
@@ -46,7 +47,7 @@ export const PolicyVersions = {
   create: (
     s: OrgScope,
     input: {
-      policyId: string;
+      policyId: PolicyId;
       versionNumber: number;
       contentJson: unknown;
       createdBy: string;
@@ -65,7 +66,7 @@ export const PolicyVersions = {
    * Version history for a single policy, scoped by orgId AND policyId,
    * ordered newest-first. Feeds Plan 03-10's <PolicyVersionHistory />.
    */
-  listForPolicy: (s: OrgScope, policyId: string) =>
+  listForPolicy: (s: OrgScope, policyId: PolicyId) =>
     s.tx
       .select()
       .from(policyVersions)
@@ -84,7 +85,7 @@ export const PolicyVersions = {
    */
   findByVersionNumber: (
     s: OrgScope,
-    policyId: string,
+    policyId: PolicyId,
     versionNumber: number,
   ) =>
     s.tx

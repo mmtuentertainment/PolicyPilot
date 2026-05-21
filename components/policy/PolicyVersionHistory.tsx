@@ -23,6 +23,7 @@
 import { getOrgContext } from '@/lib/auth/context';
 import { withOrgScope } from '@/lib/db/scoped';
 import { PolicyVersions } from '@/lib/db/repositories/policy_versions';
+import type { PolicyId } from '@/lib/policies/types';
 
 function formatTimestamp(d: Date | string | null | undefined): string {
   if (!d) return 'unknown';
@@ -34,7 +35,12 @@ function formatTimestamp(d: Date | string | null | undefined): string {
   });
 }
 
-export async function PolicyVersionHistory({ policyId }: { policyId: string }) {
+// ADR-028: prop branded as `PolicyId` so the call to
+// `PolicyVersions.listForPolicy` (which now requires `PolicyId`) typechecks
+// without a runtime re-validation. Caller (the only one: `app/(admin)/
+// policies/[id]/page.tsx`) already validated the URL `id` via
+// `PolicyIdSchema.safeParse` + `notFound()` before render.
+export async function PolicyVersionHistory({ policyId }: { policyId: PolicyId }) {
   const ctx = await getOrgContext();
   const versions = await withOrgScope(ctx, async (s) =>
     PolicyVersions.listForPolicy(s, policyId),

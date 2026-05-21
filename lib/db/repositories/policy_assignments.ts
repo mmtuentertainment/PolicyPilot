@@ -6,6 +6,7 @@ import 'server-only';
 import type { OrgScope } from '@/lib/db/scoped';
 import { policyAssignments } from '@/lib/db/schema';
 import { and, eq } from 'drizzle-orm';
+import type { PolicyId } from '@/lib/policies/types';
 
 type PolicyAssignmentCreateInput = Omit<
   typeof policyAssignments.$inferInsert,
@@ -19,7 +20,7 @@ export const PolicyAssignments = {
       .from(policyAssignments)
       .where(eq(policyAssignments.orgId, s.orgId)),
 
-  listForPolicy: (s: OrgScope, policyId: string) =>
+  listForPolicy: (s: OrgScope, policyId: PolicyId) =>
     s.tx
       .select()
       .from(policyAssignments)
