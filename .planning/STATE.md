@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: "Phase 03 — Admin UI COMPLETE 2026-05-20 (14 main plans 03-00..03-11 + 3 gap-closure plans 03-G1 + 03-G2 + 03-G3; 6/6 HUMAN-UAT PASS; verify:phase-2 8/8 OK; verify:phase-3 8 gates + 269/269 artifacts + 53/53 vitest; SF-WHSEC-1 closed; SF-W5 closed by 03-G3 T7; DUP-VN closed by 03-G3 T1+T2+T3; MYPOL-STUB closed by 03-G3 T9). Ready for Phase 3 PR (gsd/phase-3-admin-ui → main, squash-merge per CLAUDE.md) then Phase 4 (AI Layer)."
-last_updated: "2026-05-20T17:30:00.000Z"
+status: "Phase 03 — Admin UI SHIPPED 2026-05-20 (PR #3 squash-merged to main @ edebab7; 5 CodeRabbit cycles + 2 pr-review-toolkit cycles; final state 8 gates + 270/270 artifacts + 76/76 vitest). Next: /gsd-discuss-phase 4 (AI Layer)."
+last_updated: "2026-05-20T20:35:00.000Z"
 progress:
   total_phases: 8
   completed_phases: 3
@@ -36,14 +36,19 @@ Next phase: 4 (AI Layer) — not yet planned
 
 - **Phase 1** — Foundation **complete** (2026-05-16; 5/5 plans; PR #1 merged)
 - **Phase 2** — Data Layer **complete** (2026-05-18; 7/7 plans = 6 main + 02-07 hotfix; verify:phase-2 8/8 OK; PR #2 squash-merged to `main` @ `130b8ab` on 2026-05-19)
-- **Phase 3** — Admin UI **complete** (2026-05-20; 15/15 plans = 12 main 03-00..03-11 + 3 gap-closure 03-G1/G2/G3; 6/6 HUMAN-UAT PASS; verify:phase-2 8/8 OK; verify:phase-3 8 gates + 270/270 artifacts + 53/53 vitest; PR #3 OPEN on `gsd/phase-3-admin-ui`)
+- **Phase 3** — Admin UI **SHIPPED** (2026-05-20; 15/15 plans = 12 main 03-00..03-11 + 3 gap-closure 03-G1/G2/G3; 6/6 HUMAN-UAT PASS; final verify:phase-3 8 gates + 270/270 artifacts + 76/76 vitest; PR #3 squash-merged to `main` @ `edebab7` after 5 CodeRabbit cycles + 2 pr-review-toolkit cycles + 4 post-review fix commits — `cr-pr3-postreview-v1..v4`; branch `gsd/phase-3-admin-ui` deleted)
 - **Progress**: 3 / 8 phases complete (38%)
 
 ```text
-[███░░░░░] 3/8 phases  —  Foundation ✓  ·  Data Layer ✓  ·  Admin UI ✓ (PR #3 open)
+[███░░░░░] 3/8 phases  —  Foundation ✓  ·  Data Layer ✓  ·  Admin UI ✓
 ```
 
-**Next action**: review + merge PR #3, then `/gsd-discuss-phase 4` to begin Phase 4 (AI Layer — Draft, TL;DR, Q&A, Consistency Check; depends on Phase 3 admin shell).
+**Next action**: `/gsd-discuss-phase 4` to begin Phase 4 (AI Layer — Draft, TL;DR, Q&A, Consistency Check; depends on Phase 3 admin shell).
+
+**Fast-follow PR backlog** (deferred from PR #3 per operator's explicit scoping — architecture changes that require a BLUEPRINT.md update first, per CLAUDE.md ASK FIRST rule #2):
+- Typed error class hierarchy in `lib/auth/context.ts` (replaces the current `String.includes(needle)` allow-list in `lib/auth/bootstrap-errors.ts` — pinned by 8 divergence tests but architecturally fragile).
+- `PolicyId` branded type threaded through repository signatures (currently UUIDs are bare `string` everywhere; branded type would enforce "this string came from PolicyIdSchema parse" at the type level).
+- Surface to operator BEFORE starting Phase 4: scope as Phase 3.1 polish PR vs roll into Phase 4 prelude.
 
 **Carry-forward queue** (deferred to later phases; all gaps surfaced in Phase 3 UAT are CLOSED in this PR — see 03-G3 SUMMARY):
 
@@ -178,6 +183,8 @@ Surfaced by `/pr-review-toolkit:review-pr` against PR #1 head `e3689d3` (silent-
 
 - **Resume 2026-05-20T17:42Z**: Session resumed via `/gsd-resume-work`. PR #3 state advanced since HANDOFF.json (17:29Z): CR's 3rd re-review fired at 17:32:08Z with 1 finding (policyId rejection log was exposing JSON.stringify(id.slice(0,8))). Commit `0287bb6` (17:38:41-04:00Z) responded by dropping the `type` + `sample` log fields and keeping `length` only. CR's 4th review is now PENDING at new HEAD `0287bb6` (status check started 17:38:49Z). Monitor `bjcxzydia` (persistent) re-armed against `.tmp/monitor-pr3.mjs`. PR state on resume: `state=OPEN`, `reviewDecision=CHANGES_REQUESTED` (carryover from CR review on `bd25409`), `mergeStateStatus=UNSTABLE`. Wait state — next signal is CR's 4th review verdict.
 
+- **Phase 3 shipped 2026-05-20T20:35Z**: PR #3 squash-merged to `main` @ `edebab7` after the full review loop completed. Loop summary: CR re-review #4 surfaced 3 findings on `0287bb6` (reviewerId UUID validation, empty-patch rejection, absolute Windows path leak in HANDOFF.json + .continue-here.md) → fix commit `a9ba7f5` (`cr-pr3-postreview-v3` — also deleted HANDOFF.json per resume workflow one-shot rule). Operator-triggered pr-review-toolkit re-review on `bd25409..a9ba7f5` (4 agents — code-reviewer/pr-test-analyzer/silent-failure-hunter/comment-analyzer) returned 0 BLOCK / 0 FLAG from code-reviewer but surfaced 1 Critical (inaccurate empty-patch comment — verified wrong against `lib/db/repositories/policies.ts:113-117`) + 2 MEDIUM (collapsed error strings + missing reviewerId log breadcrumb) + 2 crit-5 (no uppercase-UUID test, no whitespace-trim test) → fix commit `4ea8aab` (`cr-pr3-postreview-v4` — fixed all 5, deferred 3 cosmetic improvements). CR APPROVED `4ea8aab`, `gh pr merge 3 --squash --delete-branch` executed, `git pull --ff-only` to `edebab7`. Branch `gsd/phase-3-admin-ui` deleted on remote + local. Monitor `bjcxzydia` already self-exited before the merge (transient gh failure earlier).
+
 ---
 
 ## Phase Roster
@@ -186,7 +193,7 @@ Surfaced by `/pr-review-toolkit:review-pr` against PR #1 head `e3689d3` (silent-
 |---|-------|--------------|--------|
 | 1 | Foundation | REQ-product-vision | Complete — 5/5 plans shipped 2026-05-16 (PR #1) |
 | 2 | Data Layer | REQ-user-roles, REQ-multi-tenancy | Complete — Plans 02-01..02-06 + 02-07 hotfix shipped 2026-05-17 → 2026-05-18 (7 / 7 plans complete); `pnpm verify:phase-2` exits 0 with 7/7 OK against live TEST DB. Code-review CR-01 (webhook publicMetadata.role mirror) + HI-01 (middleware narrowing parity) closed by Plan 02-07. Blockers: SF-DB-1 CLOSED, SF-DB-2 CLOSED, SF-M4 FULLY CLOSED, CR-01 CLOSED, HI-01 CLOSED. Carry-forward: CR-02 admin-matcher dead code → Phase 3. |
-| 3 | Admin UI | REQ-policy-library, REQ-policy-lifecycle, REQ-access-control | Not started |
+| 3 | Admin UI | REQ-policy-library, REQ-policy-lifecycle, REQ-access-control | Shipped — PR #3 squash-merged @ `edebab7` (2026-05-20) |
 | 4 | AI Layer | REQ-ai-policy-assistant, REQ-ai-usage-rules | Not started |
 | 5 | Employee Portal | REQ-acknowledgment-tracking, REQ-acknowledgment-rules | Not started |
 | 6 | Billing | REQ-tier-starter, REQ-tier-growth, REQ-tier-business | Not started |
