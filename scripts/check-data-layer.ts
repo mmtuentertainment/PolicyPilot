@@ -143,6 +143,29 @@ function checkRls(): Result {
 }
 
 /**
+ * Runs the 03-G1 auth-context integration test against the TEST DB —
+ * verifies that getOrgContext's Clerk-text → internal-UUID translation
+ * flows correctly through withOrgScope into Policies.statusCounts, and
+ * that the negative control (Clerk-text orgId injected into withOrgScope)
+ * still triggers Postgres 22P02.
+ */
+function checkAuthContext(): Result {
+  // --conditions=react-server is required because check-auth-context.ts
+  // dynamically imports `@/lib/db/scoped` which transitively imports
+  // `lib/db/index.ts` (the `import "server-only"` boundary). Without the
+  // flag, server-only throws "This module cannot be imported from a
+  // Client Component module" at module-load time. The standalone
+  // `pnpm check:auth-context` script in package.json already passes this
+  // flag; the data-layer orchestrator was missing it from 03-G1 d148f15
+  // — fixed here as a sub-task of 03-G3 T4 since verify:phase-2 needs to
+  // be green for the Phase 3 PR.
+  return runChild(
+    [TSX_ENTRY, '--conditions=react-server', 'scripts/check-auth-context.ts'],
+    '03-G1 — auth-context Clerk-text → UUID translation (TEST DB)',
+  );
+}
+
+/**
  * Runs the schema audit that checks pg_catalog and information_schema for inconsistencies.
  *
  * @returns A `Result` whose `ok` is `true` if the audit passed, `false` otherwise; on failure `detail` contains diagnostic text. 
@@ -223,31 +246,35 @@ async function main(): Promise<void> {
 
   const c1 = checkTypecheck();
   results.push(c1);
-  logResult(1, 7, c1);
+  logResult(1, 8, c1);
 
   const c2 = checkMigrateTest();
   results.push(c2);
-  logResult(2, 7, c2);
+  logResult(2, 8, c2);
 
   const c3 = checkDbImports();
   results.push(c3);
-  logResult(3, 7, c3);
+  logResult(3, 8, c3);
 
   const c4 = checkRls();
   results.push(c4);
-  logResult(4, 7, c4);
+  logResult(4, 8, c4);
 
-  const c5 = checkSchema();
+  const c5 = checkAuthContext();
   results.push(c5);
-  logResult(5, 7, c5);
+  logResult(5, 8, c5);
 
-  const c6 = checkArtifacts();
+  const c6 = checkSchema();
   results.push(c6);
-  logResult(6, 7, c6);
+  logResult(6, 8, c6);
 
-  const c7 = await checkStaleNullUsers();
+  const c7 = checkArtifacts();
   results.push(c7);
-  logResult(7, 7, c7);
+  logResult(7, 8, c7);
+
+  const c8 = await checkStaleNullUsers();
+  results.push(c8);
+  logResult(8, 8, c8);
 
   console.log('');
   const failed = results.filter((r) => !r.ok);

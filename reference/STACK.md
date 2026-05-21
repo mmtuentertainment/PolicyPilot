@@ -21,6 +21,34 @@ cheaper. Clerk has pre-built Organization management (multi-tenant B2B), SAML
 SSO, and native Next.js components. Auth working in under 10 minutes.
 Auth0 only wins for Fortune 500 HIPAA — not our buyer.
 
+### Embedded component redirect config
+
+The embedded `<SignIn />` and `<SignUp />` components shipped by
+`app/(auth)/sign-in/[[...sign-in]]/page.tsx` and
+`app/(auth)/sign-up/[[...sign-up]]/page.tsx` honor TWO env vars to
+decide where to redirect after a successful auth flow:
+
+- `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/post-sign-in`
+- `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=/post-sign-in`
+
+Both MUST point at `/post-sign-in` (the trampoline created by Plan 03-02
+L-03). Without these env vars, the components default to redirecting
+to `/`, which dead-ends marketing-page users back on the marketing
+page instead of the admin dashboard.
+
+**Embedded vs hosted-portal:** The Clerk Account Portal's "After
+sign-in fallback" config in the Clerk Dashboard governs ONLY the
+hosted portal (clerk.<your-app>.com domains). It does NOT govern the
+embedded components in `app/(auth)/`. PolicyPilot ships the embedded
+components, so the env-var path is the load-bearing one. Both
+Dashboard config and env vars should still point at `/post-sign-in`
+for consistency, since the post-sign-in trampoline handles both
+inbound paths idempotently.
+
+**Verification:** `scripts/check-foundation.ts` asserts both env vars
+are present and non-empty in `.env.local` (see `pnpm verify:phase-1`).
+Surfaced by GAP-3 in `.planning/phases/03-admin-ui/03-SMOKE.md`.
+
 ## Why Stripe (not Paddle/Lemon Squeezy)
 Stripe at 2.9% + 0.7% billing < Paddle at 5%+ for MRR over ~$3K/month.
 Paddle's Merchant of Record is useful for global tax but overkill at MVP.

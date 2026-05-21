@@ -18,6 +18,7 @@
 /* eslint-disable @typescript-eslint/no-unused-expressions */
 import { Acknowledgments } from '@/lib/db/repositories/acknowledgments';
 import { Policies } from '@/lib/db/repositories/policies';
+import { PolicyVersions } from '@/lib/db/repositories/policy_versions';
 
 // Extract the OrgScope shape from Policies.create's first parameter so we
 // can supply a typed placeholder without reaching for `as any`. The third
@@ -34,3 +35,16 @@ void Acknowledgments.delete;
 
 // @ts-expect-error — Policies.create input must omit `tldrSummary` (ADR-005 — generated at publish)
 void Policies.create(ORG_SCOPE_STUB, { tldrSummary: 'x' });
+
+// ---- Phase 3 L-05 invariants (PolicyVersions append-only spirit) ----
+// Plan 03-04: PolicyVersions mirrors Acknowledgments' append-only contract.
+// A version row IS the as-of-publish snapshot an acknowledgment points at
+// (acknowledgments.policy_version_id FK). Mutating or deleting it would
+// silently rewrite the audit trail. If the repository ever grows an
+// `update` or `delete` key, tsc will SUCCEED on these lines and fail the
+// build — that is the intended failure mode of the inverted-polarity guard.
+
+// @ts-expect-error — PolicyVersions must not expose `update` (L-05 / ADR-018-spirit)
+void PolicyVersions.update;
+// @ts-expect-error — PolicyVersions must not expose `delete` (L-05 / ADR-018-spirit)
+void PolicyVersions.delete;

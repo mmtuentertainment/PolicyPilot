@@ -10,7 +10,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 
 - [x] **Phase 1: Foundation** — Next.js 15 + Clerk + Supabase wired up, `localhost:3000` loads clean. ✓ 2026-05-16 (operator-approved; VERIFICATION.md PASS)
 - [x] **Phase 2: Data Layer** — Drizzle schema + RLS + Clerk webhooks; `org_id` invariant established. ✓ 2026-05-18 (operator-approved; `pnpm verify:phase-2` 7/7 OK; webhook live-smoke deferred to Phase 3)
-- [ ] **Phase 3: Admin UI** — Policy library, TipTap editor, full lifecycle (Draft → Published → Archived).
+- [x] **Phase 3: Admin UI** — Policy library, TipTap editor, full lifecycle (Draft → Published → Archived). ✓ 2026-05-20 (12 main plans 03-00..03-11 + 3 gap-closure plans 03-G1/G2/G3 = 15 total; 6/6 HUMAN-UAT PASS; verify:phase-2 8/8 OK; verify:phase-3 8 gates + 270/270 artifacts + 53/53 vitest)
 - [ ] **Phase 4: AI Layer** — Draft generation, TL;DR summaries, Employee Q&A, Consistency Check (Growth+).
 - [ ] **Phase 5: Employee Portal** — Assigned-policies dashboard + append-only acknowledgment flow.
 - [ ] **Phase 6: Billing** — Stripe Checkout + 5-event webhook + tier gating via `TIER_LIMITS`.
@@ -71,7 +71,22 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
   3. Editing a published policy automatically creates a new `policy_versions` row AND resets `policies.status` to Draft.
   4. Admin policy library list shows all policies in all statuses for the admin's org; an `org_id` impersonation cannot view another org's list.
   5. Search by title, category, and content keyword returns the expected results scoped by `org_id`.
-**Plans**: TBD
+**Plans**: 15 plans (12 main 03-00..03-11 + 3 gap-closure 03-G1/G2/G3)
+- [x] 03-00-PLAN.md — Operator manual config: rotate Clerk whsec_… (L-04) + change Clerk After-sign-in URL to /post-sign-in (L-03 dashboard half) + verify Organizations toggle
+- [x] 03-01-PLAN.md — Wave 0: vitest install + verify:phase-3 orchestrator + scripts/check-admin-routes.ts scaffold + check-artifacts Phase 3 extension + .tmp/svix-url.json cleanup tail (L-06c)
+- [x] 03-02-PLAN.md — middleware admin matcher rewrite (L-02 / CR-02) + lib/auth/require-admin.ts (L-01) + delete app/sign-in-success + ship /post-sign-in trampoline (L-03)
+- [x] 03-03-PLAN.md — lib/policies/state-machine.ts (D-03 pure module) + 16-case truth-table tests (TDD RED→GREEN)
+- [x] 03-04-PLAN.md — Repository bodies: Policies + PolicyVersions (L-05 append-only) + WorkflowStages (D-11) + tests/types.ts L-05 invariants
+- [x] 03-05-PLAN.md — Phase 2 webhook hardening: L-06a (silent-loss fix on dispatch error) + L-06b (maskClerkOrgId helper applied at 4+ log sites)
+- [x] 03-06-PLAN.md — lib/policies/transitions.ts: 7 server-only orchestrators wrapping withOrgScope (D-03 + D-04 + L-05) — TDD with publish + editPublished snapshot semantics
+- [x] 03-07-PLAN.md — Server Actions: createPolicyAction (new/actions.ts) + 8 transition actions ([id]/actions.ts) — Zod validation + revalidatePath + redirect-outside-try/catch (D-09)
+- [x] 03-08-PLAN.md — Dependency install: @tiptap/* 2.27.2 (4 pkgs) + zod ^3.23.5 + shadcn add table/sidebar/dropdown-menu/dialog/form/label/select/textarea/badge (D-02 + D-09 + D-13) — legitimacy gated
+- [x] 03-09-PLAN.md — Admin shell: app/(admin)/layout.tsx (L-01 gate + SidebarProvider) + AdminSidebar (x-pathname active state) + AdminTopbar (children slot for Clerk widgets)
+- [x] 03-10-PLAN.md — Policy components: PolicyEditor (Client, immediatelyRender:false) + PolicyView (Server, generateHTML) + PolicyStatusBadge + PolicyTransitionMenu (Client) + PolicyVersionHistory (Server)
+- [x] 03-11-PLAN.md — Admin pages: /dashboard + /policies + /policies/new + /policies/[id] + /onboarding/create-org — webhook live-smoke checkpoint + ROADMAP SC walkthrough
+- [x] 03-G1-PLAN.md — Gap closure: GAP-1 (BLOCKER) getOrgContext Clerk-text → internal UUID translation + scripts/check-auth-context.ts integration test + 9 one-off smoke recovery scripts deletion ✓ 2026-05-19 (commit `ea68a0e`)
+- [x] 03-G2-PLAN.md — Gap closure: GAP-3 (MINOR) embedded Clerk fallback redirect env vars + reference/STACK.md docs + scripts/check-foundation.ts 7th check ✓ 2026-05-19 (commit `eae3f77`)
+- [x] 03-G3-PLAN.md — Gap closure: DUP-VN (BLOCKER) restore() bumps currentVersion + schema UNIQUE(policy_id, version_number) + cleanup migration + check-schema audit; SF-W5 (HIGH) webhook race fix via clerk_events deletion on non-2xx return; MYPOL-STUB (MEDIUM) /my-policies Phase 5 stub ✓ 2026-05-20 (commits `2da89b4` T7, `437b77d` T1+T5, `cef7a88` T2+T3+T4, `6706b32` T6, `43670bb` T9; T8 SF-W5 vitest deferred to Phase 7+ test-coverage plan)
 **UI hint**: yes
 
 ### Phase 4: AI Layer
@@ -150,7 +165,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 |-------|----------------|--------|-----------|
 | 1. Foundation | 5/5 | Complete | 2026-05-16 |
 | 2. Data Layer | 7/7 | Complete | 2026-05-18 |
-| 3. Admin UI | 0/0 | Not started | - |
+| 3. Admin UI | 15/15 | Complete | 2026-05-20 |
 | 4. AI Layer | 0/0 | Not started | - |
 | 5. Employee Portal | 0/0 | Not started | - |
 | 6. Billing | 0/0 | Not started | - |

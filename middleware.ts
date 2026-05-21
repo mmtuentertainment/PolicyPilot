@@ -29,26 +29,70 @@ const isCronRoute = createRouteMatcher([
   "/api/cron/(.*)",
 ]);
 
-const isAdminRoute = createRouteMatcher([
-  "/(admin)/(.*)",
-]);
+// L-02 / CR-02 closure (Plan 03-02 Task 2) — replaces the dead Phase 1+2
+// route-group catch-all (the regex over the (admin) route group that
+// never appears in URLs). ADMIN_URL_PATTERNS matches the real URLs admin
+// pages live at (D-01).
+//
+// CR-PR3-#16 closure (2026-05-20): /onboarding moved out of this array.
+// It used to be listed here ("admin URL, role-unrequired") so the
+// chokepoint behavior was uniform; but that required the (admin) layout
+// to do a header-derived role-bypass for /onboarding paths. Onboarding
+// is now its own route group (app/(onboarding)/) and flows through the
+// default chokepoint at the bottom of clerkMiddleware — auth required,
+// no role check, path-structural decision. The (admin) layout now calls
+// requireAdmin() unconditionally for everything under (admin)/.
+const ADMIN_URL_PATTERNS: RegExp[] = [
+  /^\/dashboard(\/|$)/,
+  /^\/policies(\/|$)/,
+];
+function isAdminRoute(pathname: string): boolean {
+  return ADMIN_URL_PATTERNS.some((p) => p.test(pathname));
+}
+
+// Every entry in ADMIN_URL_PATTERNS now requires admin role — onboarding
+// (which was the only entry that didn't) lives outside this array. Kept
+// as a separate function for future flexibility (if a future admin URL
+// needs auth without role, we have the seam) and to preserve the
+// defense-in-depth structure the previous comment described.
+const ADMIN_ROLE_REQUIRED_PATTERNS: RegExp[] = [
+  /^\/dashboard(\/|$)/,
+  /^\/policies(\/|$)/,
+];
+function requiresAdminRole(pathname: string): boolean {
+  return ADMIN_ROLE_REQUIRED_PATTERNS.some((p) => p.test(pathname));
+}
 
 export default clerkMiddleware(async (auth, req: NextRequest) => {
+  // x-pathname injection (RESEARCH Pattern 7 / D-06) — every downstream
+  // NextResponse.next() carries the original request pathname so Server
+  // Components (e.g., AdminSidebar in Plan 03-09) can read it via
+  // headers().get('x-pathname'). Next.js 15 dropped server-side
+  // usePathname; this is the documented replacement.
+  //
+  // T-03-02-04 mitigation: we OVERWRITE x-pathname from req.nextUrl,
+  // clobbering any client-supplied x-pathname header. Server Components
+  // never see attacker-controlled values.
+  const pathname = req.nextUrl.pathname;
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-pathname", pathname);
+
   // Webhook + cron routes bypass Clerk; both verify their own credentials
   // in-route (signature for webhooks, CRON_SECRET header for cron).
   if (isWebhookRoute(req)) {
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
   if (isCronRoute(req)) {
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   if (isPublicRoute(req)) {
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  if (isAdminRoute(req)) {
+  if (isAdminRoute(pathname)) {
     let sessionClaims;
+    let userId: string | null;
     try {
       // SF-M4 fold (Phase 2): wrap auth() in try/catch — fail-closed
       // (return 404 to keep the admin gate's "advertise nothing" behavior
@@ -57,28 +101,57 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
       // (Plan 02-01 Task 2) so both auth() call sites share one shape.
       const session = await auth();
       sessionClaims = session.sessionClaims;
+      userId = session.userId;
     } catch (err) {
       const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
       console.error(`[middleware] auth() failed in admin gate: ${detail}`);
       // D-10: 404, not 401 — don't advertise the route exists.
       return new NextResponse(null, { status: 404 });
     }
-    // HI-01 (Plan 02-07): narrow via `{ role?: unknown }` + typeof guard so
-    // this site matches the stricter contract in lib/auth/context.ts:42.
-    // A future Clerk session-token template that emits role as something
-    // other than a string (numeric tier code, structured object) collapses
-    // to undefined here instead of widening to `string` and lying to the
-    // admin-gate comparison below. asRole() in context.ts remains the
-    // single source of truth for the full enum check — middleware only
-    // needs to detect the literal "admin".
-    const pubMeta = sessionClaims?.publicMetadata as { role?: unknown } | undefined;
-    const role = typeof pubMeta?.role === "string" ? pubMeta.role : undefined;
-    if (role !== "admin") {
-      // D-10: 404 instead of 403 — surfacing 403 would advertise that the
-      // route exists.
-      return new NextResponse(null, { status: 404 });
+
+    // Unauthenticated user hitting an admin URL — every entry in
+    // ADMIN_URL_PATTERNS now requires admin role (CR-PR3-#16 closure), so
+    // we 404 per D-10 instead of redirecting. requiresAdminRole() check
+    // kept as a defense-in-depth seam in case a future non-role-required
+    // admin URL is added back.
+    if (!userId) {
+      if (requiresAdminRole(pathname)) {
+        // D-10: don't advertise that /dashboard or /policies exist to
+        // unauthenticated callers — 404, not redirect.
+        return new NextResponse(null, { status: 404 });
+      }
+      // Defense-in-depth seam — currently no admin URL takes this branch.
+      const signInUrl = new URL("/sign-in", req.url);
+      signInUrl.searchParams.set(
+        "redirect_url",
+        req.nextUrl.pathname + req.nextUrl.search,
+      );
+      return NextResponse.redirect(signInUrl);
     }
-    return NextResponse.next();
+
+    if (requiresAdminRole(pathname)) {
+      // HI-01 (Plan 02-07): narrow via `{ role?: unknown }` + typeof guard so
+      // this site matches the stricter contract in lib/auth/context.ts:42.
+      // A future Clerk session-token template that emits role as something
+      // other than a string (numeric tier code, structured object) collapses
+      // to undefined here instead of widening to `string` and lying to the
+      // admin-gate comparison below. asRole() in context.ts remains the
+      // single source of truth for the full enum check — middleware only
+      // needs to detect the literal "admin".
+      const pubMeta = sessionClaims?.publicMetadata as { role?: unknown } | undefined;
+      const role = typeof pubMeta?.role === "string" ? pubMeta.role : undefined;
+      if (role !== "admin") {
+        // D-10: 404 instead of 403 — surfacing 403 would advertise that the
+        // route exists.
+        return new NextResponse(null, { status: 404 });
+      }
+    }
+    // All ADMIN_URL_PATTERNS entries now require admin role (CR-PR3-#16
+    // closure: /onboarding moved out of this array). This branch is
+    // therefore only reached when both isAdminRoute() and
+    // requiresAdminRole() are true AND the role check passed above — i.e.
+    // a real authenticated admin hitting /dashboard or /policies.
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   let userId: string | null;
@@ -114,7 +187,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
     return NextResponse.redirect(signInUrl);
   }
 
-  return NextResponse.next();
+  return NextResponse.next({ request: { headers: requestHeaders } });
 });
 
 export const config = {

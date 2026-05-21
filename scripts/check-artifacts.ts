@@ -215,11 +215,17 @@ function checkEnvExample(): Check[] {
   // Values must be blank in the template (no secret-shaped leaks)
   // Allowed non-secret defaults documented in 01-SECURITY.md T-01-02 evidence:
   //   RESEND_FROM_EMAIL, NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_POSTHOG_HOST.
+  // Added by 03-G2: the two Clerk fallback redirect env vars are pre-populated
+  // with /post-sign-in because the target route is project-fixed (Plan 03-02
+  // L-03 trampoline). The value is a public route path — not a secret. See
+  // GAP-3 in .planning/phases/03-admin-ui/03-SMOKE.md.
   // Anything else with a value after `=` would be a leak.
   const allowedNonBlank = new Set([
     "RESEND_FROM_EMAIL",
     "NEXT_PUBLIC_APP_URL",
     "NEXT_PUBLIC_POSTHOG_HOST",
+    "NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL",
+    "NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL",
   ]);
   let leaks = 0;
   for (const line of env.split(/\r?\n/)) {
@@ -432,17 +438,46 @@ function checkAppShell(): Check[] {
 
   assert(out, exists("app/(auth)/layout.tsx"), "app/(auth)/layout.tsx exists", "auth layout missing");
 
-  // Sign-in-success placeholder — D-09
-  const successPath = "app/sign-in-success/page.tsx";
-  if (!exists(successPath)) {
-    out.push(fail(`${successPath} exists`, "D-09 placeholder missing"));
+  // Plan 03-02 L-03 / REG-P1-01: the Phase 1 /sign-in-success placeholder
+  // (D-09) is REPLACED by the Server Component trampoline at /post-sign-in.
+  // The old file MUST be deleted; the new file MUST contain the dispatch
+  // calls. Negative + positive assertions together close REG-P1-01.
+  const oldSuccessPath = "app/sign-in-success/page.tsx";
+  assert(
+    out,
+    !exists(oldSuccessPath),
+    `${oldSuccessPath} does NOT exist (Plan 03-02 L-03 — deleted)`,
+    "REG-P1-01 closure incomplete — placeholder still on disk",
+  );
+  const postSignInPath = "app/(auth)/post-sign-in/page.tsx";
+  if (!exists(postSignInPath)) {
+    out.push(fail(`${postSignInPath} exists`, "Plan 03-02 L-03 trampoline missing"));
   } else {
-    out.push(ok(`${successPath} exists`));
+    out.push(ok(`${postSignInPath} exists (Plan 03-02 L-03)`));
+    const psi = read(postSignInPath);
     assert(
       out,
-      /signed in/i.test(read(successPath)),
-      "sign-in-success placeholder copy includes 'signed in'",
-      "placeholder copy drifted",
+      psi.includes("getOrgContext"),
+      "post-sign-in page imports getOrgContext",
+      "getOrgContext import missing",
+    );
+    assert(
+      out,
+      psi.includes("redirect('/onboarding/create-org')"),
+      "post-sign-in dispatches to /onboarding/create-org on no-org",
+      "no-org redirect missing (D-08)",
+    );
+    assert(
+      out,
+      psi.includes("redirect('/dashboard')"),
+      "post-sign-in dispatches to /dashboard for admin role",
+      "admin redirect missing",
+    );
+    assert(
+      out,
+      psi.includes("redirect('/my-policies')"),
+      "post-sign-in dispatches to /my-policies for non-admin role",
+      "non-admin redirect missing",
     );
   }
 
@@ -637,7 +672,10 @@ function checkSmokeScripts(): Check[] {
       "check-foundation.ts asserts D-03 hero substring",
       "hero assertion missing",
     );
-    for (const path of ['"/"', '"/sign-in"', '"/sign-up"', '"/sign-in-success"']) {
+    // Plan 03-02 L-03: the /sign-in-success probe was re-pointed to
+    // /post-sign-in once the Phase 1 placeholder was deleted and the
+    // Server Component trampoline shipped.
+    for (const path of ['"/"', '"/sign-in"', '"/sign-up"', '"/post-sign-in"']) {
       assert(out, s.includes(path), `check-foundation.ts probes ${path}`, "probe path missing");
     }
     assert(
@@ -735,6 +773,10 @@ function checkServerOnlyBoundary(): Check[] {
     "./lib/db/scoped.ts",
     "app/api/webhooks/clerk/route.ts",
     "./app/api/webhooks/clerk/route.ts",
+    // 03-G1 ADR-023 allow-list entry: getOrgContext now imports the raw db
+    // barrel to translate Clerk text ids → internal UUIDs per gap-closure.
+    "lib/auth/context.ts",
+    "./lib/auth/context.ts",
   ]);
   const unexpected = hits.filter((h) => !allowed.has(h));
   if (unexpected.length === 0) {
@@ -1054,6 +1096,256 @@ function checkPhase2VerifyScripts(): Check[] {
   return out;
 }
 
+// ─── Plan 03-01: Wave-0 test + verify harness ──────────────────────────────
+
+/**
+ * Verifies the Phase 3 Wave-0 test + verify harness artifacts (Plan 03-01).
+ *
+ * Asserts vitest config + setup + smoke test files exist, the
+ * check-admin-routes.ts ts-morph scaffold exists, and the package.json
+ * declares the verify:phase-3 orchestrator (with its L-06c
+ * .tmp/svix-url.json cleanup tail) plus the check:admin-routes / test
+ * scripts that chain into it.
+ *
+ * @returns An array of `Check` objects indicating which assertions passed and which failed.
+ */
+function checkPhase3Scaffold(): Check[] {
+  const out: Check[] = [];
+  assert(out, exists("vitest.config.ts"), "vitest.config.ts exists (Plan 03-01)", "missing");
+  assert(out, exists("tests/setup.ts"), "tests/setup.ts exists (Plan 03-01)", "missing");
+  assert(out, exists("tests/smoke.test.ts"), "tests/smoke.test.ts exists (Plan 03-01)", "missing");
+  assert(out, exists("scripts/check-admin-routes.ts"), "scripts/check-admin-routes.ts exists (Plan 03-01)", "missing");
+  const pkg = read("package.json");
+  assert(out, pkg.includes('"verify:phase-3"'), "package.json declares verify:phase-3", "script missing");
+  assert(out, pkg.includes('"check:admin-routes"'), "package.json declares check:admin-routes", "script missing");
+  assert(out, pkg.includes('"check:db-imports"'), "package.json declares check:db-imports", "script missing");
+  assert(out, pkg.includes('"check:rls"'), "package.json declares check:rls", "script missing");
+  assert(out, pkg.includes('"test":'), "package.json declares test (vitest run)", "script missing");
+  assert(
+    out,
+    pkg.includes("rmSync('.tmp/svix-url.json'"),
+    "verify:phase-3 tail cleans .tmp/svix-url.json (L-06c)",
+    "missing rmSync('.tmp/svix-url.json' literal",
+  );
+  // Setup/config sentinel substrings to catch silent rewrites.
+  const cfg = read("vitest.config.ts");
+  assert(out, cfg.includes("defineConfig"), "vitest.config.ts contains defineConfig", "missing");
+  const setup = read("tests/setup.ts");
+  assert(
+    out,
+    setup.includes("@testing-library/jest-dom"),
+    "tests/setup.ts imports @testing-library/jest-dom",
+    "missing",
+  );
+  const car = read("scripts/check-admin-routes.ts");
+  assert(out, car.includes("ADMIN_URL_PATTERNS"), "check-admin-routes.ts references ADMIN_URL_PATTERNS", "missing");
+  assert(out, car.includes("scaffold mode"), "check-admin-routes.ts has scaffold-mode branch", "missing");
+  assert(out, car.includes("withOrgScope("), "check-admin-routes.ts greps for withOrgScope(", "missing");
+  return out;
+}
+
+/**
+ * Verifies the existence of every Phase 3 downstream artifact (Plans
+ * 03-02..03-11) — auto-detected by the presence of
+ * `app/(admin)/dashboard/page.tsx` on disk (W10 closure).
+ *
+ * When the dashboard page does NOT exist (Phase 3 still in flight after
+ * Plan 03-01), this function emits a single `ok` row and returns. Once
+ * Plan 03-11 ships `app/(admin)/dashboard/page.tsx`, the function flips
+ * to enforcement automatically — no env-flag plumbing required. Each
+ * missing artifact below that point becomes a RED `fail` row tagged with
+ * the plan number that owns its delivery.
+ *
+ * @returns An array of `Check` objects.
+ */
+function checkPhase3FileExistence(): Check[] {
+  // W10: auto-detect Phase 3 completion via dashboard page presence.
+  // When Plan 03-11 ships app/(admin)/dashboard/page.tsx, this gate flips
+  // to enforcement automatically — no env flag plumbing required.
+  if (!exists("app/(admin)/dashboard/page.tsx")) {
+    return [
+      ok(
+        "Phase 3 file-existence rows skipped (dashboard page not yet on disk — gate enabled by Plan 03-11)",
+      ),
+    ];
+  }
+  const out: Check[] = [];
+  const targets: Array<{ path: string; plan: string }> = [
+    { path: "lib/auth/require-admin.ts", plan: "03-02" },
+    { path: "app/(auth)/post-sign-in/page.tsx", plan: "03-02" },
+    { path: "lib/policies/state-machine.ts", plan: "03-03" },
+    { path: "lib/policies/transitions.ts", plan: "03-06" },
+    { path: "app/(admin)/layout.tsx", plan: "03-09" },
+    { path: "app/(admin)/dashboard/page.tsx", plan: "03-11" },
+    { path: "app/(admin)/policies/page.tsx", plan: "03-11" },
+    { path: "app/(admin)/policies/new/page.tsx", plan: "03-11" },
+    { path: "app/(admin)/policies/new/actions.ts", plan: "03-07" },
+    { path: "app/(admin)/policies/[id]/page.tsx", plan: "03-11" },
+    { path: "app/(admin)/policies/[id]/actions.ts", plan: "03-07" },
+    { path: "app/(onboarding)/onboarding/create-org/page.tsx", plan: "03-11" },
+    { path: "app/(onboarding)/layout.tsx", plan: "03-11" },
+    { path: "components/admin/AdminSidebar.tsx", plan: "03-09" },
+    { path: "components/admin/AdminTopbar.tsx", plan: "03-09" },
+    { path: "components/policy/PolicyEditor.tsx", plan: "03-10" },
+    { path: "components/policy/PolicyView.tsx", plan: "03-10" },
+    { path: "components/policy/PolicyStatusBadge.tsx", plan: "03-10" },
+    { path: "components/policy/PolicyTransitionMenu.tsx", plan: "03-10" },
+    { path: "components/policy/PolicyVersionHistory.tsx", plan: "03-10" },
+  ];
+  for (const { path, plan } of targets) {
+    assert(out, exists(path), `${path} exists (Plan ${plan})`, `Plan ${plan} will create this`);
+  }
+  return out;
+}
+
+/**
+ * Phase 3 gap-closure 03-G1 — artifact regression assertions for the
+ * Clerk-text → internal-UUID translation inside getOrgContext + the new
+ * scripts/check-auth-context.ts integration test + its wiring into the
+ * verify orchestrator + the bumped allow-list positive control.
+ *
+ * @returns An array of `Check` results indicating which 03-G1 invariants passed or failed.
+ */
+function checkPhase3G1Artifacts(): Check[] {
+  const out: Check[] = [];
+
+  // lib/auth/context.ts — the file Task 1 rewrote.
+  const ctxPath = "lib/auth/context.ts";
+  if (!exists(ctxPath)) {
+    out.push(fail(`${ctxPath} exists`, "missing"));
+  } else {
+    const ctx = read(ctxPath);
+    assert(
+      out,
+      ctx.includes("clerkOrgId: string"),
+      `${ctxPath}: OrgContext declares clerkOrgId: string (03-G1)`,
+      "clerkOrgId field missing from OrgContext type",
+    );
+    assert(
+      out,
+      ctx.includes("clerkUserId: string"),
+      `${ctxPath}: OrgContext declares clerkUserId: string (03-G1)`,
+      "clerkUserId field missing from OrgContext type",
+    );
+    assert(
+      out,
+      ctx.includes("eq(organizations.clerkOrgId"),
+      `${ctxPath}: DB lookup uses eq(organizations.clerkOrgId, ...) (03-G1)`,
+      "organizations.clerkOrgId lookup missing",
+    );
+    assert(
+      out,
+      ctx.includes("eq(users.clerkUserId"),
+      `${ctxPath}: DB lookup uses eq(users.clerkUserId, ...) (03-G1)`,
+      "users.clerkUserId lookup missing",
+    );
+    assert(
+      out,
+      ctx.includes("from '@/lib/db'"),
+      `${ctxPath}: imports db from @/lib/db (03-G1 ADR-023 allow-list entry)`,
+      "db barrel import missing",
+    );
+    assert(
+      out,
+      ctx.includes("Org not provisioned in DB for"),
+      `${ctxPath}: missing-org error path uses 'Org not provisioned in DB for' (03-G1)`,
+      "missing-org error message missing",
+    );
+    assert(
+      out,
+      ctx.includes("User not provisioned in DB for"),
+      `${ctxPath}: missing-user error path uses 'User not provisioned in DB for' (03-G1)`,
+      "missing-user error message missing",
+    );
+  }
+
+  // scripts/check-auth-context.ts — Task 2 new integration test.
+  const checkAuthCtxPath = "scripts/check-auth-context.ts";
+  if (!exists(checkAuthCtxPath)) {
+    out.push(fail(`${checkAuthCtxPath} exists`, "missing (03-G1 Task 2)"));
+  } else {
+    out.push(ok(`${checkAuthCtxPath} exists (03-G1 Task 2)`));
+    const cac = read(checkAuthCtxPath);
+    assert(
+      out,
+      cac.includes("Policies.statusCounts"),
+      `${checkAuthCtxPath}: exercises Policies.statusCounts`,
+      "first-failure repo call missing",
+    );
+    assert(
+      out,
+      cac.includes("bugTriggered"),
+      `${checkAuthCtxPath}: negative-control sentinel 'bugTriggered' present`,
+      "negative control missing",
+    );
+    assert(
+      out,
+      cac.includes("clerk_org_check_authctx"),
+      `${checkAuthCtxPath}: unique seed sentinel 'clerk_org_check_authctx' present (prevents accidental delete)`,
+      "seed sentinel missing",
+    );
+  }
+
+  // scripts/check-data-layer.ts — Task 2 orchestrator wiring.
+  const cdlPath = "scripts/check-data-layer.ts";
+  if (!exists(cdlPath)) {
+    out.push(fail(`${cdlPath} exists`, "missing"));
+  } else {
+    const cdl = read(cdlPath);
+    assert(
+      out,
+      cdl.includes("checkAuthContext"),
+      `${cdlPath}: declares + calls checkAuthContext (03-G1 wiring)`,
+      "checkAuthContext not wired",
+    );
+    assert(
+      out,
+      cdl.includes("03-G1 — auth-context Clerk-text → UUID translation"),
+      `${cdlPath}: contains 03-G1 label string`,
+      "03-G1 label missing",
+    );
+    // Step count bumped 7 → 8: logResult(1, 8, ...) must appear exactly once
+    // (the first check). Use a substring match — the regex form
+    // logResult\([0-9]+, 8, would also work but substring is simpler and
+    // sufficient for the mechanical-edit confirmation.
+    const matches1of8 = (cdl.match(/logResult\(1, 8,/g) ?? []).length;
+    assert(
+      out,
+      matches1of8 === 1,
+      `${cdlPath}: logResult(1, 8, ...) appears exactly once (step count bumped 7→8)`,
+      `found ${matches1of8} match(es) — expected 1`,
+    );
+  }
+
+  // scripts/check-db-imports.ts — Task 1 ALLOWLIST + positive-control bump.
+  const cdiPath = "scripts/check-db-imports.ts";
+  if (!exists(cdiPath)) {
+    out.push(fail(`${cdiPath} exists`, "missing"));
+  } else {
+    const cdi = read(cdiPath);
+    assert(
+      out,
+      cdi.includes("lib/auth/context.ts"),
+      `${cdiPath}: ALLOWLIST contains lib/auth/context.ts (03-G1)`,
+      "ADR-023 allow-list entry missing",
+    );
+    assert(
+      out,
+      !cdi.includes("allowListedHits >= 2"),
+      `${cdiPath}: positive control bumped from >= 2 (03-G1)`,
+      "stale 'allowListedHits >= 2' still present",
+    );
+    assert(
+      out,
+      cdi.includes("allowListedHits >= 3"),
+      `${cdiPath}: positive control bumped to >= 3 (03-G1)`,
+      "expected 'allowListedHits >= 3' present",
+    );
+  }
+
+  return out;
+}
+
 /**
  * Runs the full set of artifact regression checks, prints results, and terminates the process.
  *
@@ -1087,6 +1379,11 @@ function main(): void {
     ...checkPhase2Repositories(),
     ...checkPhase2WebhookHandler(),
     ...checkPhase2MiddlewareFold(),
+    // Phase 3 additions:
+    ...checkPhase3Scaffold(),
+    ...checkPhase3FileExistence(),
+    // Phase 3 gap-closure 03-G1 additions:
+    ...checkPhase3G1Artifacts(),
     ...checkPhase2Migrations(),
     ...checkPhase2TypeTests(),
     ...checkPhase2VerifyScripts(),

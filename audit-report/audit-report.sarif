@@ -1,0 +1,2660 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "claude-api-auditor",
+          "version": "1.0.0",
+          "rules": [
+            {
+              "id": "APIAU-AUTH-001",
+              "name": "BrokenObjectLevelAuthorization",
+              "shortDescription": {
+                "text": "Missing BOLA ownership check"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "api1:2023"
+                ],
+                "problem.severity": "error"
+              }
+            },
+            {
+              "id": "APIAU-AUTH-002",
+              "name": "BrokenAuthentication",
+              "shortDescription": {
+                "text": "JWT alg:none or missing claim validation"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "api2:2023"
+                ],
+                "problem.severity": "error"
+              }
+            },
+            {
+              "id": "APIAU-AUTH-003",
+              "name": "MassAssignment",
+              "shortDescription": {
+                "text": "Broken object property authorization"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "api3:2023"
+                ],
+                "problem.severity": "error"
+              }
+            },
+            {
+              "id": "APIAU-AUTH-004",
+              "name": "MissingFunctionLevelAuth",
+              "shortDescription": {
+                "text": "Admin endpoint without role guard"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "api5:2023"
+                ],
+                "problem.severity": "error"
+              }
+            },
+            {
+              "id": "APIAU-INJ-001",
+              "name": "Injection",
+              "shortDescription": {
+                "text": "SQL/NoSQL/command injection risk"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "a05:2025"
+                ],
+                "problem.severity": "error"
+              }
+            },
+            {
+              "id": "APIAU-INJ-002",
+              "name": "SSRF",
+              "shortDescription": {
+                "text": "Unvalidated outbound URL fetch"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "api7:2023"
+                ],
+                "problem.severity": "error"
+              }
+            },
+            {
+              "id": "APIAU-RATE-001",
+              "name": "MissingRateLimit",
+              "shortDescription": {
+                "text": "No rate limit on public endpoint"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "api4:2023"
+                ],
+                "problem.severity": "warning"
+              }
+            },
+            {
+              "id": "APIAU-RATE-002",
+              "name": "NonAtomicRateLimit",
+              "shortDescription": {
+                "text": "Race-prone rate limit implementation"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "api4:2023"
+                ],
+                "problem.severity": "error"
+              }
+            },
+            {
+              "id": "APIAU-CRYPTO-001",
+              "name": "WeakCryptography",
+              "shortDescription": {
+                "text": "Weak hashing or deprecated TLS"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "a04:2025"
+                ],
+                "problem.severity": "error"
+              }
+            },
+            {
+              "id": "APIAU-SECRETS-001",
+              "name": "HardcodedSecret",
+              "shortDescription": {
+                "text": "Hardcoded credential or secret"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "a03:2025"
+                ],
+                "problem.severity": "error"
+              }
+            },
+            {
+              "id": "APIAU-CONTRACT-001",
+              "name": "ImproperInventory",
+              "shortDescription": {
+                "text": "Missing deprecation/sunset headers"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "api9:2023"
+                ],
+                "problem.severity": "warning"
+              }
+            },
+            {
+              "id": "APIAU-CONTRACT-002",
+              "name": "MissingIdempotency",
+              "shortDescription": {
+                "text": "POST missing Idempotency-Key handling"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "sop-s7"
+                ],
+                "problem.severity": "warning"
+              }
+            },
+            {
+              "id": "APIAU-PERF-001",
+              "name": "NPlusOneQuery",
+              "shortDescription": {
+                "text": "ORM call inside loop (N+1)"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "api4:2023"
+                ],
+                "problem.severity": "warning"
+              }
+            },
+            {
+              "id": "APIAU-OBS-001",
+              "name": "ObservabilityFailure",
+              "shortDescription": {
+                "text": "Unstructured logs or PII in logs"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "a09:2025"
+                ],
+                "problem.severity": "warning"
+              }
+            },
+            {
+              "id": "APIAU-ERROR-001",
+              "name": "VerboseErrorResponse",
+              "shortDescription": {
+                "text": "Stack trace in production error response"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "a10:2025"
+                ],
+                "problem.severity": "error"
+              }
+            },
+            {
+              "id": "APIAU-SUPPLY-001",
+              "name": "SupplyChainRisk",
+              "shortDescription": {
+                "text": "Supply chain vulnerability"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "a03:2025"
+                ],
+                "problem.severity": "warning"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "APIAU-AUTH-001",
+          "level": "warning",
+          "message": {
+            "text": "SF-W5: idempotency row written BEFORE dispatch \u00e2\u20ac\u201d a throw in the switch statement is caught at L323-339 and returns 200, but clerk_events already shows the svix-id as processed. Clerk's retry will short-circuit on the idempotency check. The event is silently lost. Code documents this as deferred (Phase 7+)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "app/api/webhooks/clerk/route.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 147
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "API4:2023 / API9:2023",
+            "domain": "AuthN/AuthZ",
+            "recommendation": "Phase 7+: invert order \u00e2\u20ac\u201d dispatch first, then insert clerk_events row inside the same transaction. If you cannot ship the transactional inversion, at minimum DELETE the clerk_events row inside the catch block so a Clerk retry can re-fire.",
+            "source": "claude"
+          }
+        },
+        {
+          "ruleId": "APIAU-OBSV-001",
+          "level": "warning",
+          "message": {
+            "text": "Clerk org IDs and slugs logged unmasked at L176, L197, L267, L298 (e.g. `organization.created ${data.id}`). User IDs are correctly masked via maskClerkId(); apply the same redaction to org IDs to prevent tenant enumeration via log aggregator access."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "app/api/webhooks/clerk/route.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 176
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "API8:2023 / API9:2023",
+            "domain": "Observability",
+            "recommendation": "Add maskClerkOrgId(id) helper mirroring maskClerkId. Replace `data.id` / `clerkOrgId` with `maskClerkOrgId(...)` in all four `[clerk-webhook]` log lines that interpolate org identifiers.",
+            "source": "claude"
+          }
+        },
+        {
+          "ruleId": "APIAU-RATE-001",
+          "level": "note",
+          "message": {
+            "text": "No application-layer rate limit on the webhook. Admission control is entirely svix signature verification. An attacker hammering the endpoint with junk signatures forces one HMAC-SHA256 per request. Low risk because svix.verify is cheap and Vercel provides platform DDoS protection \u00e2\u20ac\u201d but worth tracking once the Railway worker (Phase 7) takes over."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "app/api/webhooks/clerk/route.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 99
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "API4:2023",
+            "domain": "Rate Limiting",
+            "recommendation": "No action for Phase 2 Vercel deploy. Phase 7+ Railway worker: add Redis-backed sliding-window rate limit keyed by source IP, with a 60s window and a 100-req cap.",
+            "source": "claude"
+          }
+        },
+        {
+          "ruleId": "APIAU-CRYPTO-001",
+          "level": "note",
+          "message": {
+            "text": ".tmp/svix-url.json contains a Svix oneTimeToken in plaintext on disk. File is gitignored, but it grants access to the Svix Play test dashboard. No production exposure."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".tmp/svix-url.json",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "API8:2023",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Delete .tmp/svix-url.json after debugging session ends. Consider adding `rm -rf .tmp/svix-url.json` to a post-debug hook or to the existing post-PR-merge cleanup checklist in CLAUDE.md.",
+            "source": "claude"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "note",
+          "message": {
+            "text": "gitleaks found 84 secrets in .next/cache/* and .next/server/* \u00e2\u20ac\u201d these are Next.js BUILD ARTIFACTS (preview-mode signing keys, server-action encryption keys regenerated on every build). The entire .next/ directory is gitignored. No leak risk via git, but the keys exist on disk. .env.local additionally contains 4 real keys (Stripe test, Clerk publishable, two Supabase JWTs). All gitignored."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".env.local",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 7
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "Web Top 10 2025 \u00e2\u20ac\u201d A02 (Secrets in Build Artifacts)",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "No code change needed. Verify backup/sync tools (OneDrive, robocopy to D:\\Backup) are not syncing .env.local or .next/ \u00e2\u20ac\u201d confirmed earlier that D:\\Backup excludes these per `C:\\Users\\matth\\memory\\context\\drives.md`. Stripe key is test-mode (sk_test_*) \u00e2\u20ac\u201d rotate after Phase 6 launch.",
+            "source": "claude"
+          }
+        },
+        {
+          "ruleId": "APIAU-OBSV-002",
+          "level": "note",
+          "message": {
+            "text": "All logging is console.log/console.error with [clerk-webhook] prefix. Acceptable for Phase 2 Vercel deploy (Vercel captures stdout); not durable for Railway worker phase. No structured logging, no log shipping, no PII redaction filter \u00e2\u20ac\u201d the maskClerkId helper is hand-applied per call site, easy to forget."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "app/api/webhooks/clerk/route.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 60
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "API9:2023 / API10:2023",
+            "domain": "Observability",
+            "recommendation": "Phase 7+ Observability phase: replace console.* with pino. Wire a redaction filter at the logger level (pino redact paths: ['*.clerkUserId', '*.clerkOrgId']) so masking is enforced, not opt-in per call site. Ship to Axiom or Logflare. Until then, keep the hand-applied masking and just extend it to org IDs (APIAU-OBSV-001).",
+            "source": "claude"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/.previewinfo"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/.previewinfo",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/.previewinfo"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/.previewinfo",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/prerender-manifest.json"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/prerender-manifest.json",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 8
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/prerender-manifest.json"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/prerender-manifest.json",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 9
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/server/middleware-manifest.json"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/server/middleware-manifest.json",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 21
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/server/middleware-manifest.json"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/server/middleware-manifest.json",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 23
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/server/middleware-manifest.json"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/server/middleware-manifest.json",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 24
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/.rscinfo"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/.rscinfo",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/server/server-reference-manifest.json"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/server/server-reference-manifest.json",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 97
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: stripe-access-token in .env.local"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".env.local",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 15
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .env.local"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".env.local",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 14
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: jwt in .env.local"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".env.local",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 7
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: jwt in .env.local"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".env.local",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 8
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .tmp/svix-url.json"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".tmp/svix-url.json",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .tmp/svix-url.json"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".tmp/svix-url.json",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 35542
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 35543
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 35544
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/client-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/client-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 239878
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/client-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/client-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 239994
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 333531
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 333532
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 333533
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 333538
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 333538
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 333624
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 333625
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 333626
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 333713
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 333714
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 333715
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 333792
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 333792
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 333878
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 333879
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 333880
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/client-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/client-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 503237
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/client-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/client-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 503353
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/client-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/client-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 503515
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 339294
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 339421
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 339958
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 340072
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/client-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/client-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 595938
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 484732
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 484733
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 484734
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 484739
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 484739
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 484825
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 484826
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 484827
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 484914
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 484915
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 484916
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 484993
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 484993
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 485079
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 485080
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 485081
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 485246
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 485247
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 485248
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 485328
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 485328
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 485414
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 485415
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 485416
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 485583
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 485584
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 485585
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/client-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/client-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 708336
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 621489
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 621603
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 621763
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 833653
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 833780
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 833966
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 875527
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 875527
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 875613
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 875614
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 875615
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 903175
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 939550
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 1033797
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        },
+        {
+          "ruleId": "APIAU-SECRETS-001",
+          "level": "error",
+          "message": {
+            "text": "Secret: generic-api-key in .next/cache/webpack/server-production/0.pack"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".next/cache/webpack/server-production/0.pack",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 1033840
+                }
+              }
+            }
+          ],
+          "properties": {
+            "owaspId": "A03:2025",
+            "domain": "Cryptography/Secrets",
+            "recommendation": "Remove from source. Rotate credential. Use secrets manager.",
+            "source": "gitleaks"
+          }
+        }
+      ]
+    }
+  ]
+}

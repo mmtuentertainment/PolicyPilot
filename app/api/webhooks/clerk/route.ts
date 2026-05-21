@@ -13,11 +13,16 @@
 // consumes the stream and req.text() afterwards returns empty,
 // breaking svix signature verification.
 //
-// Known gap (SF-W5, deferred to Phase 7+): clerk_events row is written
-// BEFORE dispatch. A silent dispatch failure leaves the event marked
-// processed and Clerk does not retry. Phase 7+ will invert the order
-// or add structured alerting. Operator-monitored via console logs
-// in the meantime.
+// SF-W5 (closed 2026-05-20 in 03-G3 T7): clerk_events row is written
+// BEFORE dispatch, so a naive 409-return on a prerequisite-missing race
+// (e.g. organizationMembership.created arriving before its
+// organization.created) would leave the row in place — Clerk's retry
+// would then short-circuit on D-03b idempotency and the event would be
+// silently lost. Mitigation: deleteIdempotencyRow() is now called before
+// every non-2xx return AND from the dispatch-error catch path, so Clerk's
+// exponential retry re-fires the handler instead. Phase 7+ may still
+// invert idempotency-before-dispatch to a single ordering for cleanliness,
+// but the silent-drop race is closed at the application layer.
 import { Webhook } from 'svix';
 import { clerkClient, type WebhookEvent } from '@clerk/nextjs/server';
 import { db } from '@/lib/db';
@@ -33,6 +38,18 @@ import { eq } from 'drizzle-orm';
 function maskClerkId(id: string): string {
   if (id.length <= 4) return '***';
   return `user_***${id.slice(-4)}`;
+}
+
+/**
+ * L-06b (F-02): Mask a Clerk organization ID for logging — mirrors
+ * maskClerkId but with the `org_` prefix preserved for grep-ability.
+ * Aggregated log streams otherwise expose the full tenant base to
+ * anyone with log-indexer access. Structured-log redaction (Phase 7+)
+ * will replace this with a redaction filter in pino.
+ */
+function maskClerkOrgId(id: string): string {
+  if (id.length <= 4) return '***';
+  return `org_***${id.slice(-4)}`;
 }
 
 /**
@@ -63,6 +80,37 @@ async function mirrorRoleToClerk(
     const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
     console.error(
       `[clerk-webhook] failed to mirror publicMetadata.role user=${maskClerkId(clerkUserId)} role=${role} source=${source}: ${detail}`,
+    );
+  }
+}
+
+/**
+ * SF-W5 fix (03-G3 T7): delete the clerk_events idempotency row for a given
+ * svix-id so Clerk's exponential retry will re-fire this handler. Called from:
+ *
+ *   1. Prerequisite-missing 409 paths — race where membership.created arrives
+ *      before its organization.created or user.created. Without the delete,
+ *      Clerk's retry hits the D-03b idempotency short-circuit and the event
+ *      is silently dropped (the original SF-W5 footgun).
+ *   2. Dispatch-error catch path (F-01 interim fix) — preserved from the
+ *      original inline implementation at the bottom of POST().
+ *
+ * Wrapped in its own try/catch so a cleanup failure doesn't shadow the
+ * original error / 409 / 200 the caller is about to return.
+ */
+async function deleteIdempotencyRow(svixId: string, reason: string): Promise<void> {
+  try {
+    await db.delete(clerkEvents).where(eq(clerkEvents.id, svixId));
+    console.log(
+      `[clerk-webhook] clerk_events row deleted for ${svixId} (${reason}) — Clerk retry can re-fire`,
+    );
+  } catch (cleanupErr) {
+    const cd =
+      cleanupErr instanceof Error
+        ? `${cleanupErr.name}: ${cleanupErr.message}`
+        : String(cleanupErr);
+    console.error(
+      `[clerk-webhook] failed to delete clerk_events row for ${svixId} (${reason}): ${cd}`,
     );
   }
 }
@@ -173,7 +221,7 @@ export async function POST(req: Request): Promise<Response> {
           planTier: 'starter',
           stripeSubscriptionStatus: 'trialing',
         });
-        console.log(`[clerk-webhook] organization.created ${data.id}`);
+        console.log(`[clerk-webhook] organization.created ${maskClerkOrgId(data.id)}`);
         break;
       }
 
@@ -207,7 +255,10 @@ export async function POST(req: Request): Promise<Response> {
         if (!clerkUserId || !clerkOrgId) {
           console.error(
             '[clerk-webhook] organizationMembership.created missing user_id or organization.id',
-            { clerkUserId: clerkUserId ? maskClerkId(clerkUserId) : null, clerkOrgId },
+            {
+              clerkUserId: clerkUserId ? maskClerkId(clerkUserId) : null,
+              clerkOrgId: clerkOrgId ? maskClerkOrgId(clerkOrgId) : null,
+            },
           );
           break;
         }
@@ -218,22 +269,26 @@ export async function POST(req: Request): Promise<Response> {
           .where(eq(organizations.clerkOrgId, clerkOrgId))
           .limit(1);
         if (orgRow.length === 0) {
-          // organization.created hasn't arrived yet — but we've already
-          // written the clerk_events row for this svix-id, so Clerk
-          // retrying won't re-fire this handler (SF-W5 known gap).
-          // Returning 409 keeps the operator-visible Clerk dashboard log
-          // truthful: this event was rejected and needs operator follow-up.
+          // organization.created hasn't arrived yet — the membership event
+          // won the race. SF-W5 fix (03-G3 T7): delete the idempotency row
+          // before returning 409 so Clerk's retry re-fires this handler
+          // once organization.created lands. 409 still surfaces in Clerk
+          // Dashboard so operators can spot persistent races.
           console.error(
-            `[clerk-webhook] org ${clerkOrgId} not found — organization.created may not have arrived yet; Clerk should retry`,
+            `[clerk-webhook] org ${maskClerkOrgId(clerkOrgId)} not found — organization.created may not have arrived yet; Clerk should retry`,
           );
+          await deleteIdempotencyRow(svixId, 'prerequisite missing: org not yet created');
           return new Response('Org not yet created', { status: 409 });
         }
         const firstOrg = orgRow[0];
         if (!firstOrg) {
-          // Defensive narrowing for noUncheckedIndexedAccess.
+          // Defensive narrowing for noUncheckedIndexedAccess. Should never
+          // fire (orgRow.length was just checked >0), but if it does, delete
+          // the idempotency row so a retry has a chance — SF-W5 symmetry.
           console.error(
-            `[clerk-webhook] org ${clerkOrgId} lookup returned empty row unexpectedly`,
+            `[clerk-webhook] org ${maskClerkOrgId(clerkOrgId)} lookup returned empty row unexpectedly`,
           );
+          await deleteIdempotencyRow(svixId, 'org lookup returned empty row');
           return new Response('Org lookup failed', { status: 409 });
         }
         const orgInternalId = firstOrg.id;
@@ -247,9 +302,14 @@ export async function POST(req: Request): Promise<Response> {
           .where(eq(users.clerkUserId, clerkUserId))
           .returning({ id: users.id });
         if (updateResult.length === 0) {
+          // user.created hasn't arrived yet — the membership event won the
+          // race. SF-W5 fix (03-G3 T7): delete the idempotency row before
+          // returning 409 so Clerk's retry re-fires this handler once
+          // user.created lands.
           console.error(
             `[clerk-webhook] user ${maskClerkId(clerkUserId)} not found — user.created may not have arrived yet; Clerk should retry`,
           );
+          await deleteIdempotencyRow(svixId, 'prerequisite missing: user not yet created');
           return new Response('User not yet created', { status: 409 });
         }
         // CR-01 (Plan 02-07) / D-04: mirror role onto Clerk publicMetadata so
@@ -264,7 +324,7 @@ export async function POST(req: Request): Promise<Response> {
           );
         }
         console.log(
-          `[clerk-webhook] organizationMembership.created user=${maskClerkId(clerkUserId)} org=${clerkOrgId} role=${roleStr ?? '(unchanged)'}`,
+          `[clerk-webhook] organizationMembership.created user=${maskClerkId(clerkUserId)} org=${maskClerkOrgId(clerkOrgId)} role=${roleStr ?? '(unchanged)'}`,
         );
         break;
       }
@@ -333,6 +393,17 @@ export async function POST(req: Request): Promise<Response> {
     console.error(
       `[clerk-webhook] dispatch failed for event ${svixId} (${evt.type}): ${detail}`,
     );
+    // L-06a (F-01 interim fix): the clerk_events row was written BEFORE
+    // dispatch (per Phase 2 design + Plan-checker WARNING-05). A silent
+    // dispatch failure leaves the event marked processed AND returns 200
+    // → Clerk never retries → the event is permanently lost. Interim fix:
+    // delete the idempotency row so the next Clerk retry can re-fire this
+    // exact event. Now delegates to the shared deleteIdempotencyRow helper
+    // (03-G3 T7) so the cleanup semantics match the 409 prerequisite-missing
+    // paths above.
+    // Full fix (TODO Phase 7+): invert the idempotency-before-dispatch
+    // ordering so the row is only written after successful dispatch.
+    await deleteIdempotencyRow(svixId, `dispatch failed: ${evt.type}`);
     // Return 200 anyway — see the gap note above. Clerk Dashboard logs
     // are the operator's debugging path until Phase 7+ inverts the order.
     return new Response('Dispatch error logged', { status: 200 });

@@ -136,16 +136,32 @@ export const policyAssignments = pgTable('policy_assignments', {
   assignedAt: timestamp('assigned_at').defaultNow(),
 });
 
-export const policyVersions = pgTable('policy_versions', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }), // D-02 denormalization
-  policyId: uuid('policy_id').notNull().references(() => policies.id),
-  versionNumber: integer('version_number').notNull(),
-  contentJson: jsonb('content_json').notNull(),
-  createdBy: uuid('created_by').references(() => users.id),
-  changeSummary: text('change_summary'),
-  createdAt: timestamp('created_at').defaultNow(),
-});
+export const policyVersions = pgTable(
+  'policy_versions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }), // D-02 denormalization
+    policyId: uuid('policy_id').notNull().references(() => policies.id),
+    versionNumber: integer('version_number').notNull(),
+    contentJson: jsonb('content_json').notNull(),
+    createdBy: uuid('created_by').references(() => users.id),
+    changeSummary: text('change_summary'),
+    createdAt: timestamp('created_at').defaultNow(),
+  },
+  (table) => [
+    // 03-G3 T2 — UNIQUE(policy_id, version_number) backstop. T1 fixes the
+    // primary path (restore() bumps currentVersion so duplicate vN rows
+    // can't form). This constraint is belt-and-suspenders: if a future
+    // orchestrator change re-introduces the bump skip OR direct SQL
+    // bypasses the orchestrators, the schema rejects the duplicate insert
+    // loudly instead of letting an ambiguous audit ledger accumulate.
+    // Diagnose: .planning/debug/duplicate-policy-version.md
+    unique('policy_versions_policy_id_version_number_unique').on(
+      table.policyId,
+      table.versionNumber,
+    ),
+  ],
+);
 
 export const stripeEvents = pgTable('stripe_events', {
   // Service-role only idempotency table for Stripe webhook deliveries.

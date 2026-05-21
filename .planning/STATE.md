@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 02 — SHIPPED 2026-05-19 as PR #2 (gsd/phase-2-data-layer → main); all 7 plans + audit + hotfix; verify:phase-2 7/7 OK; awaiting merge
-last_updated: "2026-05-19T00:00:00.000Z"
+status: "Phase 03 — Admin UI COMPLETE 2026-05-20 (14 main plans 03-00..03-11 + 3 gap-closure plans 03-G1 + 03-G2 + 03-G3; 6/6 HUMAN-UAT PASS; verify:phase-2 8/8 OK; verify:phase-3 8 gates + 269/269 artifacts + 53/53 vitest; SF-WHSEC-1 closed; SF-W5 closed by 03-G3 T7; DUP-VN closed by 03-G3 T1+T2+T3; MYPOL-STUB closed by 03-G3 T9). Ready for Phase 3 PR (gsd/phase-3-admin-ui → main, squash-merge per CLAUDE.md) then Phase 4 (AI Layer)."
+last_updated: "2026-05-20T17:30:00.000Z"
 progress:
   total_phases: 8
-  completed_phases: 1
-  total_plans: 12
-  completed_plans: 12
-  percent: 100
+  completed_phases: 3
+  total_plans: 23
+  completed_plans: 17
+  percent: 74
 ---
 
 # STATE — PolicyPilot
@@ -31,30 +31,28 @@ GSD session state. Updated each time a phase or plan transitions. Source of trut
 
 ## Current Position
 
-Phase: 02 — ALL 6 plans complete (02-01..02-06) + Plan 02-07 hotfix shipped 2026-05-18 (closes CR-01 + HI-01 from code review)
-Plan: 7 of 7 — FULL complete; ready for verifier + ROADMAP close-out
+Phase: 3 (Admin UI) — **COMPLETE** (2026-05-20)
+Next phase: 4 (AI Layer) — not yet planned
 
-- **Phase**: 2 — Data Layer **complete** (2026-05-18 — Plans 02-01 through 02-07 shipped; verify:phase-2 7/7 OK; CR-01 + HI-01 closed)
-- **Plan**: 7 / 7 — Plans 02-01..02-06 + 02-07 hotfix all shipped; `pnpm verify:phase-2` exits 0 with 7/7 OK against live TEST DB (runtime ~22s); `pnpm tsc --noEmit` clean. Task 6 (operator human-verify) APPROVED 2026-05-18 — live-smoke deferred to Phase 3 per operator decision. Plan 02-07 closed CR-01 + HI-01 from code review.
-- **Status**:
-  - **Plan 02-01** shipped via commits `75b397e` (schema), `e7c6b43` (context + scoped), `2fff189` (type tests), `a381bd8` (metadata). 12 Drizzle tables; SF-M4 closed in `lib/auth/context.ts`. `tsc --noEmit` baseline failure was intentionally deferred — closed by Plan 02-04.
-  - **Plan 02-02** partial: ✓ Clerk Org Roles (3 effective: `Admin` built-in customized + `employee` + `reviewer` — webhook handler strips `org:` prefix per D-09 fallback, IMPLEMENTED in Plan 02-05); ✓ Clerk Session Token publicMetadata claim already configured; ✓ Svix webhook endpoint created with 4 events + signing secret captured in `.env.local`; ✓ `DIRECT_URL` populated; ✓ TEST DB credentials populated in `.env.local` (closed pre Plan 02-06 — SF-DB-1 CLOSED).
-  - **Plan 02-03** FULL: ✓ Task 1 (`c1dcf6f`), Task 2 (`0bbf321`), Task 3 (`f443cd0`), Task 4 (post-commit live-DB push after SF-DB-2 fix; TEST DB migrated via Plan 02-06 orchestrator step 2). Live dev DB verified 12/12 tables + 10/10 RLS-enabled tenant tables + 10/10 org_isolation policies + 40 GRANTs + D-03a CHECK. **SF-DB-2 RESOLVED.**
-  - **Plan 02-04** FULL: ✓ Task 1 (`2973555` — Policies + Acknowledgments + Users + PolicyVersions: 4 critical files satisfying D-07 type invariants); ✓ Task 2 (`e71000a` — PolicyAssignments + Departments + AiGenerations + Notifications + WorkflowStages: 5 remaining files for Plan 02-06 positive-control). 9 files / 351 lines. 1 Rule-1 deviation (Acknowledgments header switched from `//` to `/** */` block-comment because TS scans line-comments for `@ts-expect-error` directives — acceptance substrings preserved verbatim).
-  - **Plan 02-05** FULL: ✓ Task 1 (`a9301b2` — svix@1.93.0 exact-pinned); ✓ Task 2 (`6ae44f5` — webhook handler at `app/api/webhooks/clerk/route.ts`, 264 lines); ✓ Task 3 (`c39ea98` — middleware.ts SF-M4 fold). 2 Rule-3 deviations (pre-existing esbuild audit + plan verify regex window too tight). End-to-end webhook smoke deferred to Plan 02-06 operator human-verify.
-  - **Plan 02-06** Tasks 1-5 SHIPPED (Task 6 checkpoint open): ✓ Task 1 (`e160728` — ts-morph@28.0.0 + .env.local.example +4 placeholders); ✓ Task 2 (`c31d1c8` — scripts/check-db-imports.ts L-05 AST allow-list 126 lines, 8-entry ALLOWLIST including scripts/check-db.ts for Phase 1 baseline, positive control `allowListedHits >= 2`); ✓ Task 3 (`a156dc5` — scripts/check-rls.ts L-06 cross-org property test 187 lines, positive control + 10-table negative + ROLLBACK-by-throw for SET LOCAL scoping); ✓ Task 4 (`ff82746` — scripts/check-schema.ts D-08 step 5 schema audit 136 lines, pg_catalog + information_schema, 1 Rule-1 fix for polname → policyname column name); ✓ Task 5 (`9888cf5` — scripts/check-data-layer.ts 7-check orchestrator 207 lines, env-override migrate-against-TEST DB, scripts/check-artifacts.ts extended +8 Phase 2 functions with comment-stripping walker hardening + Phase-1 schema-stale check dropped, verify:phase-2 package.json wired). `pnpm verify:phase-2` exits 0 with 7/7 OK (runtime ~22s). All 214 check-artifacts assertions pass. ⏸ Task 6 (operator self-run + end-to-end Clerk webhook smoke + resume signal).
-- **Progress**: 1 / 8 phases complete; Phase 2: 7/7 plans complete (02-01..02-06 + 02-07 hotfix; Plan 02-06 Task 6 operator-approved 2026-05-18; CR-01 + HI-01 closed)
+- **Phase 1** — Foundation **complete** (2026-05-16; 5/5 plans; PR #1 merged)
+- **Phase 2** — Data Layer **complete** (2026-05-18; 7/7 plans = 6 main + 02-07 hotfix; verify:phase-2 8/8 OK; PR #2 squash-merged to `main` @ `130b8ab` on 2026-05-19)
+- **Phase 3** — Admin UI **complete** (2026-05-20; 15/15 plans = 12 main 03-00..03-11 + 3 gap-closure 03-G1/G2/G3; 6/6 HUMAN-UAT PASS; verify:phase-2 8/8 OK; verify:phase-3 8 gates + 270/270 artifacts + 53/53 vitest; PR #3 OPEN on `gsd/phase-3-admin-ui`)
+- **Progress**: 3 / 8 phases complete (38%)
 
 ```text
-[█░░░░░░░] 1/8 phases  —  Foundation: 5/5 plans ✓  ·  Data Layer: 7/7 plans complete ✓ (02-01 ✓, 02-02 ✓, 02-03 ✓, 02-04 ✓, 02-05 ✓, 02-06 ✓, 02-07 hotfix ✓ CR-01 + HI-01 closed)
+[███░░░░░] 3/8 phases  —  Foundation ✓  ·  Data Layer ✓  ·  Admin UI ✓ (PR #3 open)
 ```
 
-**Next action**: gsd-verifier runs phase-goal verification → VERIFICATION.md → if PASSED, update ROADMAP.md to mark Phase 2 ✓ → route to `/gsd-discuss-phase 3` (Admin UI).
+**Next action**: review + merge PR #3, then `/gsd-discuss-phase 4` to begin Phase 4 (AI Layer — Draft, TL;DR, Q&A, Consistency Check; depends on Phase 3 admin shell).
 
-**Operator carry-forward to Phase 3**:
-- **SF-WHSEC-1**: rotate the `whsec_...` Clerk signing secret via Svix Dashboard before live-smoke (exposed in chat during Plan 02-02).
-- **Webhook live-smoke**: operator deferred end-to-end smoke from Plan 02-06 to Phase 3 (rationale: Phase 3 ships the actual `<CreateOrganization />` UI; live smoke is higher-fidelity then). `pnpm verify:phase-2` 7/7 OK is sufficient evidence of code correctness.
-- **REG-P1-01** (Phase 1 regression discovered during Phase 2 close-out): `pnpm verify:phase-1` check 6/6 (`Middleware redirects /sign-in-success → /sign-in unauthenticated`) now fails with `TypeError: fetch failed`. All other 5/6 Phase-1 checks pass. The failure appears network-level (fetch couldn't reach the route) rather than redirect-target-wrong. Likely cause: Plan 02-05's `middleware.ts` SF-M4 try/catch fold changed runtime behavior on this specific dev-only placeholder route. Investigate during Phase 3 setup; the route is a Phase-1 unused placeholder so production impact is zero, but the regression gate output is misleading.
+**Carry-forward queue** (deferred to later phases; all gaps surfaced in Phase 3 UAT are CLOSED in this PR — see 03-G3 SUMMARY):
+
+- **SF-CASCADE-AUDIT** → Phase 6+ obligation when org-delete code path lands. The 0003_fk_hardening cascade currently wipes acknowledgments + ai_generations on tenant offboarding with no app-level audit-event emission. When tenant lifecycle UI ships, the delete handler must log row counts + emit a structured audit event BEFORE the cascade fires (per ADR-018 append-only).
+- **Tenant-lifecycle cleanup** → Phase 6+: delete the orphan `MMTU Entertainment` (Title Case) org from the days-old smoke retry; consolidate the case-only duplicate-name org pair. Diagnosed at `.planning/debug/org-topology-uat5.md`.
+- **Phase 7+ webhook hardening** → invert idempotency-before-dispatch ordering OR add explicit alerting on stuck `clerk_events` rows. 03-G3 T7 ships the application-layer interim fix (delete `clerk_events` row before non-2xx return).
+- **Phase 7+ webhook test coverage** → vitest scaffold for the webhook handler 409/catch paths. T8 deferred from 03-G3; production code verified live via 2 independent paths during UAT-4 + UAT-6.
+- **Phase 5** replaces the 03-G3 T9 `/my-policies` stub with the real employee-acknowledgment portal.
+- **Nyquist G-08a / G-09a / G-03a** → Phase 2.1 hardening orthogonal to admin UI. Pick up when convenient.
 
 ---
 
@@ -62,11 +60,13 @@ Plan: 7 of 7 — FULL complete; ready for verifier + ROADMAP close-out
 
 | Metric | Value |
 |--------|-------|
-| Phases complete | 1 / 8 |
+| Phases complete | 3 / 8 |
 | Phase 1 plans drafted | 5 / 5 |
 | Phase 1 plans executed | 5 / 5 |
 | Phase 2 context | drafted 2026-05-17 |
 | Phase 2 plans drafted | 6 / 6 |
+| Phase 2 merged to main | 2026-05-19 (PR #2 squash → `130b8ab`) |
+| Phase 3 context | drafted 2026-05-19 (`--all` autonomous; 13 HOW decisions D-01..D-13 + 5 USER-LOCKED constraints L-01..L-05) |
 | Phase 2 plans executed | 6 / 6 code-complete (02-01 ~7min/3 commits/4 files; 02-02 partial ~unknown/0 source commits + SF-DB-1 closed by operator pre-02-06; 02-03 14min/3 commits/9 files + post-commit Task 4; 02-04 ~4min15s/2 commits/9 files — tsc baseline closed; 02-05 ~9m46s/3 commits/1 created + 3 modified files — SF-M4 fully closed; 02-06 Tasks 1-5 ~17m33s/5 commits/4 created + 4 modified files — verify:phase-2 7/7 OK against live TEST DB; Task 6 operator checkpoint OPEN) |
 | Requirements mapped | 17 / 17 |
 | Locked decisions | 25 (ADRs 001–025) |
@@ -175,6 +175,8 @@ Surfaced by `/pr-review-toolkit:review-pr` against PR #1 head `e3689d3` (silent-
 - **Latest session**: Phase 2 execute-phase Plan 02-06 (2026-05-17T23:43:04Z → 2026-05-18T00:00:37Z, ~17m33s) — 5 task commits `e160728` (Task 1: ts-morph@28.0.0 exact-pin install + pre/post audit no new vulns + no postinstall + .env.local.example +4 placeholders), `c31d1c8` (Task 2: scripts/check-db-imports.ts L-05 AST allow-list 126 lines, 8-entry ALLOWLIST regex over POSIX paths, positive control `allowListedHits >= 2`), `a156dc5` (Task 3: scripts/check-rls.ts L-06 cross-org property test 187 lines, seeds 2 orgs/users/policies in BYPASSRLS user then SET LOCAL ROLE authenticated + set_config jwt claims with is_local=true, POSITIVE CONTROL + 10-table negative, intentional ROLLBACK + final TRUNCATE for idempotency), `ff82746` (Task 4: scripts/check-schema.ts D-08 step 5 schema audit 136 lines, pg_catalog + information_schema, 4 checks × 10 tables + 2 service-role no-RLS asserts, 1 Rule-1 fix polname → policyname), `9888cf5` (Task 5: scripts/check-data-layer.ts 7-check orchestrator 207 lines, spawnSync via process.execPath CVE-2024-27980 hardened, env-override DATABASE_URL/DIRECT_URL for migrate-against-TEST DB, scripts/check-artifacts.ts extended +271 lines / 8 Phase 2 functions + comment-strip walker hardening + Phase-1 schema-stale check dropped, package.json verify:phase-2 wired) + SUMMARY.md at `.planning/phases/02-data-layer/02-06-SUMMARY.md`. `pnpm verify:phase-2` exits 0 with 7/7 OK against live TEST DB (runtime ~22s); all 214 check-artifacts assertions pass; `pnpm tsc --noEmit` exits 0 on every commit boundary. 6 deviations (1 Rule-1 bug + 4 Rule-3 blocking + 1 false-positive accommodation; all documented in SUMMARY). Task 6 (operator human-verify of `pnpm verify:phase-2` self-run + end-to-end Clerk webhook smoke) is a `checkpoint:human-verify` gate — awaiting operator's resume signal.
 - **Current session**: Phase 2 execute-phase Plan 02-07 hotfix (2026-05-18T23:21:00Z → 2026-05-18T23:24:00Z, ~3min) — 2 task commits `5bdcbf9` (CR-01: `app/api/webhooks/clerk/route.ts` +64/-1 lines — `clerkClient` added to named imports, new `mirrorRoleToClerk(clerkUserId, role, source)` helper calls `(await clerkClient()).users.updateUserMetadata(clerkUserId, { publicMetadata: { role } })` in try/catch with structured logging; wired into `user.created` (default `employee`), `organizationMembership.created` (narrowed `roleStr` after DB returning rows confirms user found), `organizationMembership.updated` (narrowed `roleStr` for role demotions/promotions); D-04 dual-write contract now satisfied end-to-end) and `13a9a30` (HI-01: `middleware.ts` +10/-1 — narrowing tightened from `{ role?: string }` to `{ role?: unknown }` + `typeof === 'string'` guard with comment block citing context.ts:42 parity rationale; no asRole import — middleware only needs literal `=== 'admin'`, asRole stays single source of truth in context.ts) + SUMMARY.md at `.planning/phases/02-data-layer/02-07-SUMMARY.md`. `pnpm tsc --noEmit` exits 0 on each commit boundary; `pnpm verify:phase-2` exits 0 with 7/7 OK against live TEST DB. Zero deviations, zero new packages, zero `any` types. Closes CR-01 + HI-01 from `.planning/phases/02-data-layer/02-REVIEW.md`.
 - **Next session entry point**: Phase 2 fully complete (7/7 plans). Next plan path is `/gsd-verify-work` for Phase 2 closeout → Phase 3 (Admin UI) context gathering. Phase-3 carry-forwards remain as documented above (SF-WHSEC-1, webhook live-smoke, REG-P1-01) plus CR-02 (`isAdminRoute` matcher dead code — Phase 3 will replace `/(admin)/(.*)` with concrete admin URLs once `app/(admin)/<route>/page.tsx` files land).
+
+- **Resume 2026-05-20T17:42Z**: Session resumed via `/gsd-resume-work`. PR #3 state advanced since HANDOFF.json (17:29Z): CR's 3rd re-review fired at 17:32:08Z with 1 finding (policyId rejection log was exposing JSON.stringify(id.slice(0,8))). Commit `0287bb6` (17:38:41-04:00Z) responded by dropping the `type` + `sample` log fields and keeping `length` only. CR's 4th review is now PENDING at new HEAD `0287bb6` (status check started 17:38:49Z). Monitor `bjcxzydia` (persistent) re-armed against `.tmp/monitor-pr3.mjs`. PR state on resume: `state=OPEN`, `reviewDecision=CHANGES_REQUESTED` (carryover from CR review on `bd25409`), `mergeStateStatus=UNSTABLE`. Wait state — next signal is CR's 4th review verdict.
 
 ---
 
