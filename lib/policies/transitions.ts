@@ -38,6 +38,7 @@ import { Policies } from '@/lib/db/repositories/policies';
 import { PolicyVersions } from '@/lib/db/repositories/policy_versions';
 import { WorkflowStages } from '@/lib/db/repositories/workflow_stages';
 import { policies } from '@/lib/db/schema';
+import { generateSummaryForPolicy } from '@/lib/ai/summary';
 import {
   canTransition,
   IllegalTransitionError,
@@ -169,6 +170,24 @@ export async function publish(policyId: PolicyId): Promise<void> {
       .set({ status: 'published', updatedAt: sql`now()` })
       .where(and(eq(policies.orgId, s.orgId), eq(policies.id, policyId)));
   });
+
+  // Phase 4 D-19 + SPEC R3 — post-commit AI auto-trigger.
+  //
+  // Runs OUTSIDE the state-transition withOrgScope (i.e., after the transaction commits)
+  // so a flaky Anthropic call cannot roll back the publish. The summary helper opens its
+  // own withOrgScope for the ai_generations INSERT + policies.tldrSummary UPDATE.
+  //
+  // Graceful-degrade: summary failure logs but does NOT propagate. Policy stays published
+  // with policies.tldrSummary IS NULL; admin can regenerate via PolicyView's "Regenerate
+  // TL;DR" button (Plan 04-13 ships the UI).
+  //
+  // SP-3 (Nyquist sub-path) — lib/policies/transitions.test.ts D-19 block verifies the
+  // graceful-degrade path.
+  try {
+    await generateSummaryForPolicy(policyId, ctx);
+  } catch (error) {
+    console.error('[publish] summary failed', { policyId, error });
+  }
 }
 
 /**

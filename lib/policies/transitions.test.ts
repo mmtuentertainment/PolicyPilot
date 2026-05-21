@@ -91,6 +91,15 @@ vi.mock('@/lib/db/repositories/workflow_stages', () => ({
   },
 }));
 
+// Plan 04-11 D-19 — mock the post-commit summary hook. publish() invokes
+// generateSummaryForPolicy AFTER the withOrgScope state-transition commits.
+// Tests in the SP-3 describe block configure mockResolvedValueOnce /
+// mockRejectedValueOnce per case to exercise the graceful-degrade path.
+const generateSummaryForPolicyMock = vi.fn();
+vi.mock('@/lib/ai/summary', () => ({
+  generateSummaryForPolicy: (...args: unknown[]) => generateSummaryForPolicyMock(...args),
+}));
+
 // Stub the schema barrel so transitions.ts can `import { policies } from
 // '@/lib/db/schema'` without pulling Drizzle's real table object (which
 // would import postgres at module load and break vitest's jsdom env).
@@ -124,6 +133,11 @@ beforeEach(() => {
   updateDraftMock.mockReset();
   pvCreateMock.mockReset();
   wfSubmitMock.mockReset();
+  generateSummaryForPolicyMock.mockReset();
+  // Default — summary helper resolves cleanly so the Phase-3 publish() tests
+  // (which don't care about the post-commit hook) stay green. Individual
+  // SP-3 tests override with mockRejectedValueOnce / mockResolvedValueOnce.
+  generateSummaryForPolicyMock.mockResolvedValue(undefined);
   txUpdateMock.mockClear();
   txSetMock.mockClear();
 });
@@ -324,18 +338,74 @@ describe('approve', () => {
 // ---------------------------------------------------------------------------
 describe('publish — D-19 post-commit summary graceful-degrade (SP-3, SPEC R3)', () => {
   it('on generateSummaryForPolicy throw: publish() does NOT throw; state transition stays committed', async () => {
-    // Plan 04-11 modifies lib/policies/transitions.ts:publish to add the post-commit
-    // generateSummaryForPolicy call wrapped in try/catch. This test mocks the helper
-    // to throw, asserts publish() resolves cleanly, and asserts the policy is now
-    // status='published' + tldrSummary IS NULL.
-    expect.fail('TODO: Plan 04-11 — mock generateSummaryForPolicy to throw, assert no propagation');
+    // Mock the state-transition prerequisite — Draft policy ready to publish.
+    findByIdMock.mockResolvedValueOnce([
+      { id: 'p1', status: 'draft', currentVersion: 1, contentJson: { type: 'doc' } },
+    ]);
+    // Plan 04-11 D-19 — flaky Anthropic call. publish() MUST swallow this.
+    generateSummaryForPolicyMock.mockRejectedValueOnce(new Error('Anthropic 503'));
+    const consoleErrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    // SP-3 contract: publish() resolves cleanly even when the post-commit hook throws.
+    await expect(publish(POLICY_ID_FIXTURE)).resolves.toBeUndefined();
+
+    // State-transition transaction committed FIRST (before the AI call):
+    //   1. PolicyVersions.create captured the snapshot
+    //   2. tx.update flipped status -> 'published'
+    expect(pvCreateMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ policyId: 'p1', versionNumber: 1 }),
+    );
+    expect(txSetMock).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'published' }),
+    );
+
+    // generateSummaryForPolicy was invoked AFTER the state-transition commit
+    // (graceful-degrade hook ran, then threw — publish() caught it).
+    expect(generateSummaryForPolicyMock).toHaveBeenCalledOnce();
+
+    consoleErrSpy.mockRestore();
   });
 
   it('on Anthropic-success path: publish() calls generateSummaryForPolicy ONCE after state commit', async () => {
-    expect.fail('TODO: Plan 04-11 — assert helper called exactly once with (policyId, ctx) after state-machine commit');
+    findByIdMock.mockResolvedValueOnce([
+      { id: 'p1', status: 'draft', currentVersion: 2, contentJson: { type: 'doc' } },
+    ]);
+    generateSummaryForPolicyMock.mockResolvedValueOnce(undefined);
+
+    await publish(POLICY_ID_FIXTURE);
+
+    // Called exactly once with (policyId, ctx) per the D-19 helper signature.
+    expect(generateSummaryForPolicyMock).toHaveBeenCalledOnce();
+    const call = generateSummaryForPolicyMock.mock.calls[0];
+    expect(call?.[0]).toBe(POLICY_ID_FIXTURE);
+    // ctx is the OrgContext from getOrgContext (mocked at module scope above).
+    expect(call?.[1]).toMatchObject({ orgId: 'org_1', userId: 'user_1', role: 'admin' });
+
+    // The state-transition snapshot fired BEFORE the AI call (post-commit hook).
+    expect(pvCreateMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ policyId: 'p1', versionNumber: 2 }),
+    );
   });
 
-  it('logs "[publish] summary failed" with policyId on graceful-degrade path (D-19 + D-36 sanitized)', async () => {
-    expect.fail('TODO: Plan 04-11 — capture console.error, assert message starts with "[publish] summary failed"');
+  it('logs "[publish] summary failed" with policyId on graceful-degrade path (D-19 + D-18)', async () => {
+    findByIdMock.mockResolvedValueOnce([
+      { id: 'p1', status: 'draft', currentVersion: 1, contentJson: { type: 'doc' } },
+    ]);
+    const anthropicError = new Error('Anthropic 500');
+    generateSummaryForPolicyMock.mockRejectedValueOnce(anthropicError);
+    const consoleErrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await publish(POLICY_ID_FIXTURE);
+
+    // Verify the SPEC R3 + D-18 verbatim log prefix '[publish] summary failed'
+    // was emitted with the policyId + the underlying error attached.
+    expect(consoleErrSpy).toHaveBeenCalledWith(
+      '[publish] summary failed',
+      expect.objectContaining({ policyId: POLICY_ID_FIXTURE, error: anthropicError }),
+    );
+
+    consoleErrSpy.mockRestore();
   });
 });
