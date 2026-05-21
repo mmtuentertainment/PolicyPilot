@@ -1,25 +1,63 @@
 // scripts/check-error-discipline.ts — ADR-026 verify gate.
 //
-// Fails CI if any `throw new Error(...)` syntax survives in lib/auth/**.ts
-// (excluding the error class declarations in errors.ts itself and the
-// test files). The convention from ADR-026: every throw in lib/auth/
-// uses a class from lib/auth/errors.ts, narrowable by `err instanceof
-// Class` against the typed allow-lists in
-// app/(admin)/dashboard/page.tsx and app/(auth)/post-sign-in/page.tsx.
+// Fails CI if any `throw new Error(...)` (or related built-in Error
+// subclass — TypeError, RangeError, etc., with or without the `new`
+// keyword) survives in lib/auth/**.ts (excluding the error class
+// declarations in errors.ts itself and test/mock files). The convention
+// from ADR-026: every throw in lib/auth/ uses a class from
+// lib/auth/errors.ts, narrowable by `err instanceof Class` against the
+// typed allow-lists in app/(admin)/dashboard/page.tsx and
+// app/(auth)/post-sign-in/page.tsx.
 //
-// Scope: lib/auth/ ONLY. Other layers (Stripe webhook in Phase 6,
-// Claude API integration in Phase 4, repository invariants — which
-// already use IllegalTransitionError) may adopt the typed-error pattern
-// with their own ADRs when their surface complexity warrants it. This
-// gate is intentionally scoped narrowly so it stays enforceable; broad
-// project-wide enforcement would create dead-letter clauses for layers
-// that haven't earned their typed-error decision yet.
+// SCOPE: lib/auth/ ONLY. A stray `throw new Error('No active
+// organization')` in lib/db/scoped.ts or a repository is NOT caught by
+// this gate — and would no longer be caught by the dashboard's
+// race-recovery (which now narrows by class, not message). Other layers
+// (Stripe webhook in Phase 6, Claude API integration in Phase 4,
+// repository invariants — which already use IllegalTransitionError) may
+// adopt the typed-error pattern with their own ADRs when their surface
+// complexity warrants it. Broad project-wide enforcement would create
+// dead-letter clauses for layers that haven't earned their typed-error
+// decision yet.
+//
+// ENFORCEMENT LIMITS: this gate is a syntactic AST scan, not a
+// type-resolved check. It catches:
+//   - `throw new Error(...)` and `throw Error(...)` (no-new form)
+//   - All built-in Error subclasses (TypeError, RangeError, SyntaxError,
+//     ReferenceError, EvalError, URIError, AggregateError)
+//
+// It does NOT catch the following pathological patterns (documented
+// limits rather than silent gaps):
+//   - Aliased Error: `const E = Error; throw new E('...')`
+//   - Data-flow throws: `const err = new Error('x'); throw err;`
+//   - Wrapped constructions: `throw Object.assign(new Error(), {...})`
+//   - Re-exported Error under a different name
+//   - `Promise.reject(new Error(...))` returned from async code
+// These would require type-resolution against the global lib.es5
+// `ErrorConstructor` symbol, which is out of scope. Code review +
+// the per-PR review-toolkit pass is the catch-all for these.
 //
 // Wired into `pnpm verify:phase-3` via the package.json script
 // `check:error-discipline` (also runnable standalone).
 
 import { Project, SyntaxKind } from 'ts-morph';
 import { resolve } from 'node:path';
+
+/** Built-in Error and Error-subclass constructors that must NOT be thrown
+ *  directly from lib/auth/. Used for both `throw new X(...)` (NewExpression
+ *  callee) and `throw X(...)` (CallExpression callee — both are valid JS
+ *  for Error subclasses and produce equivalent runtime behavior).
+ */
+const BANNED_BUILTIN_ERRORS = new Set([
+  'Error',
+  'TypeError',
+  'RangeError',
+  'SyntaxError',
+  'ReferenceError',
+  'EvalError',
+  'URIError',
+  'AggregateError',
+]);
 
 const project = new Project({
   tsConfigFilePath: resolve(process.cwd(), 'tsconfig.json'),
@@ -29,17 +67,28 @@ const project = new Project({
 // Scope: lib/auth/**/*.ts EXCLUDING errors.ts itself (where the class
 // hierarchy lives — its body should never `throw new Error` either, but
 // excluding it keeps the gate's intent crisp: "consumers of errors.ts
-// must use the classes") and test files (Vitest's own `expect(...).
+// must use the classes") and test/mock files (Vitest's own `expect(...).
 // toThrowError(new Error('...'))` would otherwise trip the gate).
+//
+// Broadened exclusion globs to cover Vitest's discovered file patterns
+// (Vitest picks up .test.ts AND .spec.ts by default), plus the standard
+// __mocks__/ and __tests__/ directory conventions, and any future-
+// generated .d.ts declarations.
 project.addSourceFilesAtPaths([
   'lib/auth/**/*.ts',
   '!lib/auth/errors.ts',
   '!lib/auth/**/*.test.ts',
+  '!lib/auth/**/*.spec.ts',
+  '!lib/auth/**/*.d.ts',
+  '!lib/auth/**/__mocks__/**',
+  '!lib/auth/**/__tests__/**',
 ]);
 
 interface Violation {
   filePath: string;
   line: number;
+  className: string;
+  form: 'new' | 'call';
 }
 
 const violations: Violation[] = [];
@@ -50,22 +99,45 @@ for (const sourceFile of project.getSourceFiles()) {
     const throwStmt = node.asKindOrThrow(SyntaxKind.ThrowStatement);
     const expr = throwStmt.getExpression();
     if (!expr) return;
-    if (expr.getKind() !== SyntaxKind.NewExpression) return;
-    const newExpr = expr.asKindOrThrow(SyntaxKind.NewExpression);
-    const className = newExpr.getExpression().getText();
-    if (className === 'Error') {
-      violations.push({
-        filePath: sourceFile.getFilePath(),
-        line: throwStmt.getStartLineNumber(),
-      });
+    const exprKind = expr.getKind();
+
+    // `throw new Error(...)` shape.
+    if (exprKind === SyntaxKind.NewExpression) {
+      const newExpr = expr.asKindOrThrow(SyntaxKind.NewExpression);
+      const className = newExpr.getExpression().getText();
+      if (BANNED_BUILTIN_ERRORS.has(className)) {
+        violations.push({
+          filePath: sourceFile.getFilePath(),
+          line: throwStmt.getStartLineNumber(),
+          className,
+          form: 'new',
+        });
+      }
+      return;
+    }
+
+    // `throw Error(...)` shape (no `new` — legal JS, same runtime effect
+    // for Error subclasses, can sneak past a NewExpression-only check).
+    if (exprKind === SyntaxKind.CallExpression) {
+      const callExpr = expr.asKindOrThrow(SyntaxKind.CallExpression);
+      const calleeName = callExpr.getExpression().getText();
+      if (BANNED_BUILTIN_ERRORS.has(calleeName)) {
+        violations.push({
+          filePath: sourceFile.getFilePath(),
+          line: throwStmt.getStartLineNumber(),
+          className: calleeName,
+          form: 'call',
+        });
+      }
     }
   });
 }
 
 if (violations.length > 0) {
-  console.error('ADR-026 violation(s): `throw new Error(...)` in lib/auth/');
-  for (const { filePath, line } of violations) {
-    console.error(`  ${filePath}:${line}`);
+  console.error('ADR-026 violation(s): direct built-in Error throw in lib/auth/');
+  for (const { filePath, line, className, form } of violations) {
+    const syntax = form === 'new' ? `throw new ${className}(...)` : `throw ${className}(...)`;
+    console.error(`  ${filePath}:${line} — ${syntax}`);
   }
   console.error(
     `\nFix: add a class to lib/auth/errors.ts (or use an existing one) and ` +
@@ -76,6 +148,7 @@ if (violations.length > 0) {
 
 const checkedCount = project.getSourceFiles().length;
 console.log(
-  `OK — ADR-026: ${checkedCount} file(s) scanned in lib/auth/; no \`throw new Error(...)\` violations.`,
+  `OK — ADR-026: ${checkedCount} file(s) scanned in lib/auth/; ` +
+    `no direct built-in Error throws (new or no-new form, ${BANNED_BUILTIN_ERRORS.size} banned constructors).`,
 );
 process.exit(0);
