@@ -1308,6 +1308,46 @@ function checkPhase3G1Artifacts(): Check[] {
     );
   }
 
+  // scripts/check-error-discipline.ts — ADR-026 verify gate.
+  const discPath = "scripts/check-error-discipline.ts";
+  assert(
+    out,
+    exists(discPath),
+    `${discPath} exists (ADR-026)`,
+    "check-error-discipline script missing",
+  );
+
+  // package.json — ADR-026 npm script declarations. Parse as JSON so the
+  // verify:phase-3 chain check survives quote-escaping in the value
+  // (the chain ends with `node -e \"require('fs')...\"` which would
+  // break a simple `[^"]*` regex).
+  const pkgPath = "package.json";
+  if (exists(pkgPath)) {
+    let pkgJson: { scripts?: Record<string, string> } | null = null;
+    try {
+      pkgJson = JSON.parse(read(pkgPath)) as {
+        scripts?: Record<string, string>;
+      };
+    } catch {
+      // Fall through — assertion below will fail with a useful message.
+    }
+    assert(
+      out,
+      typeof pkgJson?.scripts?.["check:error-discipline"] === "string",
+      `${pkgPath} declares check:error-discipline (ADR-026)`,
+      "check:error-discipline script not declared",
+    );
+    assert(
+      out,
+      // The verify:phase-3 chain must include check:error-discipline so
+      // CI enforces the gate on every Phase-3-and-later verify run.
+      typeof pkgJson?.scripts?.["verify:phase-3"] === "string" &&
+        pkgJson.scripts["verify:phase-3"].includes("check:error-discipline"),
+      `${pkgPath} verify:phase-3 chain includes check:error-discipline (ADR-026)`,
+      "verify:phase-3 chain missing check:error-discipline",
+    );
+  }
+
   // scripts/check-auth-context.ts — Task 2 new integration test.
   const checkAuthCtxPath = "scripts/check-auth-context.ts";
   if (!exists(checkAuthCtxPath)) {
