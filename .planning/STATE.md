@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: "Phase 03 SHIPPED 2026-05-20 (PR #3 @ edebab7). Fast-follows 1/3 + 2/3 SHIPPED 2026-05-20→21 (PR #5 ADR-026 typed errors @ bf65712; PR #7 ADR-027 lookup-scoping @ c6dca6a). Audit cascade COMPLETE — security (PR #8 SHIPPED @ 5a57000 — SECURED 67/67 STRIDE), validation (PR #10 OPEN @ 8d906f6 — PARTIALLY VALIDATED 28-COVERED / 18-PARTIAL / 2-MISSING), verification (PR #11 OPEN @ ae9bfcc — second-pass 6/6 PASS via delta-analysis + claude-in-chrome spot-check at main @ 5a57000). VALIDATION-2.7 closure (PR #9 OPEN @ 58dfce8 — 10-assertion check-policies-list-filters integration test) ships alongside cascade. Locked decisions count 26 → 29 (ADR-027 + ADR-028 + ADR-029 ratified). main HEAD: bd2257a (PR #13 ADR-028). Latest ratification 2026-05-21: ADR-029 amends ADR-007 — phase boundaries must remain green on main, but in-flight phases may run on parallel branches off a common main ancestor. Wave 1 candidates: Phase 4 (AI Layer) ‖ Phase 5 (Employee Portal). Next: enter Phase 4 — recommended /gsd-ai-integration-phase 4."
-last_updated: "2026-05-21T05:35:00.000Z"
+status: "Phase 04 IN-FLIGHT — SPEC.md locked 2026-05-21 (7 requirements, ambiguity 0.109; commits 540bb17 + 3c1b642). CONTEXT.md captured 2026-05-21 via /gsd-discuss-phase 4 --power (27 HOW decisions D-01..D-27, commit e7447f7 on gsd/phase-4-ai-layer). Operator answered 26/27 with the recommended option; Q-15 flipped a→b on refresh after the Q-15/Q-16 typed-error contradiction surfaced. Locked decisions count stays at 29 (Q-27=a: API-SPEC.md citation-shape amendment ships doc-only — no ADR-030). main HEAD: bd2257a (PR #13 ADR-028). Wave 1 candidates: Phase 4 (AI Layer, this branch) ‖ Phase 5 (Employee Portal, not started). Next: /gsd-plan-phase 4."
+last_updated: "2026-05-21T18:00:00.000Z"
 progress:
   total_phases: 8
   completed_phases: 3
-  total_plans: 23
-  completed_plans: 17
-  percent: 74
+  total_plans: 26
+  completed_plans: 27
+  percent: 100
 ---
 
 # STATE — PolicyPilot
@@ -31,19 +31,20 @@ GSD session state. Updated each time a phase or plan transitions. Source of trut
 
 ## Current Position
 
-Phase: 3 (Admin UI) — **COMPLETE** (2026-05-20)
-Next phase: 4 (AI Layer) — not yet planned
+Phase: 4 (AI Layer) — **IN-FLIGHT** (SPEC + CONTEXT locked 2026-05-21; plan-phase next)
+Branch: `gsd/phase-4-ai-layer` (local HEAD `e7447f7` — CONTEXT commit)
 
 - **Phase 1** — Foundation **complete** (2026-05-16; 5/5 plans; PR #1 merged)
 - **Phase 2** — Data Layer **complete** (2026-05-18; 7/7 plans = 6 main + 02-07 hotfix; verify:phase-2 8/8 OK; PR #2 squash-merged to `main` @ `130b8ab` on 2026-05-19)
-- **Phase 3** — Admin UI **SHIPPED** (2026-05-20; 15/15 plans = 12 main 03-00..03-11 + 3 gap-closure 03-G1/G2/G3; 6/6 HUMAN-UAT PASS; final verify:phase-3 8 gates + 270/270 artifacts + 76/76 vitest; PR #3 squash-merged to `main` @ `edebab7` after 5 CodeRabbit cycles + 2 pr-review-toolkit cycles + 4 post-review fix commits — `cr-pr3-postreview-v1..v4`; branch `gsd/phase-3-admin-ui` deleted)
-- **Progress**: 3 / 8 phases complete (38%)
+- **Phase 3** — Admin UI **SHIPPED** (2026-05-20; 15/15 plans; PR #3 squash-merged to `main` @ `edebab7`; 3 fast-follows shipped PR #5/#7/#13; 3-audit cascade complete PR #8/#10/#11; closure test PR #9; state bookkeeping PR #12)
+- **Phase 4** — AI Layer **CONTEXT CAPTURED** (2026-05-21; SPEC.md commits `540bb17` + `3c1b642`; CONTEXT.md commit `e7447f7` on `gsd/phase-4-ai-layer`; 27 HOW decisions D-01..D-27 via `/gsd-discuss-phase 4 --power`)
+- **Progress**: 3 / 8 phases complete (38%); Phase 4 in-flight
 
 ```text
-[███░░░░░] 3/8 phases  —  Foundation ✓  ·  Data Layer ✓  ·  Admin UI ✓
+[███░░░░░] 3/8 phases shipped  —  Foundation ✓  ·  Data Layer ✓  ·  Admin UI ✓  ·  AI Layer ▶
 ```
 
-**Next action**: Merge PR #9 (VALIDATION-2.7 closure test) + PR #10 (validation refresh) + PR #11 (UAT second-pass) + this PR #12 (state-bookkeeping) once CR re-reviews. Then PR 3.3 (ADR-028 PolicyId brand) + operator-decision on bundling PR #7's 2 deferred MEDIUMs vs splitting as ADR-029. Then `/gsd-discuss-phase 4` to begin Phase 4 (AI Layer — Draft, TL;DR, Q&A, Consistency Check; depends on Phase 3 admin shell).
+**Next action**: `/gsd-plan-phase 4` reads `04-SPEC.md` (locked WHAT) + `04-CONTEXT.md` (locked HOW) to produce wave-grouped plans. Plans land on `gsd/phase-4-ai-layer` and squash-merge to `main` on Phase 4 ship.
 
 **Fast-follow PR backlog** (3 sequential PRs, originally scoped from PR #3 carry-forward):
 
@@ -75,6 +76,8 @@ Next phase: 4 (AI Layer) — not yet planned
 | Phase 2 plans drafted | 6 / 6 |
 | Phase 2 merged to main | 2026-05-19 (PR #2 squash → `130b8ab`) |
 | Phase 3 context | drafted 2026-05-19 (`--all` autonomous; 13 HOW decisions D-01..D-13 + 5 USER-LOCKED constraints L-01..L-05) |
+| Phase 4 spec | drafted 2026-05-21 (`/gsd-spec-phase 4`; 7 requirements; ambiguity score 0.109) |
+| Phase 4 context | drafted 2026-05-21 (`/gsd-discuss-phase 4 --power`; 27 HOW decisions D-01..D-27 via offline HTML editor) |
 | Phase 2 plans executed | 6 / 6 code-complete (02-01 ~7min/3 commits/4 files; 02-02 partial ~unknown/0 source commits + SF-DB-1 closed by operator pre-02-06; 02-03 14min/3 commits/9 files + post-commit Task 4; 02-04 ~4min15s/2 commits/9 files — tsc baseline closed; 02-05 ~9m46s/3 commits/1 created + 3 modified files — SF-M4 fully closed; 02-06 Tasks 1-5 ~17m33s/5 commits/4 created + 4 modified files — verify:phase-2 7/7 OK against live TEST DB; Task 6 operator checkpoint OPEN) |
 | Requirements mapped | 17 / 17 |
 | Locked decisions | 29 (ADRs 001–029) |
@@ -196,6 +199,8 @@ Surfaced by `/pr-review-toolkit:review-pr` against PR #1 head `e3689d3` (silent-
 
 - **2026-05-21 ADR-029 ratification session (post-`/gsd-manager --analyze-deps`)**: Operator invoked `/gsd-manager --analyze-deps` post-Phase-3-ship and pre-Phase-4-entry. Dependency analysis surfaced that ADR-007's strict-sequential gating over-specified vs. true semantic minimums — Phase 5 truly depends on Phase 3 (not Phase 4); Phase 6 on Phase 4 (not Phase 5); Phase 7 on Phase 5 (not Phase 6). Operator directive: soften ADR-007 to "phase boundaries must remain green on main, but in-flight phases may run on parallel branches." Ratified as **ADR-029** — amends ADR-007 (does NOT supersede; phase ORDER preserved Foundation→…→Validation; gating relaxed under green-on-`main` constraint). Files updated this session: `.planning/intel/decisions.md` (long-form ADR-029 appended), `.planning/PROJECT.md` (short-form ADR-028 + ADR-029 added to `<decisions>` block — ADR-028 mirror caught up per HANDOFF.json `state-bookkeeping-bundling` deferred plan), `.planning/ROADMAP.md` (line-3 header + `Depends on` entries for Phases 5/6/7 amended), `CLAUDE.md` root (Build Sequence section reflects new gating + wave grouping), `.planning/STATE.md` (this entry + locked-decision count). Enables **Wave 1**: Phase 4 (AI Layer) ‖ Phase 5 (Employee Portal); **Wave 2**: Phase 6 (Billing) ‖ Phase 7 (Crons + Email); **Wave 3**: Phase 8. Theoretical wall-clock compression 30-40% if Wave 1+2 paired; real cost is `scripts/check-artifacts.ts` + `pnpm-lock.yaml` rebase discipline on the later-merged branch. Parallelism is opportunity, not mandate — operator chooses per-phase. **No code/test/schema changes** — pure planning-artifact amendment. Locked decision count: 27 → 29 (also catches ADR-028 ratification deferred from PR #13 per the bundled-state-update pattern). **Next**: enter Phase 4 — recommended `/gsd-ai-integration-phase 4` (formal AI-SPEC with eval rubrics + framework selection); Wave 1 with Phase 5 is available if operator bandwidth allows.
 
+- **2026-05-21 Phase 4 discuss-phase session (`/gsd-discuss-phase 4 --power`)**: Operator ran power-mode discuss-phase against the SPEC.md-locked Phase 4. Scout pass mapped `lib/ai/` (empty), `lib/db/repositories/ai_generations.ts` (Phase 2 skeleton), `lib/policies/transitions.ts` (Phase 3 orchestrators incl. `publish`), `lib/auth/errors.ts` (ADR-026 typed-error precedent), `app/(admin)/policies/[id]/actions.test.ts` (Phase 3 vitest `vi.mock` pattern), and the 4 reference contracts (API-SPEC.md, PROMPTS.md, TIER-LIMITS.md, SCHEMA.md). Generated `04-QUESTIONS.json` + `04-QUESTIONS.html` self-contained offline editor with 27 questions across 7 sections (AI Foundation, Schema & Persistence, Q&A Implementation, Tier-Limit Module Layout, Error Contract + publishPolicy, Admin UI Hooks, Verify Chain + Tests). Operator answered all 27 — 26 picked option (a) recommended-first; Q-15 initially (a) inline-guard but flipped to (b) throw-based on refresh after the workflow flagged the Q-15/Q-16 contradiction (Q-16=a creates `lib/stripe/errors.ts::TierLimitExceededError` which would be unused dead code without throws). Resolution captured in Q-15+Q-16 `chat_more` fields. `04-CONTEXT.md` written with 27 decisions D-01..D-27, locked SPEC requirements referenced via `<spec_lock>` block (not duplicated — agents read SPEC.md directly), canonical refs + code context + exact code-snippet specifics + deferred ideas. `04-DISCUSSION-LOG.md` written with per-question options table + selections + Q-15 resolution thread for human-audit purposes. All 4 artifacts committed `e7447f7`: `docs(phase-04): capture phase context — 27 implementation decisions`. **No new ADRs** — Q-27=a chose doc-only `reference/API-SPEC.md` amendment for the citation-shape change (`string[]` → `{ title, id }[]`) per SPEC.md R4. Locked decision count stays at 29. **Schema delta locked for Phase 4**: 1 new migration (`0004_batch_jobs` + companion `0005_rls_batch_jobs`) per D-06; NO `extracted_text` column on `policies` per D-07 (Q&A uses `@tiptap/html` `generateHTML`+strip at query time). **Phase 4 net-new files locked**: `lib/ai/{client,models,prompts,cache,qa-extract,qa-parser,summary}.ts` (7), `lib/stripe/{products,errors}.ts` (2), `lib/db/repositories/batch_jobs.ts` (1), `app/api/ai/{draft,summary,qa,consistency}/route.ts` (4) + `app/api/ai/consistency/[batchId]/route.ts` (1), `app/(admin)/dashboard/consistency/page.tsx` + actions (2), `components/policy/PolicyAiDraftDialog.tsx` + `PolicyRegenerateTldrButton.tsx` (2), `components/admin/ConsistencyCheckRunner.tsx` + `ConsistencyFindingsList.tsx` (2), `scripts/check-ai-layer.ts` + `check-ai-prompts.ts` (2), `drizzle/0004_batch_jobs.sql` + `0005_rls_batch_jobs.sql` (2). **Modified files**: `lib/db/repositories/ai_generations.ts` (fill 3 methods), `lib/db/repositories/policies.ts` (add `listPublishedForOrg` + `updateSummary`), `lib/db/schema.ts` (add batchJobs table), `lib/policies/transitions.ts` (`publish` adds post-commit `generateSummaryForPolicy` call), `components/admin/AdminSidebar.tsx` (add "Consistency Check" item), `scripts/check-error-discipline.ts` (widen scan to `lib/stripe/`), `scripts/check-artifacts.ts` (extend with Phase 4 file-existence rows), `package.json` (+ `@anthropic-ai/sdk` exact-pin + `verify:phase-4` chain), `reference/API-SPEC.md` (citation-shape amendment), `reference/PROMPTS.md` (Q&A trailing citation-block instruction). **Next**: `/gsd-plan-phase 4` consumes `04-SPEC.md` + `04-CONTEXT.md` to produce the wave-grouped plans.
+
 ---
 
 ## Phase Roster
@@ -205,7 +210,7 @@ Surfaced by `/pr-review-toolkit:review-pr` against PR #1 head `e3689d3` (silent-
 | 1 | Foundation | REQ-product-vision | Complete — 5/5 plans shipped 2026-05-16 (PR #1) |
 | 2 | Data Layer | REQ-user-roles, REQ-multi-tenancy | Complete — Plans 02-01..02-06 + 02-07 hotfix shipped 2026-05-17 → 2026-05-18 (7 / 7 plans complete); `pnpm verify:phase-2` exits 0 with 7/7 OK against live TEST DB. Code-review CR-01 (webhook publicMetadata.role mirror) + HI-01 (middleware narrowing parity) closed by Plan 02-07. Blockers: SF-DB-1 CLOSED, SF-DB-2 CLOSED, SF-M4 FULLY CLOSED, CR-01 CLOSED, HI-01 CLOSED. Carry-forward: CR-02 admin-matcher dead code → Phase 3. |
 | 3 | Admin UI | REQ-policy-library, REQ-policy-lifecycle, REQ-access-control | Shipped — PR #3 @ `edebab7` (2026-05-20). Fast-follows: PR #5 ADR-026 typed errors @ `bf65712`, PR #7 ADR-027 lookup-scoping @ `c6dca6a`. Audit cascade (security/validation/verification) complete via PR #8/#10/#11 — PR #8 SHIPPED @ `5a57000` (SECURED 67/67 STRIDE); PR #10 + #11 OPEN. VALIDATION-2.7 closure via PR #9 OPEN (10-assertion `check:policies-list-filters`). PR 3.3 ADR-028 PolicyId brand still queued. |
-| 4 | AI Layer | REQ-ai-policy-assistant, REQ-ai-usage-rules | Not started |
+| 4 | AI Layer | REQ-ai-policy-assistant, REQ-ai-usage-rules | In-flight — SPEC.md locked 2026-05-21 (7 reqs, ambiguity 0.109; commits `540bb17` + `3c1b642`); CONTEXT.md captured 2026-05-21 via `/gsd-discuss-phase 4 --power` (27 HOW decisions D-01..D-27; commit `e7447f7`). Next: `/gsd-plan-phase 4`. |
 | 5 | Employee Portal | REQ-acknowledgment-tracking, REQ-acknowledgment-rules | Not started |
 | 6 | Billing | REQ-tier-starter, REQ-tier-growth, REQ-tier-business | Not started |
 | 7 | Crons + Email | REQ-notification-system | Not started |
