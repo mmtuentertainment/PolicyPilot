@@ -82,17 +82,36 @@ export const acknowledgments = pgTable('acknowledgments', {
   // NEVER DELETE ROWS — append-only audit trail
 })
 
-export const aiGenerations = pgTable('ai_generations', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => organizations.id),
-  policyId: uuid('policy_id').references(() => policies.id),
-  type: text('type').notNull(), // 'draft' | 'summary' | 'qa' | 'consistency'
-  prompt: text('prompt').notNull(),
-  result: text('result').notNull(),
-  tokensUsed: integer('tokens_used').notNull(),
-  model: text('model').notNull(),
-  createdAt: timestamp('created_at').defaultNow(),
-})
+// ai_generations — AMENDED in Phase 4 ship (D-32 + D-35):
+//   tokens_used dropped; split into input_tokens + output_tokens + cache_read_input_tokens
+//   + cache_creation_input_tokens. idempotency_key added (D-32 Idempotency-Key header dedup).
+//   See reference/SCHEMA.md ai_generations block below for the canonical column list +
+//   partial-unique index. Drizzle export shape lives in lib/db/schema.ts (Plan 04-07).
+```
+
+```
+ai_generations
+  id                            uuid PRIMARY KEY DEFAULT gen_random_uuid()
+  org_id                        uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE
+  policy_id                     uuid REFERENCES policies(id)
+  type                          text NOT NULL  -- 'draft' | 'summary' | 'qa' | 'consistency'
+  prompt                        text NOT NULL
+  result                        text NOT NULL
+  input_tokens                  integer        -- NEW (D-35) — Anthropic Usage.input_tokens
+  output_tokens                 integer        -- NEW (D-35) — Anthropic Usage.output_tokens
+  cache_read_input_tokens       integer        -- NEW (D-35) — billed at 0.1× base input
+  cache_creation_input_tokens   integer        -- NEW (D-35) — billed at 1.25× (5min) or 2× (1h) base input
+  idempotency_key               text           -- NEW (D-32) — optional dedup key per Idempotency-Key header
+  model                         text NOT NULL
+  created_at                    timestamp DEFAULT now()
+
+-- D-32 hand-written partial-unique index (Drizzle does NOT emit partial indexes from .unique()):
+CREATE UNIQUE INDEX ai_generations_org_idempotency_key
+  ON ai_generations(org_id, idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
+
+-- DROPPED in Phase 4 ship: tokens_used (integer). Split into the 4 columns above per D-35.
+-- Operator approved 2026-05-21 (CLAUDE.md ASK FIRST cleared; safe — pre-paying-customer per STATE.md).
 ```
 
 ```typescript
@@ -119,6 +138,27 @@ export const stripeEvents = pgTable('stripe_events', {
   id: text('id').primaryKey(), // Stripe event ID (evt_xxx)
   processedAt: timestamp('processed_at').defaultNow(),
 })
+```
+
+```
+batch_jobs
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid()
+  org_id              uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE
+  anthropic_batch_id  text NOT NULL UNIQUE
+  type                text NOT NULL DEFAULT 'consistency'   -- Phase 4 ships consistency only; future surfaces extend
+  status              text NOT NULL DEFAULT 'in_progress'   -- 'in_progress' | 'completed' | 'failed' (SPEC enum; translated from Anthropic SDK enum)
+  created_at          timestamp DEFAULT now()
+  updated_at          timestamp DEFAULT now() NOT NULL      -- D-34 — staleness gate at /api/ai/consistency/[batchId] (25s window)
+  result_json         jsonb
+
+RLS: ENABLE; CREATE POLICY "org_isolation" ON batch_jobs FOR ALL USING (org_id::text = auth.jwt()->>'org_id');
+GRANT SELECT, INSERT, UPDATE, DELETE ON batch_jobs TO authenticated;
+
+Phase 4 D-29 + D-30 + D-34 — tracks Anthropic batch submissions for the Consistency Check
+feature. SDK returns `processing_status: 'in_progress' | 'canceling' | 'ended'` + request_counts;
+`/api/ai/consistency/[batchId]/route.ts` translates SDK enum → app `status` enum before
+persisting (RESEARCH.md § Batch API Mechanics). `ai_generations` row is written ON COMPLETION
+of the batch, NOT at submission — preserves the "SUCCESS-ONLY ai_generations" semantic (D-06).
 ```
 
 ---
