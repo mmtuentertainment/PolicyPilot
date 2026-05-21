@@ -714,3 +714,104 @@ Naming conventions:
 
 Full text mirrored in `.planning/PROJECT.md` short-form ADR-026.
 
+---
+
+## ADR-027: User-Lookup Scoping by `org_id` in `getOrgContext`
+
+- source: CodeRabbit outside-diff finding on PR #5 (`lib/auth/context.ts:126-145` — "user lookup currently only filtered by clerkUserId which can cross tenant boundaries"); deferred from PR #5 per CLAUDE.md `ASK FIRST` rule #4 (security-relevant decision needs explicit ratification); closed in this fast-follow PR
+- status: locked (2026-05-20)
+- scope: the `getOrgContext()` lookup pattern in `lib/auth/context.ts`; refines the application-layer state-consistency invariant on top of ADR-019's "every query scoped by org_id" + ADR-025's "RLS as the second line of defense"
+
+### Decision
+
+The user lookup inside `getOrgContext()` is scoped by **both** `clerk_user_id` AND `org_id` matching the org resolved from the session's `clerkOrgId`. The previous parallel `Promise.all` over the two lookups becomes a sequential `org → user` flow because the user query needs `orgRow.id` as a predicate input:
+
+```typescript
+// Before (PR #5 / v1): parallel, user filtered only by clerk_user_id
+const [orgRows, userRows] = await Promise.all([
+  db.select({ id: organizations.id })
+    .from(organizations).where(eq(organizations.clerkOrgId, clerkOrgId)).limit(1),
+  db.select({ id: users.id })
+    .from(users).where(eq(users.clerkUserId, clerkUserId)).limit(1),
+]);
+const orgRow = orgRows[0];
+if (!orgRow) throw new OrgNotProvisionedError(maskClerkOrgId(clerkOrgId));
+const userRow = userRows[0];
+if (!userRow) throw new UserNotProvisionedError(maskClerkId(clerkUserId));
+
+// After (ADR-027 / v2): sequential, user filtered by both clerk_user_id AND org_id
+const orgRows = await db
+  .select({ id: organizations.id }).from(organizations)
+  .where(eq(organizations.clerkOrgId, clerkOrgId)).limit(1);
+const orgRow = orgRows[0];
+if (!orgRow) throw new OrgNotProvisionedError(maskClerkOrgId(clerkOrgId));
+
+const userRows = await db
+  .select({ id: users.id }).from(users)
+  .where(and(eq(users.clerkUserId, clerkUserId), eq(users.orgId, orgRow.id)))
+  .limit(1);
+const userRow = userRows[0];
+if (!userRow) throw new UserNotProvisionedError(maskClerkId(clerkUserId));
+```
+
+If the user's DB row's `org_id` doesn't match the session's resolved `orgRow.id`, the user lookup returns no rows and `getOrgContext` throws `UserNotProvisionedError` — the typed class from ADR-026, **same class** as "no user row at all." From the consumer's perspective (`app/(admin)/dashboard/page.tsx` race-recovery + `app/(auth)/post-sign-in/page.tsx` hard-fail), the new mismatch case is indistinguishable from the existing "user not provisioned" case; both mean "bootstrap context cannot be completed." That symmetry is intentional — the asymmetric divergence locked by ADR-026 (`ProvisioningRaceError` caught by dashboard, rethrown by trampoline) extends cleanly to this new throw path because `UserNotProvisionedError` is a subclass of `ProvisioningRaceError`.
+
+Test coverage: `scripts/check-auth-context.ts` (existing integration test against the live TEST DB) gains two new control assertions — a **positive** lock (`SELECT id FROM users WHERE clerk_user_id = $1 AND org_id = $2` returns the user row when both predicates match) and a **negative** lock (same query returns empty when `org_id` is from a different org). The integration test runs as part of `verify:phase-3`. A `scripts/check-artifacts.ts` assertion pins the `and(eq(users.clerkUserId, ...)..., eq(users.orgId, ...))` substring in `lib/auth/context.ts` so a future refactor that drops the `eq(users.orgId, ...)` predicate fails CI immediately.
+
+### Rationale
+
+**What boundary this enforces — and what it doesn't.** The narrowing enforces **state consistency** between the session's claimed org and the user's DB record's org. The boundary it does NOT enforce — and never did at this layer — is cross-tenant data access. RLS in `withOrgScope` (ADR-025) is the binding tenant boundary for that, keyed off `session.orgId` via JWT injection, not off `users.org_id`. So even without ADR-027's narrowing, a user could NOT read another tenant's data through the application layer — RLS would block it. The CodeRabbit finding's "can cross tenant boundaries" framing was overstated; the genuine concern is state inconsistency, which has its own harm surface.
+
+**Why state inconsistency matters anyway.** Without the narrowing, a multi-org Clerk user whose `users.org_id ≠ session.orgId` still got an `OrgContext` returned. RLS scoped queries to `session.orgId` correctly. BUT the returned `OrgContext.userId` was for a user whose own DB record claimed they were in a different org. Downstream code that later reads `users.org_id` for attribution joins (the future-state UX surface; not currently in `policies.ts`/`policy_versions.ts`/`workflow_stages.ts` but anticipated for Phase 5+ acknowledgment views) would silently return empty rows for that user — a subtle UX failure pretending to be a successful request. Forward-looking attribution joins (`JOIN users ON acks.userId = users.id AND users.org_id = scope.orgId`) need the invariant `users.org_id = scope.orgId` to hold for the requesting user; ADR-027 makes that invariant load-bearing at the entry point.
+
+**Why the cost is acceptable.** Sequential vs parallel adds one DB round-trip per `getOrgContext()` call (the user query waits for the org query's result). `getOrgContext` is a per-request boundary, not a hot loop — the typical request makes one call. The added latency is on the order of single-digit milliseconds against the same connection pool. ADR-025 already pays two extra round-trips per request transaction (`SET LOCAL ROLE` + `set_config`) for RLS-binding; this PR adds one more to the bootstrap path. Acceptable trade for the invariant gain.
+
+**Why throw `UserNotProvisionedError` rather than a new dedicated class.** From the consumer's perspective, both "no user row at all" and "user row exists but in a different org" mean the same thing: bootstrap context cannot be completed; the dashboard renders the race-recovery panel (2s meta-refresh), the trampoline rethrows as a 500. The new class would be a distinction without a behavioral difference. Adding it would also require updating both consumer allow-lists, the divergence-lock tests, and the JSDoc — for no consumer-visible benefit. If structured logging (Phase 7+) ever needs to distinguish the two cases for triage, the `code` field on the existing class can be supplemented or split then.
+
+**Why the trampoline rethrows the new mismatch case.** `UserNotProvisionedError` is a subclass of `ProvisioningRaceError`, and the trampoline (`app/(auth)/post-sign-in/page.tsx`) intentionally excludes `ProvisioningRaceError` from `BOOTSTRAP_ERRORS` per ADR-026's documented asymmetry (trampoline treats Clerk-DB drift as hard-fail; dashboard treats it as race-with-meta-refresh). The new mismatch case slots cleanly into that taxonomy: the trampoline rethrows because a multi-org user landing on `/post-sign-in` with mismatched `users.org_id` is genuinely broken state from the trampoline's perspective — it should fall through to a 500 and force the user to investigate. The dashboard catches and meta-refreshes, which (correctly) doesn't recover the mismatch but at least doesn't crash with a raw error page.
+
+### Rejected alternatives
+
+- **Skip the change; accept the silent attribution-failure UX.** Defense-in-depth value lost. The downstream-join UX bug isn't a current production issue because `policies`/`policy_versions`/`workflow_stages` don't yet do attribution joins (Phase 5+ acknowledgment views will), but the lookup-scoping is cheap insurance that compounds in value as the UX surface grows.
+
+- **Fold the new mismatch case into `BOOTSTRAP_ERRORS` (the trampoline allow-list).** Breaks ADR-026's intentional asymmetry. The trampoline's hard-fail-on-DB-drift behavior exists because a user landing on `/post-sign-in` with DB drift is genuinely a broken state worth surfacing as a 500, not masking with a redirect to onboarding.
+
+- **Inject `session.orgId` into a custom JWT claim and check it against `users.org_id` inline (no DB query needed).** Over-engineered for the marginal latency saving. Custom JWT claims require changes to Clerk's session-template configuration (per ADR-024, middleware stays procedural and doesn't read tier-like or org-membership-like claims), and the integration test surface would become awkward (requires generating signed JWTs in the test harness). The sequential DB query is simpler.
+
+- **Add `users.org_id` to the OrgScope JWT claim already injected by `withOrgScope`, so RLS itself enforces the user-side org match.** Reverses cause and effect — RLS keys off `session.orgId` (per ADR-025), and the user's own `users.org_id` isn't a tenant-isolation predicate; it's the user's home-org attribution. Conflating the two would require migrating ADR-025's JWT-injection contract for no benefit (RLS already does its job; this ADR addresses state consistency at the application layer).
+
+- **Add full multi-org Clerk support by changing `users.clerk_user_id`'s uniqueness from globally-unique to composite-unique on `(clerk_user_id, org_id)`, plus a separate `user_organization_memberships` join table.** Big-bang schema change with cascading effects on every users-related query in the codebase and every webhook handler. Out of scope; deferred to its own ADR if multi-org product requirements emerge. See "Open question" below.
+
+### Open question — full multi-org Clerk support
+
+Clerk allows a user to be a member of multiple organizations at the auth layer. PolicyPilot's data model implicitly assumes one user = one org because `users.clerk_user_id` is globally `.unique()` (see `lib/db/schema.ts:184`) and `users.org_id` is a single FK column. The webhook handler at `app/api/webhooks/clerk/route.ts:296-303` (`organizationMembership.created`) **unconditionally overwrites** `users.org_id` on every membership-created event — no check for "does the user already have an org_id." So:
+
+| Clerk state | PolicyPilot `users.org_id` |
+|---|---|
+| User in org A only | A |
+| User joins org B (now in both A and B) | B (overwritten by the later webhook) |
+| User leaves org A (still in B) | B (no change; `organizationMembership.deleted` is log-only per D-03c) |
+| User active session switched to A | session.orgId = A, users.org_id = B → **mismatch** |
+
+In that last row's state, ADR-027's lookup-scoping throws `UserNotProvisionedError`. The dashboard race-recovery panel renders, but the meta-refresh doesn't actually recover anything — the user is structurally locked out of org A from PolicyPilot's perspective until either the data model changes or they switch back to org B. The trampoline (`/post-sign-in`) returns 500.
+
+This is a **product behavior, not a bug**, given the current data model. PolicyPilot today is a one-user-one-org product. ADR-027 makes that constraint visible (locked-out users get a specific error class) rather than silent (drifted state with empty attribution joins). If multi-org Clerk membership becomes a product requirement, the resolution will be a separate ADR with one of:
+
+- Composite unique `(clerk_user_id, org_id)` on `users` instead of globally unique on `clerk_user_id`, with per-org-membership user rows.
+- A separate `user_organization_memberships` join table; `users` becomes one-row-per-Clerk-user, attribution joins go through the membership table scoped by `scope.orgId`.
+- Something else that emerges from product design.
+
+Resolution is deferred — not blocking ADR-027's narrower decision.
+
+### Consequences
+
+- `lib/auth/context.ts` adds `and` to the drizzle-orm import + rewrites the parallel `Promise.all` block as a sequential `org → user` flow. The user query gains the `eq(users.orgId, orgRow.id)` predicate.
+- `scripts/check-auth-context.ts` gains two new assertions: positive lock (same query, matching `org_id`, returns the user row) + negative lock (mismatched `org_id`, returns empty). Both run against the live TEST DB via the existing `verify:phase-3` integration-test harness.
+- `scripts/check-artifacts.ts` gains an assertion that the `eq(users.orgId,` substring is present in `lib/auth/context.ts`, so a future refactor that drops the predicate fails CI before reaching review.
+- Per-request `getOrgContext()` cost: +1 DB round-trip (sequential vs parallel). Single-digit-millisecond impact in the typical case.
+- Multi-org Clerk users acting in non-most-recently-joined org get `UserNotProvisionedError` → dashboard race-recovery (2s meta-refresh; doesn't actually recover) or trampoline 500. Documented as a known product limitation in this ADR's "Open question" section.
+- Sets up the testing pattern for Phase 5+: when attribution joins land in repositories (e.g. acknowledgment views), the joins can safely assume `users.org_id = scope.orgId` for the requesting user because this ADR has enforced that invariant upstream.
+- No change to ADR-019 (RLS still the second line), ADR-023 (repos still take `OrgScope`), ADR-024 (middleware unchanged), ADR-025 (JWT injection unchanged), ADR-026 (uses `UserNotProvisionedError` class from there).
+
+Full text mirrored in `.planning/PROJECT.md` short-form ADR-027.
+
