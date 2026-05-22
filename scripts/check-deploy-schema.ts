@@ -85,9 +85,33 @@ function loadJournal(): JournalEntry[] {
 
 async function main(): Promise<void> {
   const journal = loadJournal();
-  const sql = postgres(DB_URL!, { prepare: false });
+  // PR #18 silent-failure review: log connection target (host only, never
+  // credentials) so operator can correlate failures to the right Supabase project.
+  const dbHost = (() => {
+    try {
+      return new URL(DB_URL!).host;
+    } catch {
+      return '(invalid DB_URL — cannot parse)';
+    }
+  })();
+  console.log(`[check-deploy-schema] connecting to ${dbHost}`);
+  // PR #18 silent-failure review: add connect_timeout to fail fast on stalled
+  // networks (paused Supabase project, wrong host, etc.) instead of hanging.
+  const sql = postgres(DB_URL!, {
+    prepare: false,
+    connect_timeout: 30,
+    idle_timeout: 5,
+  });
   const failures: Failure[] = [];
   let migrationsApplied = 0;
+  // PR #18 silent-failure review: flag-based early-skip instead of `return`.
+  // Original implementation `return`-ed from main() inside the try block on
+  // the fresh-DB path — which exited main() cleanly via the finally and made
+  // process.exit(1) (the failure-print block below) UNREACHABLE. Net effect:
+  // verifier reported "schema OK" on a brand-new Supabase project — the worst
+  // possible silent success. Flag pattern keeps the early-skip semantic but
+  // routes through the failure-print block at end of main().
+  let dbIsEmpty = false;
 
   try {
     // 1. drizzle.__drizzle_migrations: all journal entries applied?
@@ -99,9 +123,16 @@ async function main(): Promise<void> {
       `;
       migrationsApplied = applied.length;
       if (applied.length !== journal.length) {
+        // Distinguish under-applied (operator forgot db:migrate) from over-applied
+        // (operator hand-applied an extra via psql — indicates a procedural drift
+        // that the operator must investigate via Supabase audit log, NOT re-run migrate).
+        const remediation =
+          applied.length < journal.length
+            ? `Run pnpm db:migrate against this DB.`
+            : `Investigate the Supabase project audit log — drizzle.__drizzle_migrations has MORE entries than _journal.json. Do NOT re-run pnpm db:migrate; consult docs/runbooks/deploy-migrations.md § Troubleshooting.`;
         failures.push({
           check: 'migrations applied',
-          detail: `expected ${journal.length} (journal 0000..${String(journal.length - 1).padStart(4, '0')}); found ${applied.length} applied. Run pnpm db:migrate against this DB.`,
+          detail: `expected ${journal.length} (journal 0000..${String(journal.length - 1).padStart(4, '0')}); found ${applied.length} applied. ${remediation}`,
         });
       }
     } catch (err) {
@@ -111,11 +142,25 @@ async function main(): Promise<void> {
           check: 'migrations applied',
           detail: `drizzle.__drizzle_migrations table missing — no migrations have been applied to this DB. Run pnpm db:migrate (or the env-specific variant).`,
         });
-        // Skip downstream checks — DB has no schema yet
-        return;
+        // PR #18 silent-failure review: flag instead of return — see comment
+        // on `dbIsEmpty` declaration above.
+        dbIsEmpty = true;
+      } else if (/permission denied/i.test(errMsg)) {
+        // Permission-denied is structurally different from missing-table —
+        // operator's DB user lacks SELECT on drizzle schema. Surface explicitly.
+        failures.push({
+          check: 'migrations applied',
+          detail: `permission denied on drizzle.__drizzle_migrations (host=${dbHost}). The DB role used here lacks SELECT on the drizzle schema. Check Supabase project's RBAC config.`,
+        });
+        dbIsEmpty = true;
+      } else {
+        throw err;
       }
-      throw err;
     }
+
+    // Skip downstream checks when DB has no migrations applied — no point
+    // looking for tenant tables that haven't been created.
+    if (!dbIsEmpty) {
 
     // 2. All 11 tenant tables exist
     for (const table of TENANT_TABLES) {
@@ -240,6 +285,7 @@ async function main(): Promise<void> {
         detail: 'missing — drizzle/0005_initial_batch_jobs.sql not applied?',
       });
     }
+    } // end if (!dbIsEmpty)
   } finally {
     await sql.end();
   }

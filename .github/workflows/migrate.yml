@@ -64,9 +64,17 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
         run: |
-          if [ -z "$DIRECT_URL" ] && [ -z "$DATABASE_URL" ]; then
-            echo "::error::DATABASE_URL / DIRECT_URL not set for environment '${{ inputs.env }}'. Configure secrets in Settings → Environments → ${{ inputs.env }}." >&2
+          # PR #18 review: require DIRECT_URL specifically. drizzle-kit DDL
+          # needs port 5432 (direct connection); the pooler at 6543 chokes on
+          # some DDL forms per drizzle.config.ts D-05. Original `&&` guard
+          # passed when only DATABASE_URL was set, letting migrate run against
+          # the pooler and risk silent partial DDL.
+          if [ -z "$DIRECT_URL" ]; then
+            echo "::error::DIRECT_URL not set for environment '${{ inputs.env }}'. drizzle-kit migrations require port 5432 (direct, not pooler) per drizzle.config.ts D-05. Configure DIRECT_URL secret in Settings → Environments → ${{ inputs.env }}." >&2
             exit 1
+          fi
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::warning::DATABASE_URL not set — drizzle-kit will use DIRECT_URL as fallback. Runtime queries from the deployed app still need DATABASE_URL (pooler). Configure both secrets." >&2
           fi
           pnpm exec drizzle-kit migrate
 

@@ -165,7 +165,7 @@ ASK FIRST. Operator approval required per the project's ASK-FIRST rule above. Mi
 - Rationale (e.g., "pre-paying-customer status verified per STATE.md")
 - Operator-approval timestamp + decision ID
 
-Example: `drizzle/0007_ai_generations_audit_extensions.sql` drops `tokens_used`; header documents the 2026-05-21 approval per CONTEXT.md D-44.
+Example: `drizzle/0007_ai_generations_audit_extensions.sql` drops `tokens_used`; header documents the 2026-05-21 approval per `.planning/phases/04-ai-layer/04-CONTEXT.md` D-44.
 
 ### Procedure references
 

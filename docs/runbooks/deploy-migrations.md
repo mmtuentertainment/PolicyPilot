@@ -53,9 +53,11 @@ Stored in `secrets/` (gitignored). Each env gets its own file:
 ```
 secrets/
 ├── anthropic-dev.txt        (existing — API key)
-├── staging.env              (NEW — STAGING_DATABASE_URL + STAGING_DIRECT_URL)
-└── prod.env                 (NEW — PROD_DATABASE_URL + PROD_DIRECT_URL)
+├── staging.env              (NEW — DATABASE_URL + DIRECT_URL for staging Supabase)
+└── prod.env                 (NEW — DATABASE_URL + DIRECT_URL for production Supabase)
 ```
+
+Env-var names inside the files are the standard `DATABASE_URL` + `DIRECT_URL` — drizzle-kit and `check-deploy-schema.ts` both read those exact names from `process.env`. There is no `STAGING_*` / `PROD_*` prefix because `--env-file=secrets/<env>.env` scopes the lookup to that file.
 
 **Format of `secrets/staging.env`** (mirrors `.env.local`):
 
@@ -75,18 +77,17 @@ Same shape for `secrets/prod.env`.
 ### 1. Migrate Staging
 
 ```powershell
-# from C:\Users\matth\Desktop\PolicyPilot\
-
+# from repo root
 pnpm db:migrate:staging
 ```
 
 This runs `drizzle-kit migrate` with `--env-file=secrets/staging.env`. Drizzle reads the journal, computes the diff against `drizzle.__drizzle_migrations` on the target DB, and applies the pending entries in order inside a single transaction (PostgreSQL DDL is transactional — a failure mid-migration rolls back all changes).
 
-Expected output on first run:
+Expected output on first run (Phase 4 first deploy applies 0005 + 0006 + 0007 if staging was already at journal entry 0004; on a virgin staging DB all 8 entries 0000-0007 apply):
 
 ```
 > drizzle-kit migrate
-2 migrations applied: 0005_initial_batch_jobs, 0006_rls_batch_jobs, 0007_ai_generations_audit_extensions
+3 migrations applied: 0005_initial_batch_jobs, 0006_rls_batch_jobs, 0007_ai_generations_audit_extensions
 ```
 
 (Note: drizzle-kit's exact phrasing may vary; the key signal is exit 0.)
@@ -97,7 +98,7 @@ Expected output on first run:
 pnpm db:verify:staging
 ```
 
-Runs `scripts/check-deploy-schema.ts` against `STAGING_DIRECT_URL`. Asserts:
+Runs `scripts/check-deploy-schema.ts` against the `DIRECT_URL` loaded from `secrets/staging.env`. Asserts:
 
 - Journal entry count matches applied count
 - All 11 tenant tables exist with RLS + `org_isolation` policy + 4 GRANTs
@@ -203,12 +204,24 @@ If `db:verify` fails, the Vercel build fails — preventing a deploy that would 
 Rollback is safe and reversible. Example for 0005 + 0006:
 
 ```sql
--- Roll back 0006 + 0005:
+-- STEP 1 — inspect drizzle.__drizzle_migrations to find the actual IDs to delete.
+-- drizzle's table uses SERIAL `id` starting at 1, so 0000_initial → id=1,
+-- 0001_rls_policies → id=2, ..., 0007_ai_generations_audit_extensions → id=8.
+-- Identify the rows for the migrations you're rolling back BEFORE deleting:
+SELECT id, hash, created_at FROM drizzle.__drizzle_migrations ORDER BY id;
+
+-- STEP 2 — drop the schema objects (order matters: policy + grants before table).
 DROP POLICY IF EXISTS "org_isolation" ON batch_jobs;
 ALTER TABLE batch_jobs DISABLE ROW LEVEL SECURITY;
 REVOKE ALL ON batch_jobs FROM authenticated;
 DROP TABLE batch_jobs CASCADE;
-DELETE FROM drizzle.__drizzle_migrations WHERE id IN (5, 6);
+
+-- STEP 3 — delete the ledger entries by the IDs you identified in STEP 1.
+-- For example, if 0005_initial_batch_jobs has id=6 and 0006_rls_batch_jobs has id=7:
+DELETE FROM drizzle.__drizzle_migrations WHERE id IN (6, 7);
+-- DO NOT guess the IDs — `DELETE WHERE id IN (5, 6)` would actually delete
+-- 0004_policy_versions_unique + 0005_initial_batch_jobs entries, leaving the
+-- ledger inconsistent with the actual schema state.
 ```
 
 After: re-run `pnpm db:verify:<env>` — should fail with "X migrations applied (expected Y)".
