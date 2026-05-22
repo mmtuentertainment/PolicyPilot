@@ -16,7 +16,7 @@
     "ui_review": true,
     "use_worktrees": true,
     "tdd_mode": false,
-    "_auto_chain_active": true
+    "_auto_chain_active": false
   },
   "git": {
     "branching_strategy": "none"
