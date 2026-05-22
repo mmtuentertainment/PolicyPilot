@@ -3,6 +3,9 @@
 .env*.local
 # Phase 2 — env file for test-DB-targeted commands (Plan 02-03)
 .env.local.test
+# Phase 4 UAT — local secrets folder for SDK keys, OAuth tokens, etc.
+# NEVER commit anything from secrets/ — files here are operator-private.
+secrets/
 
 # Next.js / Node
 node_modules/
