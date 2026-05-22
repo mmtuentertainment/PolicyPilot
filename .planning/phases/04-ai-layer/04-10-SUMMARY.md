@@ -5,7 +5,7 @@ subsystem: ai-consistency
 tags: [ai-layer, consistency-check, batch-api, sdk-spec-drift, rls, warning-5]
 dependency-graph:
   requires:
-    - 04-04  # Phase 4 schema + RLS for batch_jobs
+    - 04-02  # Phase 4 schema + RLS migrations 0005/0006/0007 for batch_jobs + widened ai_generations
     - 04-05  # lib/ai/client + cache + prompts
     - 04-06  # lib/stripe/products + errors
     - 04-07  # batch_jobs + ai_generations repository methods
@@ -15,8 +15,8 @@ dependency-graph:
     - translateProcessingStatus (exported SDK→SPEC enum translator)
     - scripts/check-rls.ts batch_jobs cross-org case (AC-24)
   affects:
-    - 04-11  # check-ai-layer.ts integration test will consume the polled response
-    - 04-14  # /dashboard/consistency page mount-time resume reads BatchJobs
+    - 04-14  # check-ai-layer.ts integration test will consume the polled response
+    - 04-13  # /dashboard/consistency page mount-time resume reads BatchJobs
 tech-stack:
   added: []
   patterns:

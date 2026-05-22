@@ -36,7 +36,6 @@ key_files:
   created:
     - "scripts/check-ai-layer.test.ts (606 lines — 7 vitest fixtures covering SP-1/SP-2/SP-4/AC-24/AC-29/AC-32)"
     - "scripts/check-ai-layer.vitest.config.ts (52 lines — dedicated config with env passthrough + singleFork)"
-    - ".planning/phases/04-ai-layer/04-14-SUMMARY.md (this file)"
   modified:
     - "scripts/check-artifacts.ts (+454/-1; new checkPhase4Scaffold + ServerOnlyBoundary allow-list)"
     - "package.json (+2/-1; check:ai-layer + verify:phase-4 scripts)"

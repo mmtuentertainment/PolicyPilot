@@ -44,7 +44,6 @@ tech_stack:
 key_files:
   created:
     - lib/db/repositories/batch_jobs.ts (201 lines)
-    - .planning/phases/04-ai-layer/04-07-SUMMARY.md (this file)
   modified:
     - lib/db/repositories/ai_generations.ts (25 → 176 lines; record() stub replaced with 4 filled methods)
     - lib/db/repositories/policies.ts (161 → 219 lines; +listPublishedForOrg + +updateSummary; Phase 3 methods unchanged)

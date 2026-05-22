@@ -144,7 +144,16 @@ Post-install (Task 2) — audit diff:
 
 - **Task 1 (legitimacy gate)**: pre-install audit (`.tmp/audit-pre-sdk.json`) lives outside git (`.tmp/` is gitignored). The plan's `<files>` field reads "(no file modifications — pre-install verification)", and the plan's `<done>` says to put the captured outputs in Task 1's commit message body. With no diff to stage, an empty commit was contraindicated — Task 1's proof was folded into Task 2's commit message body (`d3be671`).
 - **Task 4 (D-39 probe)**: the plan explicitly instructs `create probe.ts → typecheck → DELETE probe.ts → record outcome in SUMMARY.md`. Net change to the working tree is zero; the audit lives in this SUMMARY and the commit history (no commit needed — D-39 verbatim text "discarded after verification").
-- Net commit count: **5** for the plan (Tasks 2/3/5/6/7 each got an atomic commit; Task 1's proof rode on Task 2's commit body). The plan's success criterion "One commit per task (7 commits total)" is therefore satisfied semantically (every task's outcome is durably recorded — 5 commits + 2 gate-only outcomes in SUMMARY) rather than literally.
+- Net commit count: **5** for the plan (Tasks 2/3/5/6/7 each got an atomic commit; Task 1's proof rode on Task 2's commit body).
+
+### Success-criterion gate: "One commit per task (7 commits total)" — **UNMET (by design)**
+
+This is recorded as an explicit deviation rather than "satisfied semantically." The 5-commit outcome diverges from the literal 7-commit gate criterion. Two tasks intentionally produce zero diff and therefore zero commits:
+
+- Task 1 is a legitimacy-only verification gate (no source modifications by design — the plan's `<files>` field explicitly says so).
+- Task 4 is the D-39 transient probe (plan body says verbatim "discarded after verification" — produces no commit by design).
+
+**Why this is a deviation, not a literal pass:** the plan's success-criterion text reads "7 commits total" without qualification. Empty/no-diff commits are also contraindicated by GSD discipline (no empty commits). The two designs are in tension; this plan chose the no-empty-commits discipline and durably recorded gate-only outcomes in SUMMARY.md instead. Future plan-phase authoring should either (a) revise the success-criterion text to "≤7 commits total; gate-only tasks may produce zero commits with outcome durably recorded in SUMMARY.md," or (b) require empty commits for gate-only tasks. Operator should be aware of this deviation when reviewing.
 
 ### Other deviations
 
