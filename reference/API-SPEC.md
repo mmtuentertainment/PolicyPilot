@@ -42,7 +42,11 @@ Process:
   3. Call claude-sonnet-4-6
   4. Log to ai_generations (type: 'qa')
   5. Return answer + citations
-Response: `{ answer: string, citations: string[] }`
+Response: `{ answer: string, citations: { title: string, id: string }[] }`
+# Citation shape widened in Phase 4 ship (SPEC.md R4 + CONTEXT D-27) — { title, id } enables
+# client-side rendering of "Cited: Policy Name" links without a second DB lookup. Old string[]
+# shape is removed (no parallel endpoint version). Application layer strips hallucinated IDs
+# (those not in the requesting org's published-policy set) before returning to client.
 
 ---
 

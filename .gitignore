@@ -3,6 +3,9 @@
 .env*.local
 # Phase 2 — env file for test-DB-targeted commands (Plan 02-03)
 .env.local.test
+# Phase 4 UAT — local secrets folder for SDK keys, OAuth tokens, etc.
+# NEVER commit anything from secrets/ — files here are operator-private.
+secrets/
 
 # Next.js / Node
 node_modules/
@@ -52,3 +55,16 @@ yarn-error.log*
 .next/cache/
 
 .tmp/
+
+# Operator-side / generator artifacts — NOT FOR REPO
+# .mcp.json contains MCP server tokens; .agents/.claude/.wiki/audit-cache/
+# are generator/operator-side directories that shouldn't be tracked.
+# .wiki/ is the Karpathy wiki experiment — aspirational, not tracked yet.
+.mcp.json
+.agents/
+.claude/
+.wiki/
+audit-cache/
+
+# Dev server logs (UAT smoke runs, real-key probes)
+localhost-*.log

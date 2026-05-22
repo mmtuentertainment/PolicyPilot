@@ -50,7 +50,11 @@ import { resolve } from 'node:path';
  * `PolicyId`. Failure to match is a hard CI fail.
  */
 const REPO_TARGETS: Record<string, string[]> = {
-  'lib/db/repositories/policies.ts': ['findById', 'updateDraft', 'incrementVersion'],
+  // Phase 4 D-09 addition: updateSummary takes PolicyId — included in the
+  // brand gate. listPublishedForOrg takes NO PolicyId argument (returns all
+  // published policies for the org), so the brand gate does NOT apply to it
+  // (only methods that take PolicyId need this enforcement).
+  'lib/db/repositories/policies.ts': ['findById', 'updateDraft', 'incrementVersion', 'updateSummary'],
   'lib/db/repositories/policy_versions.ts': ['listForPolicy', 'findByVersionNumber'],
   'lib/db/repositories/policy_assignments.ts': ['listForPolicy'],
   'lib/db/repositories/workflow_stages.ts': ['recordSubmission', 'listForPolicy'],

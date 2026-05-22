@@ -21,8 +21,9 @@
 // communicates the upcoming field shape without accepting user input that
 // would be ignored.
 
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import Link from "next/link";
+import type { Editor } from "@tiptap/react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -35,29 +36,32 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { buttonVariants } from "@/components/ui/button";
 import { PolicyEditor } from "@/components/policy/PolicyEditor";
+import { PolicyAiDraftDialog } from "@/components/policy/PolicyAiDraftDialog";
 import {
   createPolicyAction,
   type CreatePolicyState,
 } from "@/app/(admin)/policies/new/actions";
-
-// UI-SPEC Microcopy: fixed Phase 3 category list (mirrors the enum in
-// app/(admin)/policies/new/actions.ts POLICY_CATEGORIES).
-const CATEGORIES = [
-  "HR",
-  "Safety",
-  "IT",
-  "Finance",
-  "Operations",
-  "Compliance",
-  "Legal",
-  "Other",
-] as const;
+// Phase 4 Plan 04-12 (BLOCKER-2 cleanup) — POLICY_CATEGORIES is the single
+// shared source of truth in lib/policies/categories.ts. The previous local
+// CATEGORIES const here was a duplicate of the same 8-entry list that
+// actions.ts (Server Action) and lib/ai/schemas.ts (DraftSchema z.enum) both
+// consume; replacing it with the shared import means adding/removing a
+// category in one place ripples through all consumers via tsc.
+import { POLICY_CATEGORIES } from "@/lib/policies/categories";
 
 export function CreatePolicyForm() {
   const [state, formAction] = useActionState<
     CreatePolicyState | undefined,
     FormData
   >(createPolicyAction, undefined);
+
+  // Phase 4 Plan 04-12 — editor ref captured via PolicyEditor's new onMount
+  // callback. The sibling PolicyAiDraftDialog calls its onDraftReady(raw)
+  // callback with the response.draftContent STRING from /api/ai/draft, and
+  // this form pipes it into the editor via editor.commands.setContent(raw).
+  // D-28 + AC-23: setContent(string), NEVER JSON.parse — the Draft response
+  // is narrative prose (PROMPTS.md:8-21), not ProseMirror JSON.
+  const editorRef = useRef<Editor | null>(null);
 
   const fieldErrors =
     state && !state.ok && "fieldErrors" in state ? state.fieldErrors : undefined;
@@ -91,7 +95,7 @@ export function CreatePolicyForm() {
             <SelectValue placeholder="Select category" />
           </SelectTrigger>
           <SelectContent>
-            {CATEGORIES.map((c) => (
+            {POLICY_CATEGORIES.map((c) => (
               <SelectItem key={c} value={c}>
                 {c}
               </SelectItem>
@@ -106,8 +110,27 @@ export function CreatePolicyForm() {
       </div>
 
       <div>
-        <Label>Content</Label>
-        <PolicyEditor name="content_json" />
+        <div className="flex items-center justify-between">
+          <Label>Content</Label>
+          {/*
+            Phase 4 D-22 + AC-23 — PolicyAiDraftDialog is a SIBLING of
+            PolicyEditor (NOT inside it; PATTERNS Pattern I). On Draft 200,
+            the dialog hands the RAW STRING here; we route it through TipTap's
+            setContent which accepts HTML/markdown/string — D-28 forbids
+            JSON.parse on the response (Draft is prose, not ProseMirror JSON).
+          */}
+          <PolicyAiDraftDialog
+            onDraftReady={(rawContent) => {
+              editorRef.current?.commands.setContent(rawContent);
+            }}
+          />
+        </div>
+        <PolicyEditor
+          name="content_json"
+          onMount={(editor) => {
+            editorRef.current = editor;
+          }}
+        />
         {fieldErrors?.content_json ? (
           <p className="text-sm text-destructive mt-1">
             {fieldErrors.content_json.join(", ")}

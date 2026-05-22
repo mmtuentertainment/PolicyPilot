@@ -31,6 +31,7 @@ import { withOrgScope } from "@/lib/db/scoped";
 import { Policies } from "@/lib/db/repositories/policies";
 import { PolicyStatusBadge } from "@/components/policy/PolicyStatusBadge";
 import { PolicyHeaderActions } from "@/components/policy/PolicyHeaderActions";
+import { PolicyRegenerateTldrButton } from "@/components/policy/PolicyRegenerateTldrButton";
 import { PolicyVersionHistory } from "@/components/policy/PolicyVersionHistory";
 import { EditPolicyForm } from "@/components/policy/EditPolicyForm";
 import type { PolicyStatus } from "@/lib/policies/state-machine";
@@ -81,7 +82,22 @@ export default async function EditPolicyPage({
             <PolicyStatusBadge status={status} />
           </div>
         </div>
-        <PolicyHeaderActions policyId={policy.id} currentStatus={status} />
+        <div className="flex items-center gap-2">
+          {/*
+            Phase 4 SPEC R3 — admin "Regenerate TL;DR" button. Sibling of the
+            existing edit/version-history surfaces (per Plan 04-12 Task 4 +
+            CONTEXT.md <code_context> line 243 — PolicyRegenerateTldrButton is
+            a sibling, never inside another component). Admin gating is
+            inherited from the (admin) route group + middleware; the
+            /api/ai/summary endpoint enforces requireAdminFromCtx separately.
+            On 200, the button calls router.refresh() — this Server Component
+            re-runs and reads the freshly-set policies.tldrSummary (when the
+            TL;DR display block lands; today the value lives on the row but is
+            not yet rendered on this page).
+          */}
+          <PolicyRegenerateTldrButton policyId={policy.id} />
+          <PolicyHeaderActions policyId={policy.id} currentStatus={status} />
+        </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
         <div className="lg:col-span-3">

@@ -100,7 +100,21 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
   3. `POST /api/ai/qa` answers ONLY from the requesting org's published policies, returns a non-empty `citations` array of real policy names, and appends the legal disclaimer when the question is legal-adjacent.
   4. The Q&A endpoint uses Anthropic prompt caching (`cache_control: { type: "ephemeral" }`) on the policy-library block — cache hit observable via Anthropic API response metadata.
   5. `POST /api/ai/consistency` is feature-gated to Growth+ (403 on Starter), submits to Claude Batch API, returns a `batchId`, and a poll endpoint returns the strict JSON array result.
-**Plans**: TBD
+**Plans**: 14 plans
+- [x] 04-01-PLAN.md — Wave 0: SDK install + .env.local.example + scratch/probe.ts D-39 audit + PROMPTS.md/API-SPEC.md/SCHEMA.md amendments (D-01/10/27/29/31/35)
+- [x] 04-02-PLAN.md — Wave 0: Drizzle schema + migrations 0005/0006/0007 + BLOCKING pnpm db:migrate:test gate (D-06/29/32/34/35)
+- [x] 04-03-PLAN.md — Wave 0: 14 RED test stubs + tests/ai-mocks.ts shared fixtures helper (covers AC-23..AC-33 + SP-1..SP-4)
+- [x] 04-04-PLAN.md — Wave 1: lib/ai foundation (client/models/cache/prompts/extract/schemas) — D-02/03/04/33/38/42; AC-28 + AC-33 GREEN
+- [x] 04-05-PLAN.md — Wave 1: lib/ai Q&A helpers (qa-extract/qa-parser) + tests/types.ts D-43 citation-shape compile-time guard
+- [x] 04-06-PLAN.md — Wave 1: lib/stripe/products.ts + errors.ts + check-error-discipline.ts widening (D-14/15/16)
+- [x] 04-07-PLAN.md — Wave 1: repositories (ai_generations fill + policies extend + batch_jobs new) + lib/auth/errors.ts ForbiddenError + require-admin.ts D-45 amendment
+- [x] 04-08-PLAN.md — Wave 2: lib/ai/summary.ts + POST /api/ai/draft + POST /api/ai/summary (SPEC R2/R3 + D-19/32/35/36/37)
+- [x] 04-09-PLAN.md — Wave 2: POST /api/ai/qa (SPEC R4 + D-33c/40/41/46 — no tier check, same-closure validIds, LONG_CACHE ordering)
+- [x] 04-10-PLAN.md — Wave 2: POST /api/ai/consistency + GET /api/ai/consistency/[batchId] + SDK→SPEC translator + check-rls.ts batch_jobs extension (SPEC R5 + AC-24/30 + D-34)
+- [x] 04-11-PLAN.md — Wave 2: publish() post-commit summary hook (D-19) + scripts/check-ai-prompts.ts ts-morph anchor gate (D-26)
+- [x] 04-12-PLAN.md — Wave 3: PolicyAiDraftDialog + PolicyRegenerateTldrButton + wire into PolicyEditor / PolicyView (D-22/28 + AC-23)
+- [x] 04-13-PLAN.md — Wave 3: /dashboard/consistency page + ConsistencyCheckRunner + 4 admin components + AdminSidebar entry (D-20/21/23/30 + AC-25)
+- [x] 04-14-PLAN.md — Wave 4: scripts/check-ai-layer.ts integration test + check-artifacts.ts Phase 4 scaffold + verify:phase-4 chain (D-24) + operator UAT checkpoint
 
 ### Phase 5: Employee Portal
 **Goal**: An employee can sign in, see only their assigned + published policies, read them, ask Q&A questions, and one-click acknowledge — with every acknowledgment captured append-only with timestamp and IP. Policy updates correctly require re-acknowledgment.

@@ -31,6 +31,7 @@
 // for any direct policies-table updates. scripts/check-db-imports.ts
 // (Phase 2) enforces this at CI; the file's path is NOT in ALLOWLIST.
 import 'server-only';
+import Anthropic from '@anthropic-ai/sdk';
 import { and, eq, sql } from 'drizzle-orm';
 import { withOrgScope, type OrgScope } from '@/lib/db/scoped';
 import { getOrgContext } from '@/lib/auth/context';
@@ -38,6 +39,7 @@ import { Policies } from '@/lib/db/repositories/policies';
 import { PolicyVersions } from '@/lib/db/repositories/policy_versions';
 import { WorkflowStages } from '@/lib/db/repositories/workflow_stages';
 import { policies } from '@/lib/db/schema';
+import { generateSummaryForPolicy } from '@/lib/ai/summary';
 import {
   canTransition,
   IllegalTransitionError,
@@ -169,6 +171,48 @@ export async function publish(policyId: PolicyId): Promise<void> {
       .set({ status: 'published', updatedAt: sql`now()` })
       .where(and(eq(policies.orgId, s.orgId), eq(policies.id, policyId)));
   });
+
+  // Phase 4 D-19 + SPEC R3 — post-commit AI auto-trigger.
+  //
+  // Runs OUTSIDE the state-transition withOrgScope (i.e., after the transaction commits)
+  // so a flaky Anthropic call cannot roll back the publish. The summary helper opens its
+  // own withOrgScope for the ai_generations INSERT + policies.tldrSummary UPDATE.
+  //
+  // Graceful-degrade scope: only Anthropic.APIError is swallowed (D-19 — Anthropic
+  // hiccups must not affect the published state; admin regenerates via the
+  // "Regenerate TL;DR" button). Non-Anthropic errors (TierLimitExceededError,
+  // BootstrapError, TypeError from a refactor bug, etc.) are RE-THROWN so they
+  // surface in error monitoring. Without this narrowing, a programming bug in
+  // generateSummaryForPolicy would silently corrupt every publish indefinitely.
+  //
+  // D-36 PII-safe log — Anthropic.APIError is sanitized to {name, status, code}; raw
+  // error.message could contain the org's API-key prefix or policy content.
+  //
+  // SP-3 (Nyquist sub-path) — lib/policies/transitions.test.ts D-19 block verifies
+  // both the graceful-degrade path (Anthropic.APIError) AND the propagation path
+  // (non-Anthropic Error).
+  try {
+    await generateSummaryForPolicy(policyId, ctx);
+  } catch (error) {
+    if (error instanceof Anthropic.APIError) {
+      // PR #15 type-design review: read `error.type` (typed ErrorType | null on
+      // APIError, per @anthropic-ai/sdk/core/error.d.ts:13) instead of
+      // `error.error?.type`, which propagates `any` because TError defaults to
+      // Object | undefined and .type isn't on that generic shape.
+      console.error('[publish] summary failed (anthropic)', {
+        policyId,
+        error: { name: error.name, status: error.status, code: error.type },
+      });
+      return;
+    }
+    if (error instanceof Error) {
+      console.error('[publish] summary failed (non-anthropic, propagating)', {
+        policyId,
+        error: { name: error.name, message: error.message.slice(0, 120) },
+      });
+    }
+    throw error;
+  }
 }
 
 /**

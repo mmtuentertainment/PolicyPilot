@@ -3,6 +3,7 @@ import Link from "next/link";
 import {
   LayoutDashboard,
   FileText,
+  ScanSearch,
   Users,
   BarChart3,
   Settings,
@@ -28,6 +29,12 @@ import {
  * header read here is trustworthy.
  *
  * Phase 3 live items: Dashboard, Policies.
+ * Phase 4 D-20 addition: Consistency Check (link to /dashboard/consistency).
+ *   Per the threat model T-04-13-IL the entry is visible to all admins;
+ *   Starter admins navigating there see the EmptyState, but the Run button
+ *   yields 403 with the "Upgrade to Growth →" copy from
+ *   ConsistencyCheckRunButton. Phase 6 syncs planTier to make a true
+ *   visible-but-disabled state at this layer.
  * Phase 3 placeholder items (disabled, tooltip with arrival phase per
  *   UI-SPEC §Sidebar grayed-out items microcopy):
  *   Employees (Phase 5), Reports (Phase 8), Settings (Phase 6).
@@ -44,6 +51,14 @@ export async function AdminSidebar() {
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
+  // Phase 4 D-20 Rule-1 deviation: with /dashboard/consistency as a sibling
+  // sub-route of /dashboard, the prefix-match isActive helper above would
+  // mark BOTH "Dashboard" AND "Consistency Check" active when the user is
+  // on /dashboard/consistency. Use an exact-match variant for the
+  // dashboard-root entry so only the consistency entry lights up on the
+  // sub-route. Pattern matches the conventional landing-link behavior in
+  // shadcn / Next.js admin templates.
+  const isExactActive = (href: string) => pathname === href;
 
   return (
     <Sidebar>
@@ -54,8 +69,8 @@ export async function AdminSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
-              isActive={isActive("/dashboard")}
-              aria-current={isActive("/dashboard") ? "page" : undefined}
+              isActive={isExactActive("/dashboard")}
+              aria-current={isExactActive("/dashboard") ? "page" : undefined}
               render={<Link href="/dashboard" />}
             >
               <LayoutDashboard className="size-4" aria-hidden="true" />
@@ -70,6 +85,25 @@ export async function AdminSidebar() {
             >
               <FileText className="size-4" aria-hidden="true" />
               <span>Policies</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+
+          {/* Phase 4 D-20 — Consistency Check nav entry. Visible to all admins;
+              functionally tier-gated (Starter org hits 403 on POST
+              /api/ai/consistency per Plan 04-10 + UX prompt for Upgrade).
+              Phase 6 sync of planTier enables true visible-but-disabled state
+              per SPEC R5; until then, the entry shows for all admins and the
+              page itself handles the 403 cleanly via ConsistencyCheckRunButton. */}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              isActive={isActive("/dashboard/consistency")}
+              aria-current={
+                isActive("/dashboard/consistency") ? "page" : undefined
+              }
+              render={<Link href="/dashboard/consistency" />}
+            >
+              <ScanSearch className="size-4" aria-hidden="true" />
+              <span>Consistency Check</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
 

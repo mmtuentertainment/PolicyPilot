@@ -58,9 +58,38 @@ export const aiGenerations = pgTable('ai_generations', {
   type: text('type').notNull(), // 'draft' | 'summary' | 'qa' | 'consistency'
   prompt: text('prompt').notNull(),
   result: text('result').notNull(),
-  tokensUsed: integer('tokens_used').notNull(),
+  // D-35: Anthropic Usage shape (4 columns; nullable for backward compat in case of mocked
+  // responses that omit usage). Replaces the old `tokensUsed` integer column.
+  // Phase 8 cost analytics: weighted_token_cost =
+  //   input_tokens + cache_creation_input_tokens * 1.25 + cache_read_input_tokens * 0.1 + output_tokens * 5
+  inputTokens: integer('input_tokens'),
+  outputTokens: integer('output_tokens'),
+  cacheReadInputTokens: integer('cache_read_input_tokens'),
+  cacheCreationInputTokens: integer('cache_creation_input_tokens'),
+  // D-32: optional client-supplied dedup key via Idempotency-Key header (draft endpoint only in Phase 4).
+  // Partial-unique index on (org_id, idempotency_key) WHERE idempotency_key IS NOT NULL ships in
+  // drizzle/0007_ai_generations_audit_extensions.sql — Drizzle does NOT emit partial indexes from
+  // .unique(), so the index is hand-written in the same combined migration.
+  idempotencyKey: text('idempotency_key'),
   model: text('model').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
+});
+
+// D-06 + D-29 + D-34: Phase 4 — Anthropic batch state tracking for Consistency Check.
+// SDK returns processing_status: 'in_progress' | 'canceling' | 'ended' + request_counts;
+// /api/ai/consistency/[batchId]/route.ts translates SDK enum → app `status` enum before
+// persisting (RESEARCH § Batch API Mechanics). ai_generations row written ON COMPLETION,
+// NOT at submission (preserves SUCCESS-ONLY ai_generations semantic per D-06).
+// RLS shipped via drizzle/0006_rls_batch_jobs.sql (hand-written 4-statement block per D-29).
+export const batchJobs = pgTable('batch_jobs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  anthropicBatchId: text('anthropic_batch_id').notNull().unique(),
+  type: text('type').notNull().default('consistency'),
+  status: text('status').notNull().default('in_progress'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  resultJson: jsonb('result_json'),
 });
 
 export const clerkEvents = pgTable('clerk_events', {

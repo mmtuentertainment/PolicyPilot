@@ -36,6 +36,27 @@
       "when": 1779282677745,
       "tag": "0004_policy_versions_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1779400015116,
+      "tag": "0005_initial_batch_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779400184048,
+      "tag": "0006_rls_batch_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1779400538815,
+      "tag": "0007_ai_generations_audit_extensions",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 4: AI Layer — Discussion Questions</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --card-bg: #ffffff;
+    --border: #e2e8f0;
+    --border-strong: #cbd5e1;
+    --text: #0f172a;
+    --text-muted: #475569;
+    --text-dim: #64748b;
+    --green-border: #22c55e;
+    --green-bg: #f0fdf4;
+    --green-text: #166534;
+    --orange-border: #f97316;
+    --orange-bg: #fff7ed;
+    --blue-accent: #0369a1;
+    --blue-bg: #eff6ff;
+    --code-bg: #f1f5f9;
+    --shadow: 0 1px 2px rgba(15,23,42,.04), 0 1px 3px rgba(15,23,42,.06);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  header {
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    box-shadow: var(--shadow);
+  }
+  header h1 {
+    margin: 0 0 4px 0;
+    font-size: 20px;
+    font-weight: 700;
+  }
+  header .subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+  }
+  .stats-bar {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .stats-bar .counters {
+    display: flex;
+    gap: 20px;
+    font-size: 13px;
+  }
+  .stats-bar .counter strong {
+    display: block;
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--text);
+  }
+  .stats-bar .counter span {
+    color: var(--text-dim);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .progress-track {
+    flex: 1;
+    min-width: 200px;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--green-border);
+    transition: width 0.3s ease;
+  }
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  button.btn {
+    background: var(--text);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  button.btn:hover { opacity: 0.9; }
+  button.btn.secondary {
+    background: white;
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+  }
+  button.btn.secondary:hover { background: var(--bg); }
+  .instructions {
+    background: var(--blue-bg);
+    border: 1px solid #bfdbfe;
+    color: var(--blue-accent);
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    margin: 16px 32px 0;
+  }
+  .instructions code {
+    background: rgba(255,255,255,0.6);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
+    font-size: 12px;
+  }
+  main { padding: 24px 32px; }
+  .section {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .section-header {
+    padding: 14px 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border);
+  }
+  .section-header:hover { background: var(--bg); }
+  .section.collapsed .section-header { border-bottom-color: transparent; }
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .section-title .chevron {
+    transition: transform 0.2s;
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+  .section.collapsed .chevron { transform: rotate(-90deg); }
+  .section-progress {
+    font-size: 12px;
+    color: var(--text-dim);
+    background: var(--bg);
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .section-progress.complete {
+    background: var(--green-bg);
+    color: var(--green-text);
+    font-weight: 600;
+  }
+  .section-body {
+    padding: 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 16px;
+  }
+  .section.collapsed .section-body { display: none; }
+  .question-card {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px;
+    background: white;
+    transition: border-color 0.2s, background 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .question-card.answered {
+    border: 2px solid var(--green-border);
+    background: var(--green-bg);
+  }
+  .question-card .q-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    justify-content: space-between;
+  }
+  .q-id {
+    background: var(--text);
+    color: white;
+    font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .question-card.answered .q-id {
+    background: var(--green-border);
+  }
+  .q-title {
+    font-weight: 600;
+    font-size: 13px;
+    line-height: 1.35;
+    flex: 1;
+  }
+  .q-context {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    font-style: italic;
+    line-height: 1.45;
+    border-left: 2px solid var(--border);
+    padding-left: 10px;
+  }
+  .question-card.answered .q-context { border-left-color: var(--green-border); }
+  .q-options {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .q-option {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s;
+    font-size: 12px;
+  }
+  .q-option:hover { background: var(--bg); }
+  .question-card.answered .q-option:hover { background: rgba(34,197,94,0.08); }
+  .q-option input[type="radio"] {
+    margin-top: 3px;
+    flex-shrink: 0;
+    accent-color: var(--green-border);
+  }
+  .q-option-content {
+    flex: 1;
+    min-width: 0;
+  }
+  .q-option-label {
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+  .q-option-desc {
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.4;
+  }
+  .q-custom-input {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-family: inherit;
+    font-size: 12px;
+    margin-top: 4px;
+    display: none;
+  }
+  .q-option.custom-active .q-custom-input { display: block; }
+  .q-chat-more {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 12px;
+    resize: vertical;
+    min-height: 50px;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .q-chat-more::placeholder { color: var(--text-dim); }
+  .q-chat-more:focus { outline: none; border-color: var(--border-strong); }
+  .q-chat-more.has-content {
+    border: 2px solid var(--orange-border);
+    background: var(--orange-bg);
+  }
+  footer {
+    padding: 24px 32px;
+    background: var(--card-bg);
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .save-status {
+    font-size: 12px;
+    color: var(--text-dim);
+    align-self: center;
+    margin-right: auto;
+    padding-left: 4px;
+  }
+  .save-status.saved { color: var(--green-text); font-weight: 500; }
+  .save-status.error { color: #dc2626; font-weight: 500; }
+  .empty-state {
+    padding: 32px;
+    text-align: center;
+    color: var(--text-dim);
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Phase 4: AI Layer — Discussion Questions</h1>
+  <div class="subtitle">PolicyPilot · /gsd-discuss-phase 4 --power · 27 questions across 7 topics · SPEC.md locked (7 requirements)</div>
+  <div class="stats-bar">
+    <div class="counters">
+      <div class="counter"><strong id="total-count">27</strong><span>total</span></div>
+      <div class="counter"><strong id="answered-count">0</strong><span>answered</span></div>
+      <div class="counter"><strong id="remaining-count">27</strong><span>remaining</span></div>
+      <div class="counter"><strong id="chatmore-count">0</strong><span>with notes</span></div>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width: 0%"></div></div>
+    <div class="toolbar">
+      <button class="btn secondary" onclick="downloadJson()">Download JSON</button>
+      <button class="btn" onclick="saveAnswers()">Save answers</button>
+    </div>
+  </div>
+</header>
+<div class="instructions">
+  Pick the option that fits your intent. Use <strong>Custom</strong> if none match. Add free-form notes in the <em>"chat more"</em> textarea — they show up in the orange-bordered box. Click <strong>Save answers</strong> to write back to <code>04-QUESTIONS.json</code> (uses the File System Access API in Chrome/Edge; falls back to download elsewhere). Then return to Claude and say <code>refresh</code> to process answers or <code>finalize</code> to generate <code>04-CONTEXT.md</code>.
+</div>
+<main id="content"><div class="empty-state">Loading questions…</div></main>
+<footer>
+  <div class="save-status" id="save-status">Not saved yet</div>
+  <button class="btn secondary" onclick="downloadJson()">Download JSON</button>
+  <button class="btn" onclick="saveAnswers()">Save answers</button>
+</footer>
+<script>
+  // Embedded JSON state — the source of truth in the browser. Rendering reads
+  // this, user actions mutate it, save writes it back to disk.
+  const INITIAL_STATE = /* @QUESTIONS_JSON_START */ {
+  "phase": "04-ai-layer",
+  "generated_at": "2026-05-21T00:00:00.000Z",
+  "stats": {
+    "total": 27,
+    "answered": 27,
+    "chat_more": 2,
+    "remaining": 0
+  },
+  "sections": [
+    {
+      "id": "ai-foundation",
+      "title": "AI Foundation (lib/ai/*)",
+      "questions": [
+        {
+          "id": "Q-01",
+          "title": "Anthropic SDK version pin strategy",
+          "context": "Codebase precedent for security-sensitive transitive deps is EXACT pin: svix@1.93.0, ts-morph@28.0.0, @tiptap/*@2.27.2. Loose caret is used for UI/utility deps (@clerk/nextjs ^7.3.4, @base-ui/react ^1.4.1, lucide-react ^1.16.0). audit-cache/ + audit-before-security-changes memory rule fires on every dep bump. SDK is the AI trust boundary — every Claude call routes through it.",
+          "options": [
+            {
+              "id": "a",
+              "label": "Exact pin (e.g. \"@anthropic-ai/sdk\": \"0.65.1\")",
+              "description": "Matches svix/ts-morph/@tiptap precedent. Reproducible builds; security-patch upgrades require deliberate bump + audit. Recommended."
+            },
+            {
+              "id": "b",
+              "label": "Caret range (^0.65.1)",
+              "description": "Auto patch-bumps on pnpm install. Faster security fixes but risks unannounced behavior shifts in a 0.x SDK that still moves quickly."
+            },
+            {
+              "id": "c",
+              "label": "Tilde range (~0.65.1)",
+              "description": "Allows patch only, not minor. Middle ground but doesn't match any existing dep style — adds a fourth strategy to the codebase."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-02",
+          "title": "lib/ai/client.ts singleton shape",
+          "context": "SPEC R1 says: 'lib/ai/client.ts exports a getAnthropicClient() singleton (server-only, reads ANTHROPIC_API_KEY from env)'. Codebase precedent: lib/db/index.ts exposes a module-top eager const `db`; lib/auth/context.ts uses a per-request `await auth()`. Pure function/singleton matters for vitest mocking ergonomics (Q-22).",
+          "options": [
+            {
+              "id": "a",
+              "label": "Lazy module-level singleton — `let cached: Anthropic | null = null; export function getAnthropicClient() { return cached ??= new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! }) }`",
+              "description": "Defers env-var read until first call (testable without setting ANTHROPIC_API_KEY in unit tests). Mock by stubbing the function via vi.mock('@/lib/ai/client'). Matches the SPEC's getAnthropicClient() naming."
+            },
+            {
+              "id": "b",
+              "label": "Eager module-top const — `export const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })`",
+              "description": "Fails fast on missing env (Next.js build-time crash if env missing). Mirrors lib/db/index.ts pattern. Less flexible for testing (env must be set even in mocked tests)."
+            },
+            {
+              "id": "c",
+              "label": "Per-request instantiation — `export function getAnthropicClient() { return new Anthropic(...) }`",
+              "description": "Trivially mock-friendly. Wasteful: Anthropic SDK is ~stateless but holds a connection pool. Performance penalty on a serverless route is real."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-03",
+          "title": "lib/ai/cache.ts prompt-cache helper shape",
+          "context": "SPEC Constraint: 'Prompt caching mandatory on Q&A (system prompt + policy library block, cache_control: { type: \"ephemeral\" })'. CLAUDE.md ALWAYS rule #4: 'Use prompt caching on all repeated Claude API system prompts'. So Draft + Consistency Check also cache. cache.ts is the abstraction over Anthropic's `system: [{ type: 'text', text, cache_control: { ... } }]` array shape.",
+          "options": [
+            {
+              "id": "a",
+              "label": "Minimal const + builder — exports `EPHEMERAL_CACHE = { type: 'ephemeral' } as const` plus `buildCachedSystem(text: string)` returning the full `[{ type, text, cache_control }]` array",
+              "description": "Each endpoint imports `buildCachedSystem(SYSTEM_PROMPT)` and passes to `messages.create({ system: ... })`. Centralizes the shape; trivial to extend if Anthropic adds TTL options."
+            },
+            {
+              "id": "b",
+              "label": "Two-block composer — `buildQACachedSystem(staticPrompt, policyLibraryBlock)` returns the full two-block array with cache_control on the policy library block only",
+              "description": "Q&A is the high-volume cache target (60-80% hit-rate goal). Two-block split lets the static prompt cache separately from the per-org policy library. Tighter to the actual Q&A surface; less reusable for Draft/Consistency."
+            },
+            {
+              "id": "c",
+              "label": "Skip cache.ts entirely — inline the cache_control object literal at each call site",
+              "description": "Less abstraction. Easier to grep for `cache_control` in the codebase. Repeats the literal in 3+ places. Loses the central place to add TTL handling later."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-04",
+          "title": "Where model IDs live as constants",
+          "context": "Model IDs are locked by ADR-005/006/015: claude-sonnet-4-6 + claude-haiku-4-5-20251001. They appear in 4 endpoint files (draft, summary, qa, consistency). If/when a model is deprecated and we ADR-XYZ a swap, one update site is much cheaper than four.",
+          "options": [
+            {
+              "id": "a",
+              "label": "Dedicated `lib/ai/models.ts` — exports `MODEL_SONNET = 'claude-sonnet-4-6'`, `MODEL_HAIKU = 'claude-haiku-4-5-20251001'`",
+              "description": "Single grep target for model migrations. Mirrors POLICY_CATEGORIES const in new/actions.ts. Recommended."
+            },
+            {
+              "id": "b",
+              "label": "Co-located with prompts in `lib/ai/prompts.ts`",
+              "description": "Prompts and models change together for a given surface; co-locating makes the SURFACE the unit. Mixes concerns slightly (prompts are content; models are model selection)."
+            },
+            {
+              "id": "c",
+              "label": "Inline at each endpoint",
+              "description": "Self-contained route handlers. Higher maintenance cost on model migrations. Doesn't match the constants pattern elsewhere."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-05",
+          "title": "Anthropic SDK mock approach for vitest",
+          "context": "Phase 3 mocking pattern (app/(admin)/policies/[id]/actions.test.ts:25-33): vi.mock('@/lib/policies/transitions', () => ({ submitForReview: ... })) with hoisted vi.fn() instances. SPEC requires unit tests for prompt-constant verbatim match, citation parser, tier-check math, 503 error contract, publishPolicy graceful-degrade. Cache-hit fixture also required (Q-25).",
+          "options": [
+            {
+              "id": "a",
+              "label": "Mock the lib/ai/client wrapper — `vi.mock('@/lib/ai/client', () => ({ getAnthropicClient: () => mockAnthropicClient }))`",
+              "description": "Tightest match to the Phase 3 vi.mock('@/lib/policies/transitions') pattern. Mock surface is just one function returning an object with `messages.create()` + `messages.batches.{create,retrieve}()`. Trivial to extend per-test."
+            },
+            {
+              "id": "b",
+              "label": "Mock the SDK directly — `vi.mock('@anthropic-ai/sdk', () => ({ default: vi.fn().mockImplementation(...) }))`",
+              "description": "Tests the wrapper too (Anthropic constructor + auth handling). More setup boilerplate. Useful only if the wrapper has logic worth testing — which it shouldn't if Q-02 is option (a)."
+            },
+            {
+              "id": "c",
+              "label": "MSW (Mock Service Worker) at the HTTP layer — `mockAPI.intercept('https://api.anthropic.com/v1/messages', { ... })`",
+              "description": "Most realistic mock (intercepts the actual HTTP). Adds msw as a dev dependency (new package — ASK FIRST gate). Heavier setup; overkill for SMB-scale tests."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        }
+      ]
+    },
+    {
+      "id": "schema-persistence",
+      "title": "Schema & Persistence",
+      "questions": [
+        {
+          "id": "Q-06",
+          "title": "Consistency Check batch-state tracking: separate table or column on ai_generations?",
+          "context": "SPEC explicitly defers this to discuss-phase: 'stores the returned batch.id against a new row in a batch_jobs table OR stores it in an ai_generations row with type=\"consistency\" and result=\"PENDING:<batchId>\" placeholder until completion (choice deferred to discuss-phase as a HOW question; SPEC locks the OBSERVABLE contract).' ADR-018-spirit doesn't bind ai_generations (no @ts-expect-error guard), but SPEC says 'one ai_generations row with type=\"consistency\" written ON COMPLETION, not at submission'.",
+          "options": [
+            {
+              "id": "a",
+              "label": "New `batch_jobs` table — `(id, orgId, anthropicBatchId, type='consistency', status, createdAt, resultJson)`",
+              "description": "Clean separation: ai_generations stays SUCCESS-ONLY (preserves the 'one row per successful Claude call' semantic from CLAUDE.md ALWAYS rule #5). Pending state lives in batch_jobs. Adds a new migration (0004_batch_jobs.sql) + new repository module. Future batch surfaces (e.g., bulk Q&A reanalysis) reuse the same table."
+            },
+            {
+              "id": "b",
+              "label": "Add `batchId` column to ai_generations — row inserted at submission with `result='PENDING:<batchId>'`, UPDATEd on completion with real JSON result",
+              "description": "Fewer tables. But: violates 'one row per SUCCESSFUL Claude call' (a pending row isn't a successful call). UPDATE on a row counted by tier-limit math complicates the calendar-month counts. Adds 1 column migration."
+            },
+            {
+              "id": "c",
+              "label": "Hybrid — store batch metadata in a small `batch_jobs` table (option a) AND mirror final result into `ai_generations` on completion (the canonical 'one row per successful Claude call' is still written at completion time)",
+              "description": "Both tables stay clean. batch_jobs is the pending state machine; ai_generations is the success ledger. Two writes on completion (one transaction). Highest semantic clarity; marginal extra code."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-07",
+          "title": "Q&A content extraction from TipTap JSON",
+          "context": "Phase 3 03-CONTEXT.md D-05 deferred content-keyword search to Phase 4: 'Phase 4 will likely add an extracted_text column (extracted from contentJson on publish) + tsvector index.' Q&A endpoint must send policy CONTENT (not just title) to Claude. Token costs scale with content size. TipTap JSON has marks/attrs noise that wastes tokens.",
+          "options": [
+            {
+              "id": "a",
+              "label": "Use @tiptap/html `generateHTML(contentJson, [StarterKit, Link])` then strip tags to plain text at Q&A query time",
+              "description": "Reuses Phase 3's TipTap+StarterKit dep. Per-Q&A-call cost (~5ms for 100-policy library). No migration. Hot path. Recommended IF token-economy is the only concern."
+            },
+            {
+              "id": "b",
+              "label": "Add `extracted_text` column to policies — populated by publishPolicy auto-hook (same fire-and-forget pattern as TL;DR), Q&A reads pre-extracted text",
+              "description": "Cleaner Q&A endpoint (no extraction in hot path). Migration 0004 adds column + backfill. Phase 3 03-CONTEXT.md DEFERRED hint matches this. Sets up Phase 4+ tsvector index for content keyword search. Adds extract-on-publish hook coupling to publishPolicy."
+            },
+            {
+              "id": "c",
+              "label": "Walk the ProseMirror JSON tree directly in `lib/ai/qa-extract.ts` — recurse over `content[]` collecting `.text` nodes",
+              "description": "No HTML intermediate (fewer bytes, no marks/attrs noise). ~30 lines of code. Lock TipTap node-type coverage (text, hardBreak, etc.). Hot path stays in JS, no extra dependency."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-08",
+          "title": "AiGenerations repository method set",
+          "context": "SPEC Boundaries: 'ai_generations repository body (Phase 2 ships skeleton): insert, countByTypeInMonth, findByBatchId (for Consistency polling).' Current skeleton has listAll + record (throw-stub). countByTypeInMonth is the tier-check math support; findByBatchId is consistency polling.",
+          "options": [
+            {
+              "id": "a",
+              "label": "Minimal SPEC set: `insert`, `countByTypeInMonth`, `findByBatchId` (3 methods, plus existing listAll)",
+              "description": "Matches SPEC exactly. countByTypeInMonth filter: `org_id=$1 AND type='draft' AND created_at >= start of current calendar month UTC`. Tightest contract; downstream callers can request more if needed."
+            },
+            {
+              "id": "b",
+              "label": "SPEC set + `listByType(s, type, limit?)` for future admin debug UI",
+              "description": "Adds an admin-only debug listing (e.g., 'most recent 50 Q&A calls'). Useful for ops but no Phase 4 success criterion needs it. Defers tightening of method surface."
+            },
+            {
+              "id": "c",
+              "label": "SPEC set + `updateResultForBatch(s, batchId, resultJson)` if Q-06 picks option b (column on ai_generations)",
+              "description": "Required if Q-06 lands on the in-row PENDING/UPDATE flow. Otherwise unused. Should be deferred to AFTER Q-06 is locked."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-09",
+          "title": "Policies.updateSummary method signature",
+          "context": "SPEC Requirement 3: 'updates policies.tldrSummary via the Policies repository'. Existing repository pattern (policies.ts:107-118): `updateDraft(s, id: PolicyId, patch: { title?, category?, contentJson? })`. The summary-update is a single-field write triggered by AI summary endpoint after Anthropic returns.",
+          "options": [
+            {
+              "id": "a",
+              "label": "Dedicated method — `updateSummary(s, id: PolicyId, summary: string)`",
+              "description": "Single-purpose. Matches `Policies.incrementVersion` and `Policies.statusCounts` precedent. Easy to grep ('who writes to policies.tldrSummary?' returns one site)."
+            },
+            {
+              "id": "b",
+              "label": "Extend updateDraft with optional `tldrSummary?: string` field",
+              "description": "Fewer methods. But ADR-005 / SPEC says tldrSummary is AI-generated only, never user-supplied via draft edit. Mixing concerns; tests/types.ts D-07 invariant forbids tldrSummary in Policies.create — same spirit applies here."
+            },
+            {
+              "id": "c",
+              "label": "New method on a separate `PoliciesAi` repository in `lib/db/repositories/policies-ai.ts`",
+              "description": "Strict separation: AI-generated columns live in their own repository. Higher cohesion but adds a file + slight indirection. No existing precedent."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        }
+      ]
+    },
+    {
+      "id": "qa-implementation",
+      "title": "Q&A Implementation",
+      "questions": [
+        {
+          "id": "Q-10",
+          "title": "Citation block delimiter format in Claude's Q&A response",
+          "context": "SPEC Constraint: 'the Q&A system prompt is amended to instruct Claude to format citations as a trailing structured block (e.g. --- CITATIONS ---\\n[{title, id}, ...]\\n--- END CITATIONS ---) the parser can extract'. The exact delimiter is HOW — Claude's parsing reliability vs cleanliness of output trades off.",
+          "options": [
+            {
+              "id": "a",
+              "label": "Plain-text fence: `\\n\\n--- CITATIONS ---\\n[{title, id}, ...]\\n--- END CITATIONS ---`",
+              "description": "Per SPEC example. Easy to parse with simple regex. Claude can wrap the JSON in this fence reliably (well-tested pattern). Slightly noisy in raw output if delimiters leak."
+            },
+            {
+              "id": "b",
+              "label": "XML tags: `<citations>[{title, id}, ...]</citations>`",
+              "description": "Anthropic's official prompting best-practice recommends XML for structured outputs. Cleaner; easier for Claude to emit correctly. Parse with regex on tag boundaries. Slight risk if model emits stray `<` characters elsewhere."
+            },
+            {
+              "id": "c",
+              "label": "Structured outputs via Anthropic's tool use feature — Claude calls a synthetic `cite_policy(id, title)` tool",
+              "description": "Strongest schema enforcement. Requires `tool_choice: { type: 'tool', name: 'cite_policy' }` and structured response handling. Adds latency (tool-use round-trip semantics) and tokens. May not yet be stable on Claude 4.6 prompt-cached paths."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-11",
+          "title": "Citation parser failure mode (missing or malformed delimiters)",
+          "context": "Even with prompt engineering, Claude can occasionally drop the citation block (esp. for the 'I couldn't find information' branch where citations=[] is correct). Parser must distinguish 'no citations because no match' from 'parse failure because Claude broke format'.",
+          "options": [
+            {
+              "id": "a",
+              "label": "Tolerant — return `{ answer: <raw text>, citations: [] }` when delimiters absent; log warning server-side",
+              "description": "Maximum availability. Matches the 'no-match' answer-text invariant (which has citations=[] too). Distinguishes via the answer-text exact-substring match. Console.warn for ops visibility."
+            },
+            {
+              "id": "b",
+              "label": "Strict — throw `CitationParseError` if delimiters present-but-malformed; tolerate when delimiters fully absent",
+              "description": "Two failure modes: 'no citations' (delimiters absent → citations=[]) vs 'broken format' (delimiters present but JSON unparseable → throw). The throw bubbles to 503. Loud signal but rejects user's actual question on flaky model output."
+            },
+            {
+              "id": "c",
+              "label": "Always-attempt-parse with regex fallback — first try fenced JSON, then regex for `[id]` mentions in answer text",
+              "description": "Highest extraction recall. Risk of false-positive citations from natural mentions. Recommended only if Q-10 picks option (a) plain-text fence."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-12",
+          "title": "Published-policies query caching strategy for Q&A",
+          "context": "Q&A endpoint fetches all org's published policies on every call to build the prompt library block. ADR-006 prompt-cache covers Anthropic-side cost (60-80% cache-read on the policy block). DB-side cost is the second consideration. SMB scale: 25-300 employees × ~50-200 policies typical.",
+          "options": [
+            {
+              "id": "a",
+              "label": "Direct DB query per call — `Policies.listPublishedForOrg(s)` returns rows; no app-layer cache",
+              "description": "Simplest. Each Q&A round-trips a SELECT (~5-15ms on indexed orgId+status). ADR-006 prompt-cache absorbs the Anthropic-side cost regardless. No invalidation logic. Recommended for SMB scale."
+            },
+            {
+              "id": "b",
+              "label": "Next.js `unstable_cache` keyed on `(orgId, maxUpdatedAt)` — invalidated when any policy's updatedAt changes",
+              "description": "Saves DB round-trips on hot-tab Q&A bursts. unstable_cache name suggests API instability. Adds invalidation complexity (must call `revalidateTag` from every publishPolicy and editPublished). Marginal benefit at SMB scale."
+            },
+            {
+              "id": "c",
+              "label": "In-memory per-server-instance LRU cache (e.g., Map) with 60s TTL",
+              "description": "Vercel serverless: per-isolate cache, lifetime ≤ ~15 minutes per isolate. Pollution risk across orgs unless keyed carefully. Marginal at SMB scale; complicates cross-org isolation testing."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-13",
+          "title": "Policy library block format inside the prompt (sent to Claude)",
+          "context": "PROMPTS.md shows `--- COMPANY POLICIES ---\\n{orgPolicyLibrary}\\n--- END POLICIES ---`. The format inside {orgPolicyLibrary} is gray. Anthropic's prompting docs recommend XML for structured content over markdown for retrieval. Token efficiency matters (cache-read input token cost).",
+          "options": [
+            {
+              "id": "a",
+              "label": "XML — `<policy id=\"uuid\" title=\"...\">\\n<content>...</content>\\n</policy>` per policy, joined",
+              "description": "Anthropic-recommended for retrieval/citation prompts. Helps Claude isolate each policy. Slightly more tokens than plain. Citation extraction maps cleanly from the id attribute. Recommended."
+            },
+            {
+              "id": "b",
+              "label": "Plain text with fenced sections — `=== {title} (id: {uuid}) ===\\n{content}\\n\\n`",
+              "description": "Token-cheapest. Reasonably parseable by Claude. Matches the outer PROMPTS.md fence style. Slight risk if a policy's content contains `===` (low)."
+            },
+            {
+              "id": "c",
+              "label": "Markdown headings — `## {title}\\n(id: {uuid})\\n\\n{content}\\n\\n`",
+              "description": "Most token-efficient if content is already markdown-friendly. But our content is TipTap-extracted text or HTML-stripped — markdown semantics don't carry through. Familiar format for Claude."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        }
+      ]
+    },
+    {
+      "id": "tier-limits",
+      "title": "Tier-Limit Module Layout",
+      "questions": [
+        {
+          "id": "Q-14",
+          "title": "lib/stripe/products.ts single file vs split with limits.ts",
+          "context": "SPEC R6 says: 'lib/stripe/products.ts exports TIER_LIMITS exactly matching the constant in reference/TIER-LIMITS.md AND checkTierLimit(orgId, feature)'. BUT ADR-024 says: 'Tier gating is 403-at-API-routes ... via requireTier(feature, org) in lib/stripe/limits.ts (Phase 6).' Two different file paths in two locked decisions — discuss-phase resolves which lands in Phase 4.",
+          "options": [
+            {
+              "id": "a",
+              "label": "Single file: `lib/stripe/products.ts` exports TIER_LIMITS + PlanTier type + checkTierLimit (per SPEC R6). Phase 6 adds requireTier helper to the SAME file",
+              "description": "Honors SPEC's literal path. Compatible with ADR-024 if we read 'lib/stripe/limits.ts' as a Phase 6 mention that can be redirected to products.ts via a Phase 6 amendment. Minimal file surface."
+            },
+            {
+              "id": "b",
+              "label": "Split: `lib/stripe/products.ts` (constants + types only) + `lib/stripe/limits.ts` (checkTierLimit + future requireTier)",
+              "description": "Honors ADR-024's literal limits.ts path. Cleaner separation: constants vs predicate functions. Phase 4 ships both files; Phase 6 grows limits.ts with requireTier + the boolean-feature gates. Two-file overhead Phase 4 doesn't strictly need."
+            },
+            {
+              "id": "c",
+              "label": "Three files: `lib/stripe/products.ts` (constants), `lib/stripe/limits.ts` (checkTierLimit math), `lib/stripe/gates.ts` (requireTier + 403/redirect helpers)",
+              "description": "Maximum cohesion. Each file is single-purpose. Gates layer is wholly Phase 6 — Phase 4 ships only products.ts + limits.ts. May be over-decomposed for a small surface."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-15",
+          "title": "Tier-check enforcement: helper wrapper vs inline guard",
+          "context": "SPEC R6: 'All API endpoints call checkTierLimit BEFORE the Anthropic call; on allowed: false, return 429 (for usage-bound limits like draft) or 403 (for tier-bound features like Consistency Check).' That's a 4-call duplication. ADR-026 established typed-error pattern in lib/auth/errors.ts.",
+          "options": [
+            {
+              "id": "a",
+              "label": "Inline guard in each endpoint — `const check = await checkTierLimit(...); if (!check.allowed) return NextResponse.json({...}, { status: 429 })`",
+              "description": "No abstraction. Each endpoint owns its 429 vs 403 status + body shape. Easy to grep for tier checks. ~6-8 lines duplicated 4x."
+            },
+            {
+              "id": "b",
+              "label": "Throw-based — `requireTierLimit(orgId, feature)` throws TierLimitExceededError; endpoint catches and maps to 429/403",
+              "description": "Extends ADR-026 typed-error hierarchy with TierLimitExceededError (carries `feature`, `limit`, `current`, `requiredTier` for mapping). Mirrors the existing IllegalTransitionError pattern. Single catch in a shared error-mapping helper."
+            },
+            {
+              "id": "c",
+              "label": "Higher-order wrapper — `withTierCheck(feature)(handler)` decorates each route's POST function",
+              "description": "Most DRY. New abstraction (no existing precedent in the codebase). Adds indirection that's harder to grep. Useful if more cross-cutting concerns (logging, tier-check, error mapping) compose later."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "b",
+          "chat_more": "Resolved 2026-05-21: paired with Q-16=a. Endpoint pattern becomes try { await requireTierLimit(orgId, feature); await anthropic.messages.create(...) } catch (err) { if (err instanceof TierLimitExceededError) return 429/403 with documented body; else (Anthropic failure) return 503 ai_service_unavailable. Extends ADR-026 typed-error pattern to lib/stripe/.",
+          "status": "answered"
+        },
+        {
+          "id": "Q-16",
+          "title": "Tier-limit error class location",
+          "context": "If Q-15 lands on (b) throw-based, the error class needs a home. lib/auth/errors.ts holds BootstrapError hierarchy. Tier limits aren't auth — they're billing/subscription gates. ADR-026 scoped error-discipline to lib/auth/ only ('other layers may adopt the same pattern with their own ADRs when their surface complexity warrants').",
+          "options": [
+            {
+              "id": "a",
+              "label": "New `lib/stripe/errors.ts` exports `TierLimitExceededError`",
+              "description": "Domain-cohesive: stripe layer owns tier errors. ADR-026 'extend pattern when warranted' fits — Phase 4 IS the warranting moment. Add scripts/check-error-discipline.ts to scan lib/stripe/ too (drop the lib/auth/-only restriction)."
+            },
+            {
+              "id": "b",
+              "label": "Add to existing `lib/auth/errors.ts`",
+              "description": "Single error-class home. But: auth scope creep (tier checks are not auth checks). ADR-026 explicitly scoped lib/auth/ — co-locating new domains breaks the boundary the ADR drew."
+            },
+            {
+              "id": "c",
+              "label": "New top-level `lib/errors.ts` for cross-domain shared errors",
+              "description": "Most flexible. No precedent yet. Better for v2 when 5+ domains have typed errors. Premature for Phase 4 (only stripe is joining the pattern)."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "Paired with Q-15=b. lib/stripe/errors.ts exports TierLimitExceededError (carries feature, limit, current, requiredTier for response mapping). scripts/check-error-discipline.ts gate extended to scan lib/stripe/ too.",
+          "status": "answered"
+        }
+      ]
+    },
+    {
+      "id": "error-publish",
+      "title": "Error Contract + publishPolicy Auto-Trigger",
+      "questions": [
+        {
+          "id": "Q-17",
+          "title": "Anthropic error mapping: shared helper vs inline per endpoint",
+          "context": "SPEC R7: 'All 4 endpoints wrap the Anthropic call in try/catch and on ANY SDK error (network, 5xx, rate limit RateLimitError, content filter, timeout) return HTTP 503 with body { error: \"ai_service_unavailable\", retryAfter: 30 } AND header Retry-After: 30.' 4 endpoints × identical contract.",
+          "options": [
+            {
+              "id": "a",
+              "label": "Inline try/catch + NextResponse.json in each endpoint",
+              "description": "Each endpoint self-contained. Status + headers visible at the call site. ~10 lines duplicated 4x. Tests easy (each endpoint has its own 503 test)."
+            },
+            {
+              "id": "b",
+              "label": "Shared helper `lib/ai/errors.ts` exports `ai503Response()` returning the canonical NextResponse",
+              "description": "Single source for the 503 envelope. Endpoint imports and returns the helper inside catch. Changes (e.g., retry-after value) update one site. Less duplication."
+            },
+            {
+              "id": "c",
+              "label": "Higher-order wrapper `withAnthropicErrorMapping(fn)` that all endpoints' core logic runs inside",
+              "description": "Wraps the inner Anthropic call (not the whole route). Centralizes the try/catch + 503 mapping. Hides the catch from each endpoint. New abstraction; subtle if a route needs to discriminate Anthropic-failure-with-context."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-18",
+          "title": "Anthropic failure logging format",
+          "context": "Phase 3 precedent: `console.error('[createPolicyAction] failed: ${detail}')` (lib/policies/transitions.ts implicit; actions.ts:135). Phase 7+ observability will replace console with structured logger. Phase 4 needs interim consistency.",
+          "options": [
+            {
+              "id": "a",
+              "label": "Per-endpoint prefix — `console.error('[ai/draft] anthropic failed', { error })` etc.",
+              "description": "Matches Phase 3 [createPolicyAction] prefix style. Grep-friendly. Object literal makes the error structured for Phase 7+ JSON-log migration."
+            },
+            {
+              "id": "b",
+              "label": "Single prefix `[ai]` — `console.error('[ai] anthropic call failed', { endpoint, error })`",
+              "description": "Lower noise in logs. Endpoint surfaced as a field. Slightly harder grep ('[ai/draft]' wouldn't match)."
+            },
+            {
+              "id": "c",
+              "label": "Minimal — just `console.error(err)` (let Phase 7+ logger reshape)",
+              "description": "Least code. Loses the gate-context prefix Phase 3 standardized on. SF-M1 PR-review finding pattern argued the opposite (surface err.name + message + gate context)."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-19",
+          "title": "publishPolicy auto-trigger of TL;DR: synchronous vs fire-and-forget",
+          "context": "SPEC R3: 'publishPolicy in lib/policies/transitions.ts invokes the summary generation logic (via an internal generateSummaryForPolicy(policyId, ...) helper, not a self-HTTP call) AFTER the state transition commits; summary failure is logged but does NOT roll back or fail publishPolicy — policies.tldrSummary stays null and admin can regenerate later.' AFTER commit + non-failing — sync vs fire-and-forget is HOW.",
+          "options": [
+            {
+              "id": "a",
+              "label": "Synchronous after commit — `await generateSummaryForPolicy(...)` inside publishPolicy, wrapped in inner try/catch that logs and continues",
+              "description": "Caller waits for both transition AND summary. Haiku is fast (~1-3s). Admin clicking Publish sees the TL;DR populated in the same request. Slight latency cost. Failure-logged-not-thrown matches SPEC literally."
+            },
+            {
+              "id": "b",
+              "label": "Fire-and-forget — `void generateSummaryForPolicy(...).catch(err => console.error(...))` after commit",
+              "description": "Caller returns immediately after state transition. Summary populates async (admin refreshes to see). Less latency on Publish action. Risk: Next.js serverless may terminate the isolate before the promise resolves (Vercel Pro+ has waitUntil; Hobby may cancel)."
+            },
+            {
+              "id": "c",
+              "label": "Sync with explicit timeout — `await Promise.race([generateSummary(...), timeout(10000)])` with timeout catch",
+              "description": "Bounds latency. Adds complexity (timeout cancellation semantics). If timeout fires, summary stays null — same end state as failure. Marginal benefit over (a) given Haiku's typical 1-3s response."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        }
+      ]
+    },
+    {
+      "id": "admin-ui",
+      "title": "Admin UI Hooks",
+      "questions": [
+        {
+          "id": "Q-20",
+          "title": "Consistency Check admin page URL",
+          "context": "SPEC R5: 'Admin Consistency Check page at /admin/consistency (or /dashboard/consistency, exact path is HOW for discuss-phase)'. Phase 3 D-01 locked the admin URL convention: NO `/admin/*` prefix — admin routes are concrete URLs like `/dashboard`, `/policies`. middleware ADMIN_URL_PATTERNS gates them.",
+          "options": [
+            {
+              "id": "a",
+              "label": "`/dashboard/consistency` — nested under /dashboard",
+              "description": "Matches Phase 3 D-01 convention (no /admin prefix). Sidebar nav can group it under Dashboard. middleware ADMIN_URL_PATTERNS already covers /dashboard(/|$) — zero matcher changes. Recommended."
+            },
+            {
+              "id": "b",
+              "label": "`/consistency` — top-level admin URL",
+              "description": "Shorter URL. New ADMIN_URL_PATTERNS regex entry needed. Sidebar item is a peer of Policies. Sets precedent for future admin tools (`/reports`, `/users`)."
+            },
+            {
+              "id": "c",
+              "label": "`/policies/consistency` — under /policies",
+              "description": "Groups with the policy library it analyzes. Natural mental model. middleware /policies(/|$) matcher already covers it. Slight URL semantic clash (it's not a policy)."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-21",
+          "title": "Consistency Check polling UX",
+          "context": "Anthropic Batch API typical latency is 5-30 minutes per their docs. Admin must wait. SPEC says client polls — no Phase 4 cron infra. UX choices: auto-refresh frequency vs manual.",
+          "options": [
+            {
+              "id": "a",
+              "label": "Auto-poll every 30s via Client Component `useEffect` setInterval; visible 'Checking status...' indicator",
+              "description": "Hands-off UX. Page open = admin sees result when ready. 30s × 30min = ~60 polls = 60 GET requests (cheap). Tab inactive: browser throttles to ~1min. Recommended."
+            },
+            {
+              "id": "b",
+              "label": "Manual 'Refresh status' button only — admin clicks to check",
+              "description": "Lowest network load. Admin context-switches and forgets. Worse UX. No background activity."
+            },
+            {
+              "id": "c",
+              "label": "Auto-poll with exponential backoff — start 10s, double up to 2min cap",
+              "description": "Balances responsiveness early (just-started batches sometimes complete fast) with thrift late. More complex client state."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-22",
+          "title": "Draft 'Generate with AI' form fields shape",
+          "context": "SPEC R2: 'PolicyEditor at /policies/new shows a Generate with AI button (admin-only); clicking opens a prompt-input dialog; on submit calls /api/ai/draft and pre-fills the editor with draftContent.' API takes `{ prompt: string, policyType?: string }`. Dialog form shape is HOW.",
+          "options": [
+            {
+              "id": "a",
+              "label": "Two fields — `prompt` (textarea) + `policyType` (select dropdown from POLICY_CATEGORIES constant)",
+              "description": "Matches SPEC API exactly. policyType reuses the same 8-category list from new/actions.ts. Minimal cognitive load. Recommended."
+            },
+            {
+              "id": "b",
+              "label": "Three fields — `prompt` + `policyType` + `additionalContext` (the PROMPTS.md draft template has `{additionalContext}`)",
+              "description": "PROMPTS.md template has `{additionalContext}` slot. Server can map: prompt='Write a {policyType} policy for a {companySize} {industry} company. {additionalContext}'. Adds inputs beyond SPEC's `{ prompt, policyType }` API shape — SPEC change needed."
+            },
+            {
+              "id": "c",
+              "label": "Single prompt field — admin writes free-form 'Generate a remote work policy for our company'; backend infers policyType",
+              "description": "Lowest friction for the admin. Loses the policyType structured field for SPEC's `{ prompt, policyType }` API. Goes against SPEC R2."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-23",
+          "title": "Consistency findings UI rendering inside severity grouping",
+          "context": "SPEC R5: 'renders the polled result as a list of findings grouped by severity.' Severity grouping is LOCKED. Inside each group, the per-finding card has policy_a + policy_b + issue_type + description. Display density choice.",
+          "options": [
+            {
+              "id": "a",
+              "label": "Collapsed by default — each finding card shows policy_a vs policy_b + issue_type + a 1-line description; click expands the full description",
+              "description": "Compact list view for scanning. Admin can drill into one finding at a time. shadcn Collapsible or Accordion primitive. Recommended for libraries with 10+ findings."
+            },
+            {
+              "id": "b",
+              "label": "Always expanded — full description inline; severity column / icon at left",
+              "description": "Information-dense. Better for small finding sets (<10). Scrolling burden grows with finding count."
+            },
+            {
+              "id": "c",
+              "label": "Table view — Severity / Policy A / Policy B / Issue type / Description (truncated)",
+              "description": "Matches Phase 3 policies-list Table pattern. Sortable in theory (not in Phase 4 polish). Description truncation hides the most important field."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        }
+      ]
+    },
+    {
+      "id": "verify-chain",
+      "title": "Verify Chain + Tests",
+      "questions": [
+        {
+          "id": "Q-24",
+          "title": "verify:phase-4 composition relative to verify:phase-3",
+          "context": "Current verify:phase-3 is a 10-gate chain ending with vitest + .tmp cleanup. Phase 4 adds new gates: check:ai-layer (integration test against mocked Anthropic + TEST DB), check:ai-prompts (substring match vs reference/PROMPTS.md), possibly check:tier-limits.",
+          "options": [
+            {
+              "id": "a",
+              "label": "verify:phase-4 wraps verify:phase-3: `pnpm verify:phase-3 && pnpm check:ai-layer && pnpm check:ai-prompts`",
+              "description": "Phase-3 gates run first; phase-4-specific gates layer on top. Phase 3 stays untouched. Easy to roll back a phase-4 change without disturbing phase-3. Recommended."
+            },
+            {
+              "id": "b",
+              "label": "verify:phase-4 replicates the full chain inline — copy verify:phase-3's commands + add new ones",
+              "description": "Single command holds the complete contract. No nested invocation. Changes to verify:phase-3 wouldn't propagate to verify:phase-4 — explicit sync required."
+            },
+            {
+              "id": "c",
+              "label": "Extend verify:phase-3 itself with the new gates (no separate verify:phase-4)",
+              "description": "Single chain grows. Conflicts with ADR-029 (phase boundaries — main must be green for both verify:phase-3 AND verify:phase-4 as separate gates between phase squashes). Loses the per-phase boundary."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-25",
+          "title": "Cache-hit assertion fixture",
+          "context": "SPEC Acceptance Criterion: 'the Anthropic SDK response usage metadata on the 2nd successive POST /api/ai/qa against the same org's policy library reports usage.cache_read_input_tokens > 0 (provable via instrumented logs or unit-test fixture).' Mocking Anthropic loses real cache-hit telemetry — must fake it.",
+          "options": [
+            {
+              "id": "a",
+              "label": "Vitest fixture — mockAnthropicClient.messages.create called twice: 1st returns `{ usage: { cache_creation_input_tokens: 1000, cache_read_input_tokens: 0 } }`; 2nd returns `{ usage: { cache_read_input_tokens: 1000, cache_creation_input_tokens: 0 } }`. Test asserts the 2nd call's response carries cache_read > 0",
+              "description": "Pure unit test. Verifies the endpoint reads/exposes the cache_read field. Does NOT verify Anthropic actually caches — that's an integration concern. Recommended for Phase 4 unit tests."
+            },
+            {
+              "id": "b",
+              "label": "Integration test against the live Anthropic API in `pnpm check:ai-layer` (no mock)",
+              "description": "Real cache-hit verification. Costs money (Sonnet 4.6 ~$3/1M tokens). Slow (5-15s per call). Flaky on CI. SPEC suggests this option but lists it as 'instrumented logs or fixture' — fixture is the chosen path."
+            },
+            {
+              "id": "c",
+              "label": "Skip the assertion — log inspection only (Phase 7+ observability stack will pin the contract)",
+              "description": "Defers to a future phase. Loses falsifiable check at Phase 4 ship. Risk: regression on cache_control opt-in goes unnoticed."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-26",
+          "title": "Prompt-substring verification gate implementation",
+          "context": "SPEC Acceptance: 'lib/ai/prompts.ts exports 4 prompt constants; each contains the exact verbatim text from reference/PROMPTS.md (verifiable via a substring match on a 40-char anchor per prompt).' New gate, separate from vitest.",
+          "options": [
+            {
+              "id": "a",
+              "label": "`scripts/check-ai-prompts.ts` (ts-morph) — extracts the 4 string-literal exports from lib/ai/prompts.ts; reads reference/PROMPTS.md; asserts each constant's text contains a hardcoded 40-char anchor from PROMPTS.md",
+              "description": "Matches ADR-026 ts-morph precedent (check-error-discipline.ts, check-policy-id-brand.ts). One-shot CI gate. Recommended."
+            },
+            {
+              "id": "b",
+              "label": "Vitest test in `lib/ai/prompts.test.ts` — imports the constants, reads PROMPTS.md via fs, asserts substring match",
+              "description": "Same logic but inside vitest. Slightly slower (vitest startup). Easier to debug locally. Loses the dedicated gate signal."
+            },
+            {
+              "id": "c",
+              "label": "Inline assertion at module-load time in `lib/ai/prompts.ts` — `if (!PROMPTS_MD.includes(anchor)) throw new Error('drift')`",
+              "description": "Crashes the route handler if drift. Loads PROMPTS.md from disk at runtime (file-system access in serverless). Not viable for production."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-27",
+          "title": "API-SPEC.md amendment for citation shape — ADR or no ADR?",
+          "context": "SPEC's Notable cross-contract impact: 'Decision in Round 2 to use structured citations ({ title, id }[]) deviates from reference/API-SPEC.md line 45 (citations: string[]). Phase 4 ship MUST include an amendment to reference/API-SPEC.md documenting the new shape.' The question is whether this rises to a new ADR or stays as a SPEC.md+API-SPEC.md doc-only change.",
+          "options": [
+            {
+              "id": "a",
+              "label": "Doc-only — amend reference/API-SPEC.md inline, reference Phase 4 ship in the amendment commit",
+              "description": "No new ADR. SPEC.md captures the decision rationale (R2 'Failure Analyst' row). API-SPEC.md is reissued frozen-contract with the new shape. Lighter weight; matches SPEC's 'cross-contract impact' framing."
+            },
+            {
+              "id": "b",
+              "label": "New ADR-030 — 'Q&A citation shape from string[] to { title, id }[]'",
+              "description": "Adds the change to .planning/intel/decisions.md and PROJECT.md <decisions> block. Forward-discoverable via the ADR catalog. More ceremony for a single SPEC-derived contract shift. Adds to the locked-decision count."
+            },
+            {
+              "id": "c",
+              "label": "Both — doc amendment + ADR-030",
+              "description": "Maximal transparency. Redundant if the ADR rationale lives in SPEC.md anyway. Higher friction; matches the Phase 3 ADR-026/027/028 pattern of treating non-trivial contract changes as ratified decisions."
+            },
+            {
+              "id": "d",
+              "label": "Custom",
+              "description": ""
+            }
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        }
+      ]
+    }
+  ]
+} /* @QUESTIONS_JSON_END */;
+
+  // File handle cached after the user picks a file via the File System
+  // Access API. Subsequent saves reuse it without re-prompting.
+  let fileHandle = null;
+  let state = null;
+  let collapsed = {};
+
+  async function loadFromDisk() {
+    // Try loading the sibling 04-QUESTIONS.json (works when served via http).
+    // file:// browsers block this — that's fine, we fall back to the inline
+    // INITIAL_STATE, which IS the same content (regenerated by Claude on
+    // every refresh).
+    try {
+      const r = await fetch('04-QUESTIONS.json', { cache: 'no-store' });
+      if (!r.ok) throw new Error('fetch failed');
+      state = await r.json();
+    } catch (e) {
+      state = INITIAL_STATE;
+    }
+    render();
+  }
+
+  function render() {
+    recomputeStats();
+    const content = document.getElementById('content');
+    if (!state || !state.sections || state.sections.length === 0) {
+      content.innerHTML = '<div class="empty-state">No sections found in JSON. Make sure 04-QUESTIONS.json is alongside this HTML file.</div>';
+      return;
+    }
+    content.innerHTML = state.sections.map(renderSection).join('');
+    updateStatsUI();
+    attachListeners();
+  }
+
+  function renderSection(sec) {
+    const answered = sec.questions.filter(q => q.answer != null && q.answer !== '').length;
+    const total = sec.questions.length;
+    const allDone = answered === total;
+    const isCollapsed = collapsed[sec.id] === true;
+    return `
+      <div class="section ${isCollapsed ? 'collapsed' : ''}" data-sec="${sec.id}">
+        <div class="section-header" onclick="toggleSection('${sec.id}')">
+          <div class="section-title">
+            <span class="chevron">▼</span>
+            ${escapeHtml(sec.title)}
+          </div>
+          <div class="section-progress ${allDone ? 'complete' : ''}">${answered} / ${total}</div>
+        </div>
+        <div class="section-body">
+          ${sec.questions.map(q => renderQuestion(sec.id, q)).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderQuestion(secId, q) {
+    const isAnswered = q.answer != null && q.answer !== '';
+    const isCustomActive = q.answer && !q.options.find(o => o.id === q.answer);
+    const optionsHtml = q.options.map(opt => {
+      const checked = q.answer === opt.id || (opt.id === 'd' && isCustomActive);
+      const customActive = opt.id === 'd' && checked;
+      const customValue = isCustomActive ? escapeAttr(q.answer) : '';
+      return `
+        <label class="q-option ${customActive ? 'custom-active' : ''}">
+          <input type="radio" name="${secId}__${q.id}"
+                 value="${opt.id}"
+                 ${checked ? 'checked' : ''}
+                 onchange="onAnswerChange('${q.id}', this)">
+          <div class="q-option-content">
+            <div class="q-option-label">${escapeHtml(opt.label)}</div>
+            ${opt.description ? `<div class="q-option-desc">${escapeHtml(opt.description)}</div>` : ''}
+            ${opt.id === 'd' ? `<input type="text" class="q-custom-input" placeholder="Type your custom answer…" value="${customValue}" oninput="onCustomInput('${q.id}', this)">` : ''}
+          </div>
+        </label>
+      `;
+    }).join('');
+    return `
+      <div class="question-card ${isAnswered ? 'answered' : ''}" data-q="${q.id}">
+        <div class="q-head">
+          <span class="q-id">${q.id}</span>
+          <div class="q-title">${escapeHtml(q.title)}</div>
+        </div>
+        ${q.context ? `<div class="q-context">${escapeHtml(q.context)}</div>` : ''}
+        <div class="q-options">${optionsHtml}</div>
+        <textarea class="q-chat-more ${q.chat_more ? 'has-content' : ''}"
+                  placeholder="Add context, nuance, or clarification for this question…"
+                  oninput="onChatMore('${q.id}', this)">${escapeHtml(q.chat_more || '')}</textarea>
+      </div>
+    `;
+  }
+
+  function findQuestion(qId) {
+    for (const sec of state.sections) {
+      const q = sec.questions.find(x => x.id === qId);
+      if (q) return q;
+    }
+    return null;
+  }
+
+  function onAnswerChange(qId, radio) {
+    const q = findQuestion(qId);
+    if (!q) return;
+    if (radio.value === 'd') {
+      // Custom — read from sibling input
+      const customInput = radio.parentElement.querySelector('.q-custom-input');
+      q.answer = customInput && customInput.value ? customInput.value : 'd';
+    } else {
+      q.answer = radio.value;
+    }
+    q.status = q.answer ? 'answered' : 'unanswered';
+    render();
+  }
+
+  function onCustomInput(qId, input) {
+    const q = findQuestion(qId);
+    if (!q) return;
+    q.answer = input.value;
+    q.status = input.value ? 'answered' : 'unanswered';
+    // No re-render here — typing in the input would lose focus.
+    recomputeStats();
+    updateStatsUI();
+    // Update the section header progress + the card's answered class.
+    const card = document.querySelector(`[data-q="${qId}"]`);
+    if (card) card.classList.toggle('answered', input.value !== '');
+  }
+
+  function onChatMore(qId, textarea) {
+    const q = findQuestion(qId);
+    if (!q) return;
+    q.chat_more = textarea.value;
+    textarea.classList.toggle('has-content', textarea.value.length > 0);
+    recomputeStats();
+    updateStatsUI();
+  }
+
+  function toggleSection(secId) {
+    collapsed[secId] = !collapsed[secId];
+    render();
+  }
+
+  function recomputeStats() {
+    if (!state) return;
+    let answered = 0, chatMore = 0, total = 0;
+    for (const sec of state.sections) {
+      for (const q of sec.questions) {
+        total++;
+        if (q.answer != null && q.answer !== '') answered++;
+        if (q.chat_more && q.chat_more.trim() !== '') chatMore++;
+      }
+    }
+    state.stats = {
+      total: total,
+      answered: answered,
+      chat_more: chatMore,
+      remaining: total - answered
+    };
+  }
+
+  function updateStatsUI() {
+    document.getElementById('total-count').textContent = state.stats.total;
+    document.getElementById('answered-count').textContent = state.stats.answered;
+    document.getElementById('remaining-count').textContent = state.stats.remaining;
+    document.getElementById('chatmore-count').textContent = state.stats.chat_more;
+    const pct = state.stats.total > 0 ? (state.stats.answered / state.stats.total) * 100 : 0;
+    document.getElementById('progress-fill').style.width = pct + '%';
+  }
+
+  async function saveAnswers() {
+    recomputeStats();
+    const status = document.getElementById('save-status');
+    const json = JSON.stringify(state, null, 2);
+    // Try File System Access API (Chrome / Edge / Opera).
+    if (window.showSaveFilePicker || window.showOpenFilePicker) {
+      try {
+        if (!fileHandle) {
+          fileHandle = await window.showSaveFilePicker({
+            suggestedName: '04-QUESTIONS.json',
+            types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
+          });
+        }
+        const writable = await fileHandle.createWritable();
+        await writable.write(json);
+        await writable.close();
+        status.textContent = 'Saved at ' + new Date().toLocaleTimeString();
+        status.className = 'save-status saved';
+        return;
+      } catch (e) {
+        if (e.name === 'AbortError') {
+          status.textContent = 'Save canceled';
+          status.className = 'save-status';
+          return;
+        }
+        console.error('FS API save failed, falling back to download', e);
+      }
+    }
+    // Fallback: trigger a download.
+    downloadJson();
+    status.textContent = 'Downloaded — replace 04-QUESTIONS.json with the downloaded file';
+    status.className = 'save-status saved';
+  }
+
+  function downloadJson() {
+    recomputeStats();
+    const json = JSON.stringify(state, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '04-QUESTIONS.json';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+  function escapeAttr(s) { return escapeHtml(s); }
+
+  function attachListeners() {
+    // No global listeners needed — inline handlers carry per-question
+    // identifiers. This placeholder keeps the render() contract intact
+    // and is the future hook for keyboard shortcuts (e.g., next/prev).
+  }
+
+  // Expose for inline handlers
+  window.onAnswerChange = onAnswerChange;
+  window.onCustomInput = onCustomInput;
+  window.onChatMore = onChatMore;
+  window.toggleSection = toggleSection;
+  window.saveAnswers = saveAnswers;
+  window.downloadJson = downloadJson;
+
+  // Boot
+  loadFromDisk();
+</script>
+</body>
+</html>
