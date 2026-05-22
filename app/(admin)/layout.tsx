@@ -7,6 +7,15 @@ import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { AdminTopbar } from "@/components/admin/AdminTopbar";
 import { requireAdmin } from "@/lib/auth/require-admin";
 
+// Every admin route reads Clerk's session via requireAdmin() → headers(),
+// AND reads the sidebar_state cookie below — both inherently dynamic. Next.js
+// 15 still attempts static prerender on child pages unless the layout
+// declares this explicitly; Vercel build prerender of /dashboard/consistency
+// failed without it (ClerkAuthFailedError during DYNAMIC_SERVER_USAGE).
+// Setting it here propagates to every page under (admin)/ so no per-page
+// duplication is needed.
+export const dynamic = "force-dynamic";
+
 /**
  * Admin route-group layout (D-06 shell + L-01 authoritative gate).
  *
