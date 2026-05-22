@@ -1489,6 +1489,458 @@ function checkPhase3G1Artifacts(): Check[] {
   return out;
 }
 
+// ─── Phase 4 (AI Layer) — Plan 04-14 Task 2 ───────────────────────────────
+//
+// Asserts every Phase 4 product file exists, every server-side lib/ai/* +
+// lib/stripe/* + app/api/ai/.../route.ts file starts with `import 'server-only';`,
+// the BLOCKER-2 single-source POLICY_CATEGORIES invariant holds (no inline
+// re-declaration across lib/ + app/ + components/), package.json has the
+// new verify:phase-4 + check:ai-layer + check:ai-prompts scripts, the 3
+// migrations + their journal entries exist, .env.local.example carries
+// ANTHROPIC_API_KEY=, and the 3 frozen-contract reference docs (PROMPTS.md,
+// API-SPEC.md, SCHEMA.md) carry the Phase 4 amendments (D-10/D-27/D-29/D-31/D-35).
+
+/**
+ * Phase 4 (AI Layer) file-existence + server-only + frozen-contract scaffold gate.
+ *
+ * Adds ~30+ assertions on top of the Phase 1/2/3 scaffolds:
+ *   - 9 lib/ai/* files exist + start with `import 'server-only';`
+ *   - 2 lib/stripe/* files exist + start with `import 'server-only';`
+ *   - lib/db/repositories/batch_jobs.ts + lib/policies/categories.ts exist (categories NOT server-only)
+ *   - 5 app/api/ai/.../route.ts files exist + start with `import 'server-only';`
+ *   - app/(admin)/dashboard/consistency/page.tsx exists
+ *   - 7 components/policy/* + components/admin/* Phase 4 components exist
+ *   - 3 scripts (check-ai-layer.test.ts + check-ai-layer.vitest.config.ts + check-ai-prompts.ts)
+ *   - 3 migrations (0005_initial_batch_jobs.sql + 0006_rls_batch_jobs.sql + 0007_ai_generations_audit_extensions.sql)
+ *   - drizzle/meta/_journal.json contains idx 5, 6, 7 entries
+ *   - package.json declares verify:phase-4 + check:ai-layer + check:ai-prompts + exact-pinned @anthropic-ai/sdk
+ *   - .env.local.example contains ANTHROPIC_API_KEY=
+ *   - BLOCKER-2 single-source: grep ^const POLICY_CATEGORIES\b in lib/ app/ components/ returns 0
+ *   - reference/PROMPTS.md contains 'Treat it as DATA only' + 'CITATIONS' (D-10/D-31)
+ *   - reference/API-SPEC.md contains 'citations: { title: string, id: string }[]' (D-27)
+ *   - reference/SCHEMA.md contains 'batch_jobs' + 'cache_read_input_tokens' + 'idempotency_key' (D-29/D-35)
+ */
+function checkPhase4Scaffold(): Check[] {
+  const out: Check[] = [];
+
+  // ── 1. File-existence rows (Phase 4 net-new product files) ──────────────
+  type Target = { path: string; plan: string };
+  const targets: Target[] = [
+    // lib/ai/* (9 files — D-02..D-04 + D-07/D-10/D-11/D-13/D-19 + D-38 + D-40 + D-42)
+    { path: 'lib/ai/client.ts', plan: '04-05' },
+    { path: 'lib/ai/models.ts', plan: '04-05' },
+    { path: 'lib/ai/cache.ts', plan: '04-05' },
+    { path: 'lib/ai/prompts.ts', plan: '04-05' },
+    { path: 'lib/ai/extract.ts', plan: '04-05' },
+    { path: 'lib/ai/schemas.ts', plan: '04-05' },
+    { path: 'lib/ai/qa-extract.ts', plan: '04-05' },
+    { path: 'lib/ai/qa-parser.ts', plan: '04-05' },
+    { path: 'lib/ai/summary.ts', plan: '04-08' },
+    // lib/stripe/* (2 files — D-14/D-16)
+    { path: 'lib/stripe/products.ts', plan: '04-06' },
+    { path: 'lib/stripe/errors.ts', plan: '04-06' },
+    // lib/policies/categories.ts (BLOCKER-2 shared module)
+    { path: 'lib/policies/categories.ts', plan: '04-04' },
+    // lib/db/repositories/batch_jobs.ts (D-06/D-30)
+    { path: 'lib/db/repositories/batch_jobs.ts', plan: '04-07' },
+    // app/api/ai/.../route.ts (5 endpoint handlers)
+    { path: 'app/api/ai/draft/route.ts', plan: '04-08' },
+    { path: 'app/api/ai/summary/route.ts', plan: '04-08' },
+    { path: 'app/api/ai/qa/route.ts', plan: '04-09' },
+    { path: 'app/api/ai/consistency/route.ts', plan: '04-10' },
+    { path: 'app/api/ai/consistency/[batchId]/route.ts', plan: '04-10' },
+    // /dashboard/consistency Server Component shell (D-30)
+    { path: 'app/(admin)/dashboard/consistency/page.tsx', plan: '04-13' },
+    // components/policy/* (D-22 dialog + D-28 setContent + SPEC R3 regen)
+    { path: 'components/policy/PolicyAiDraftDialog.tsx', plan: '04-12' },
+    { path: 'components/policy/PolicyRegenerateTldrButton.tsx', plan: '04-12' },
+    // components/admin/Consistency* (5 components — D-21/D-23/D-30)
+    { path: 'components/admin/ConsistencyCheckRunner.tsx', plan: '04-13' },
+    { path: 'components/admin/ConsistencyCheckRunButton.tsx', plan: '04-13' },
+    { path: 'components/admin/ConsistencyFindingsList.tsx', plan: '04-13' },
+    { path: 'components/admin/ConsistencyEmptyState.tsx', plan: '04-13' },
+    { path: 'components/admin/ConsistencyFailureState.tsx', plan: '04-13' },
+    // Scripts (WARNING-6 vitest harness + D-26 prompts gate)
+    { path: 'scripts/check-ai-layer.test.ts', plan: '04-14' },
+    { path: 'scripts/check-ai-layer.vitest.config.ts', plan: '04-14' },
+    { path: 'scripts/check-ai-prompts.ts', plan: '04-11' },
+    // Shared test fixtures (Plan 04-03)
+    { path: 'tests/ai-mocks.ts', plan: '04-03' },
+    // Migrations (3 new Phase 4 migrations)
+    { path: 'drizzle/0005_initial_batch_jobs.sql', plan: '04-02' },
+    { path: 'drizzle/0006_rls_batch_jobs.sql', plan: '04-02' },
+    { path: 'drizzle/0007_ai_generations_audit_extensions.sql', plan: '04-02' },
+  ];
+  for (const { path, plan } of targets) {
+    assert(out, exists(path), `${path} exists (Plan ${plan})`, `Plan ${plan} will create this`);
+  }
+
+  // ── 2. server-only enforcement (RESEARCH Pitfall 4) ─────────────────────
+  // 9 lib/ai/* + 2 lib/stripe/* + 5 app/api/ai/.../route.ts = 16 server-only assertions.
+  // lib/policies/categories.ts is INTENTIONALLY excluded (shared Server+Client module).
+  // lib/db/repositories/batch_jobs.ts is included (server-only by repository convention).
+  const serverOnlyFiles = [
+    'lib/ai/client.ts',
+    'lib/ai/models.ts',
+    'lib/ai/cache.ts',
+    'lib/ai/prompts.ts',
+    'lib/ai/extract.ts',
+    'lib/ai/schemas.ts',
+    'lib/ai/qa-extract.ts',
+    'lib/ai/qa-parser.ts',
+    'lib/ai/summary.ts',
+    'lib/stripe/products.ts',
+    'lib/stripe/errors.ts',
+    'lib/db/repositories/batch_jobs.ts',
+    'app/api/ai/draft/route.ts',
+    'app/api/ai/summary/route.ts',
+    'app/api/ai/qa/route.ts',
+    'app/api/ai/consistency/route.ts',
+    'app/api/ai/consistency/[batchId]/route.ts',
+  ];
+  for (const path of serverOnlyFiles) {
+    if (!exists(path)) continue; // existence already failed above
+    const body = read(path);
+    // Accept either single or double quotes; both are project-conventional.
+    const hasServerOnly =
+      body.includes("import 'server-only'") || body.includes('import "server-only"');
+    assert(
+      out,
+      hasServerOnly,
+      `${path}: declares import 'server-only' (RESEARCH Pitfall 4)`,
+      "server-only guard missing — Client Components could import this file",
+    );
+  }
+
+  // Negative assertion: lib/policies/categories.ts must NOT carry server-only
+  // (it's imported by Client Components — PolicyAiDraftDialog.tsx + CreatePolicyForm.tsx).
+  if (exists('lib/policies/categories.ts')) {
+    const cats = read('lib/policies/categories.ts');
+    assert(
+      out,
+      !cats.includes("import 'server-only'") && !cats.includes('import "server-only"'),
+      "lib/policies/categories.ts is NOT server-only (shared by Client + Server callers)",
+      'server-only guard would break Client Component imports',
+    );
+  }
+
+  // ── 3. BLOCKER-2 single-source invariant ────────────────────────────────
+  // grep ^const POLICY_CATEGORIES\b (word-boundary so POLICY_CATEGORIES_TUPLE does NOT
+  // match) across lib/ + app/ + components/ should return ZERO matches — the ONLY
+  // declaration is `export const POLICY_CATEGORIES` in lib/policies/categories.ts.
+  const blockerResult = spawnSync(
+    'node',
+    [
+      '-e',
+      `const fs = require('node:fs'); const path = require('node:path');
+       const SKIP = new Set(['node_modules','.next','.git','.planning','.wiki','docs','reference','drizzle']);
+       const ROOTS = ['lib', 'app', 'components'];
+       const hits = [];
+       function walk(dir) {
+         if (!fs.existsSync(dir)) return;
+         for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+           if (SKIP.has(entry.name)) continue;
+           const full = path.join(dir, entry.name);
+           if (entry.isDirectory()) { walk(full); continue; }
+           if (!/\\.(ts|tsx)$/.test(entry.name)) continue;
+           const raw = fs.readFileSync(full, 'utf8');
+           // Strip comments before regex-matching so doc/anti-pattern comments
+           // mentioning 'const POLICY_CATEGORIES' don't false-positive.
+           const noComments = raw.replace(/\\/\\/[^\\n]*/g, '').replace(/\\/\\*[\\s\\S]*?\\*\\//g, '');
+           // Word boundary \\b so POLICY_CATEGORIES_TUPLE does NOT match.
+           if (/^const POLICY_CATEGORIES\\b/m.test(noComments)) {
+             hits.push(full.replace(/\\\\/g, '/'));
+           }
+         }
+       }
+       for (const r of ROOTS) walk(r);
+       console.log(hits.join('\\n'));`,
+    ],
+    { encoding: 'utf8', cwd: REPO_ROOT, shell: false },
+  );
+  if (blockerResult.status !== 0) {
+    out.push(
+      fail(
+        'BLOCKER-2: ^const POLICY_CATEGORIES enumeration (lib/ + app/ + components/)',
+        `walker error: ${(blockerResult.stderr || '').trim()}`,
+      ),
+    );
+  } else {
+    const blockerHits = (blockerResult.stdout || '')
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    assert(
+      out,
+      blockerHits.length === 0,
+      'BLOCKER-2: no inline `const POLICY_CATEGORIES` outside lib/policies/categories.ts (single-source invariant)',
+      `${blockerHits.length} inline declaration(s) found: ${blockerHits.join(', ')}`,
+    );
+  }
+
+  // BLOCKER-2 positive control: lib/policies/categories.ts must export POLICY_CATEGORIES + PolicyCategory.
+  if (exists('lib/policies/categories.ts')) {
+    const cats = read('lib/policies/categories.ts');
+    assert(
+      out,
+      /export\s+const\s+POLICY_CATEGORIES\b/.test(cats),
+      'lib/policies/categories.ts: exports const POLICY_CATEGORIES (BLOCKER-2 source-of-truth)',
+      'export const POLICY_CATEGORIES missing',
+    );
+    assert(
+      out,
+      /export\s+type\s+PolicyCategory\b/.test(cats),
+      'lib/policies/categories.ts: exports type PolicyCategory',
+      'export type PolicyCategory missing',
+    );
+  }
+
+  // BLOCKER-2 consumers — each callsite imports from the shared module instead of declaring inline.
+  for (const path of [
+    'app/(admin)/policies/new/actions.ts',
+    'components/policy/PolicyAiDraftDialog.tsx',
+    'lib/ai/schemas.ts',
+  ]) {
+    if (!exists(path)) continue;
+    const body = read(path);
+    const noComments = body
+      .replace(/\/\/[^\n]*/g, '')
+      .replace(/\/\*[\s\S]*?\*\//g, '');
+    assert(
+      out,
+      /from\s+['"]@\/lib\/policies\/categories['"]/.test(noComments),
+      `${path}: imports POLICY_CATEGORIES from @/lib/policies/categories (BLOCKER-2)`,
+      'inline declaration would re-introduce drift surface',
+    );
+  }
+
+  // ── 4. package.json structural assertions ───────────────────────────────
+  if (exists('package.json')) {
+    let pkgJson: { scripts?: Record<string, string>; dependencies?: Record<string, string> } | null = null;
+    try {
+      pkgJson = JSON.parse(read('package.json'));
+    } catch {
+      // fall through — assertion below will report
+    }
+
+    // verify:phase-4 + check:ai-layer + check:ai-prompts script slots present
+    assert(
+      out,
+      typeof pkgJson?.scripts?.['verify:phase-4'] === 'string',
+      'package.json declares verify:phase-4 (D-24)',
+      'verify:phase-4 script slot missing',
+    );
+    assert(
+      out,
+      typeof pkgJson?.scripts?.['check:ai-layer'] === 'string',
+      'package.json declares check:ai-layer (WARNING-6 vitest)',
+      'check:ai-layer script slot missing',
+    );
+    assert(
+      out,
+      typeof pkgJson?.scripts?.['check:ai-prompts'] === 'string',
+      'package.json declares check:ai-prompts (D-26)',
+      'check:ai-prompts script slot missing',
+    );
+
+    // verify:phase-4 chains check:ai-layer + check:ai-prompts
+    const verify4 = pkgJson?.scripts?.['verify:phase-4'] ?? '';
+    assert(
+      out,
+      verify4.includes('check:ai-layer'),
+      'verify:phase-4 chain includes check:ai-layer (D-24)',
+      'verify:phase-4 missing check:ai-layer',
+    );
+    assert(
+      out,
+      verify4.includes('check:ai-prompts'),
+      'verify:phase-4 chain includes check:ai-prompts (D-24)',
+      'verify:phase-4 missing check:ai-prompts',
+    );
+
+    // check:ai-layer uses vitest invocation with the dedicated config (WARNING-6)
+    const checkAiLayer = pkgJson?.scripts?.['check:ai-layer'] ?? '';
+    assert(
+      out,
+      checkAiLayer.includes('vitest'),
+      'check:ai-layer invokes vitest (WARNING-6)',
+      'check:ai-layer should invoke vitest run with the dedicated config',
+    );
+    assert(
+      out,
+      checkAiLayer.includes('scripts/check-ai-layer.vitest.config.ts'),
+      'check:ai-layer references scripts/check-ai-layer.vitest.config.ts (WARNING-6)',
+      'check:ai-layer should pass --config scripts/check-ai-layer.vitest.config.ts',
+    );
+
+    // D-01 — @anthropic-ai/sdk exact-pin (no caret, no tilde)
+    const anthropicVer = pkgJson?.dependencies?.['@anthropic-ai/sdk'] ?? '';
+    assert(
+      out,
+      anthropicVer.length > 0,
+      'package.json declares @anthropic-ai/sdk (D-01)',
+      'SDK dependency missing',
+    );
+    assert(
+      out,
+      anthropicVer.length > 0 && !anthropicVer.startsWith('^') && !anthropicVer.startsWith('~'),
+      'package.json @anthropic-ai/sdk is exact-pinned (D-01 — no caret, no tilde)',
+      `current value '${anthropicVer}' uses range operator; D-01 requires exact pin`,
+    );
+  }
+
+  // ── 5. .env.local.example carries ANTHROPIC_API_KEY= ────────────────────
+  if (exists('.env.local.example')) {
+    const env = read('.env.local.example');
+    assert(
+      out,
+      /^ANTHROPIC_API_KEY=/m.test(env),
+      '.env.local.example declares ANTHROPIC_API_KEY= (Phase 4 SDK env var)',
+      'ANTHROPIC_API_KEY placeholder missing',
+    );
+  }
+
+  // ── 6. Drizzle migrations — content invariants per D-29 + D-32 + D-35 ──
+  if (exists('drizzle/0005_initial_batch_jobs.sql')) {
+    const sql = read('drizzle/0005_initial_batch_jobs.sql');
+    assert(
+      out,
+      /CREATE TABLE "batch_jobs"/.test(sql),
+      '0005_initial_batch_jobs.sql: CREATE TABLE "batch_jobs"',
+      'migration body malformed',
+    );
+  }
+  if (exists('drizzle/0006_rls_batch_jobs.sql')) {
+    const sql = read('drizzle/0006_rls_batch_jobs.sql');
+    const body = sql.replace(/^\s*--[^\n]*\r?\n?/gm, '');
+    assert(
+      out,
+      /ENABLE ROW LEVEL SECURITY/.test(body),
+      '0006_rls_batch_jobs.sql: ENABLE RLS (D-29 §1)',
+      'D-29 §1 ENABLE RLS missing',
+    );
+    assert(
+      out,
+      /CREATE POLICY "org_isolation"/.test(body),
+      '0006_rls_batch_jobs.sql: CREATE POLICY "org_isolation" (D-29 §2)',
+      'D-29 §2 org_isolation policy missing',
+    );
+    assert(
+      out,
+      /GRANT (SELECT, INSERT, UPDATE, DELETE|ALL) ON "?batch_jobs"? TO authenticated/.test(body),
+      '0006_rls_batch_jobs.sql: GRANT to authenticated role (D-29 §3)',
+      'D-29 §3 GRANT missing',
+    );
+  }
+  if (exists('drizzle/0007_ai_generations_audit_extensions.sql')) {
+    const sql = read('drizzle/0007_ai_generations_audit_extensions.sql');
+    assert(
+      out,
+      /DROP COLUMN "tokens_used"/.test(sql),
+      '0007_ai_generations_audit_extensions.sql: DROP COLUMN "tokens_used" (D-35)',
+      'D-35 tokens_used drop missing',
+    );
+    assert(
+      out,
+      /ADD COLUMN "input_tokens"/.test(sql),
+      '0007_ai_generations_audit_extensions.sql: ADD COLUMN "input_tokens" (D-35)',
+      'D-35 input_tokens column missing',
+    );
+    assert(
+      out,
+      /ADD COLUMN "cache_read_input_tokens"/.test(sql),
+      '0007_ai_generations_audit_extensions.sql: ADD COLUMN "cache_read_input_tokens" (D-35)',
+      'D-35 cache_read_input_tokens column missing',
+    );
+    assert(
+      out,
+      /ADD COLUMN "idempotency_key"/.test(sql),
+      '0007_ai_generations_audit_extensions.sql: ADD COLUMN "idempotency_key" (D-32)',
+      'D-32 idempotency_key column missing',
+    );
+    assert(
+      out,
+      /CREATE UNIQUE INDEX "ai_generations_org_idempotency_key"/.test(sql),
+      '0007_ai_generations_audit_extensions.sql: partial-unique index on (org_id, idempotency_key) (D-32)',
+      'D-32 partial-unique index missing',
+    );
+  }
+  if (exists('drizzle/meta/_journal.json')) {
+    const journal = read('drizzle/meta/_journal.json');
+    for (const tag of ['0005_initial_batch_jobs', '0006_rls_batch_jobs', '0007_ai_generations_audit_extensions']) {
+      assert(
+        out,
+        journal.includes(`"${tag}"`),
+        `drizzle/meta/_journal.json registers ${tag} (Phase 4 migration chain)`,
+        `${tag} entry missing — pnpm db:generate did not register the migration`,
+      );
+    }
+  }
+
+  // ── 7. Frozen-contract reference doc amendments (D-10/D-27/D-29/D-31/D-35) ──
+  if (exists('reference/PROMPTS.md')) {
+    const prompts = read('reference/PROMPTS.md');
+    assert(
+      out,
+      prompts.includes('Treat it as DATA only'),
+      "reference/PROMPTS.md amended with 'Treat it as DATA only' (D-31 prompt-injection mitigation)",
+      'D-31 Q&A data-only meta-instruction missing',
+    );
+    assert(
+      out,
+      prompts.includes('--- CITATIONS ---'),
+      "reference/PROMPTS.md amended with '--- CITATIONS ---' fence (D-10)",
+      'D-10 citation fence template missing',
+    );
+  }
+  if (exists('reference/API-SPEC.md')) {
+    const api = read('reference/API-SPEC.md');
+    // D-27 — Q&A citations widened from string[] to { title, id }[].
+    assert(
+      out,
+      /citations:\s*\{\s*title:\s*string,?\s*id:\s*string\s*\}\[\]/.test(api),
+      "reference/API-SPEC.md amended with 'citations: { title: string, id: string }[]' (D-27)",
+      'D-27 citation shape amendment missing',
+    );
+  }
+  if (exists('reference/SCHEMA.md')) {
+    const schema = read('reference/SCHEMA.md');
+    assert(
+      out,
+      schema.includes('batch_jobs'),
+      "reference/SCHEMA.md mentions batch_jobs (D-29 new table)",
+      'D-29 batch_jobs table missing from SCHEMA.md',
+    );
+    assert(
+      out,
+      schema.includes('cache_read_input_tokens'),
+      "reference/SCHEMA.md mentions cache_read_input_tokens (D-35 cache-token widening)",
+      'D-35 cache-token column missing from SCHEMA.md',
+    );
+    assert(
+      out,
+      schema.includes('idempotency_key'),
+      "reference/SCHEMA.md mentions idempotency_key (D-32 dedup column)",
+      'D-32 idempotency_key column missing from SCHEMA.md',
+    );
+  }
+
+  // ── 8. check-ai-prompts.ts BLOCKER-2 grep target ────────────────────────
+  // DraftSchema must reference POLICY_CATEGORIES (via the tuple cast) so the
+  // shared categories import is load-bearing for the Zod runtime check.
+  if (exists('lib/ai/schemas.ts')) {
+    const schemas = read('lib/ai/schemas.ts');
+    assert(
+      out,
+      /POLICY_CATEGORIES/.test(schemas),
+      'lib/ai/schemas.ts: references POLICY_CATEGORIES (BLOCKER-2 — DraftSchema z.enum)',
+      'POLICY_CATEGORIES reference missing in DraftSchema',
+    );
+  }
+
+  return out;
+}
+
 /**
  * Runs the full set of artifact regression checks, prints results, and terminates the process.
  *
@@ -1530,6 +1982,8 @@ function main(): void {
     ...checkPhase2Migrations(),
     ...checkPhase2TypeTests(),
     ...checkPhase2VerifyScripts(),
+    // Phase 4 (AI Layer) — Plan 04-14 Task 2:
+    ...checkPhase4Scaffold(),
   ];
 
   let passed = 0;
