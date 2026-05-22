@@ -345,12 +345,14 @@ describe('publish — D-19 post-commit summary graceful-degrade (SP-3, SPEC R3)'
     ]);
     // PR #15 silent-failure review: catch is now narrowed to Anthropic.APIError.
     // Use a real APIError instance so the instanceof check passes and the
-    // graceful-degrade swallow path fires per D-19.
+    // graceful-degrade swallow path fires per D-19. The 5th arg populates
+    // APIError.type (which we now log as `code` per the type-design fix).
     const apiError = new Anthropic.APIError(
       503,
       { type: 'overloaded_error' },
       'Anthropic 503',
       undefined as unknown as Headers,
+      'overloaded_error',
     );
     generateSummaryForPolicyMock.mockRejectedValueOnce(apiError);
     const consoleErrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -438,12 +440,14 @@ describe('publish — D-19 post-commit summary graceful-degrade (SP-3, SPEC R3)'
     ]);
     // PR #15 silent-failure review: log is now sanitized to {name, status, code}
     // — never the raw error object (D-36 PII-safe; raw error.message could carry
-    // policy content or API-key prefixes).
+    // policy content or API-key prefixes). The 5th arg populates APIError.type
+    // which is read as `code` in the sanitized log payload.
     const apiError = new Anthropic.APIError(
       500,
       { type: 'api_error' },
       'Anthropic 500',
       undefined as unknown as Headers,
+      'api_error',
     );
     generateSummaryForPolicyMock.mockRejectedValueOnce(apiError);
     const consoleErrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});

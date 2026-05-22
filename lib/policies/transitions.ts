@@ -195,9 +195,13 @@ export async function publish(policyId: PolicyId): Promise<void> {
     await generateSummaryForPolicy(policyId, ctx);
   } catch (error) {
     if (error instanceof Anthropic.APIError) {
+      // PR #15 type-design review: read `error.type` (typed ErrorType | null on
+      // APIError, per @anthropic-ai/sdk/core/error.d.ts:13) instead of
+      // `error.error?.type`, which propagates `any` because TError defaults to
+      // Object | undefined and .type isn't on that generic shape.
       console.error('[publish] summary failed (anthropic)', {
         policyId,
-        error: { name: error.name, status: error.status, code: error.error?.type },
+        error: { name: error.name, status: error.status, code: error.type },
       });
       return;
     }
