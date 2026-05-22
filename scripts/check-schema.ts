@@ -39,6 +39,10 @@ const TENANT_TABLES = [
   'ai_generations',
   'notifications',
   'workflow_stages',
+  // Phase 4 — batch_jobs added in drizzle/0006_rls_batch_jobs.sql.
+  // Symmetric with scripts/check-rls.ts's batch_jobs assertion;
+  // pr-test-analyzer review caught the missing entry here.
+  'batch_jobs',
 ] as const;
 
 const REQUIRED_PRIVS = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'] as const;

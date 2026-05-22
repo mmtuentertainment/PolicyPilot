@@ -87,6 +87,14 @@ export async function GET(
     const translatedStatus = translateProcessingStatus(batch);
 
     let findings: unknown = undefined;
+    // PR #15 silent-failure review: JSON.parse failure used to silently set
+    // parsedFindings = [] which then persisted as `status='completed'` with empty
+    // findings — admin saw "No contradictions detected" indistinguishable from a
+    // legitimately clean library. Now we track the parse failure and re-route the
+    // batch to SPEC 'failed' so the admin sees ConsistencyFailureState. Audit
+    // replay invariant: persist the raw text (truncated) in batch_jobs.resultJson.
+    let effectiveStatus: 'in_progress' | 'completed' | 'failed' = translatedStatus;
+    let parseFailure: { rawText: string; errMessage: string } | null = null;
 
     if (translatedStatus === 'completed') {
       // WARNING-5 — token aggregation across batch results stream.
@@ -118,7 +126,7 @@ export async function GET(
         // Parse first succeeded result's text block as ConsistencyFinding[].
         // Future multi-request batches would need a per-request findings array
         // (out of scope here — Phase 4 batches have 1 request).
-        if (parsedFindings === undefined) {
+        if (parsedFindings === undefined && parseFailure === null) {
           const block = r.result.message.content.find(
             (b): b is Anthropic.Messages.TextBlock => b.type === 'text',
           );
@@ -138,34 +146,65 @@ export async function GET(
                       }
                     : parseErr,
               });
-              parsedFindings = [];
+              // Capture rawText (truncated 4KB) for audit replay; route below
+              // re-translates the batch to SPEC 'failed' so the admin UI shows
+              // ConsistencyFailureState rather than a misleading clean-library result.
+              parseFailure = {
+                rawText: block.text.slice(0, 4000),
+                errMessage:
+                  parseErr instanceof Error
+                    ? parseErr.message.slice(0, 120)
+                    : 'parse error',
+              };
             }
           }
         }
       }
 
-      findings = parsedFindings ?? [];
+      if (parseFailure !== null) {
+        // Anthropic batch succeeded mechanically but returned non-JSON output —
+        // treat as failure for the user-visible audit trail. No ai_generations
+        // row (D-06 SUCCESS-ONLY — Claude's output wasn't a parseable consistency
+        // result, so it's not a successful generation).
+        effectiveStatus = 'failed';
+        // Capture into const so TS narrows the non-null across the async closure
+        // boundary (control-flow analysis can't propagate `!== null` into the
+        // callback's lexical scope without it).
+        const captured = parseFailure;
+        await withOrgScope(ctx, async (s) => {
+          await BatchJobs.updateStatus(s, batchId, {
+            status: 'failed',
+            resultJson: {
+              error: 'result_unparseable',
+              message: captured.errMessage,
+              rawText: captured.rawText,
+            },
+          });
+        });
+      } else {
+        findings = parsedFindings ?? [];
 
-      // SUCCESS-ONLY ai_generations write (D-06) + WARNING-5 token totals.
-      // One transaction: insert ai_generations row + update batch_jobs status+resultJson.
-      await withOrgScope(ctx, async (s) => {
-        await AiGenerations.insert(s, {
-          policyId: null,
-          type: 'consistency',
-          prompt: CONSISTENCY_SYSTEM_PROMPT,
-          result: JSON.stringify(findings ?? []),
-          inputTokens: totalInputTokens, // WARNING-5 — sum across succeeded results
-          outputTokens: totalOutputTokens,
-          cacheReadInputTokens: totalCacheReadInputTokens,
-          cacheCreationInputTokens: totalCacheCreationInputTokens,
-          idempotencyKey: null,
-          model: MODEL_SONNET,
+        // SUCCESS-ONLY ai_generations write (D-06) + WARNING-5 token totals.
+        // One transaction: insert ai_generations row + update batch_jobs status+resultJson.
+        await withOrgScope(ctx, async (s) => {
+          await AiGenerations.insert(s, {
+            policyId: null,
+            type: 'consistency',
+            prompt: CONSISTENCY_SYSTEM_PROMPT,
+            result: JSON.stringify(findings ?? []),
+            inputTokens: totalInputTokens, // WARNING-5 — sum across succeeded results
+            outputTokens: totalOutputTokens,
+            cacheReadInputTokens: totalCacheReadInputTokens,
+            cacheCreationInputTokens: totalCacheCreationInputTokens,
+            idempotencyKey: null,
+            model: MODEL_SONNET,
+          });
+          await BatchJobs.updateStatus(s, batchId, {
+            status: translatedStatus,
+            resultJson: findings,
+          });
         });
-        await BatchJobs.updateStatus(s, batchId, {
-          status: translatedStatus,
-          resultJson: findings,
-        });
-      });
+      }
     } else {
       // 'in_progress' or 'failed' — update batch_jobs status + updatedAt only.
       // No ai_generations row (D-06 SUCCESS-ONLY). The updatedAt bump (via now() SQL
@@ -177,8 +216,8 @@ export async function GET(
     }
 
     return NextResponse.json({
-      status: translatedStatus,
-      result: translatedStatus === 'completed' ? findings : undefined,
+      status: effectiveStatus,
+      result: effectiveStatus === 'completed' ? findings : undefined,
     });
   } catch (err) {
     // D-36 — PII-safe sanitized log. Include batchId so operator can correlate

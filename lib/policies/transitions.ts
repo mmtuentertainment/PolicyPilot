@@ -31,6 +31,7 @@
 // for any direct policies-table updates. scripts/check-db-imports.ts
 // (Phase 2) enforces this at CI; the file's path is NOT in ALLOWLIST.
 import 'server-only';
+import Anthropic from '@anthropic-ai/sdk';
 import { and, eq, sql } from 'drizzle-orm';
 import { withOrgScope, type OrgScope } from '@/lib/db/scoped';
 import { getOrgContext } from '@/lib/auth/context';
@@ -177,16 +178,36 @@ export async function publish(policyId: PolicyId): Promise<void> {
   // so a flaky Anthropic call cannot roll back the publish. The summary helper opens its
   // own withOrgScope for the ai_generations INSERT + policies.tldrSummary UPDATE.
   //
-  // Graceful-degrade: summary failure logs but does NOT propagate. Policy stays published
-  // with policies.tldrSummary IS NULL; admin can regenerate via PolicyView's "Regenerate
-  // TL;DR" button (Plan 04-13 ships the UI).
+  // Graceful-degrade scope: only Anthropic.APIError is swallowed (D-19 — Anthropic
+  // hiccups must not affect the published state; admin regenerates via the
+  // "Regenerate TL;DR" button). Non-Anthropic errors (TierLimitExceededError,
+  // BootstrapError, TypeError from a refactor bug, etc.) are RE-THROWN so they
+  // surface in error monitoring. Without this narrowing, a programming bug in
+  // generateSummaryForPolicy would silently corrupt every publish indefinitely.
   //
-  // SP-3 (Nyquist sub-path) — lib/policies/transitions.test.ts D-19 block verifies the
-  // graceful-degrade path.
+  // D-36 PII-safe log — Anthropic.APIError is sanitized to {name, status, code}; raw
+  // error.message could contain the org's API-key prefix or policy content.
+  //
+  // SP-3 (Nyquist sub-path) — lib/policies/transitions.test.ts D-19 block verifies
+  // both the graceful-degrade path (Anthropic.APIError) AND the propagation path
+  // (non-Anthropic Error).
   try {
     await generateSummaryForPolicy(policyId, ctx);
   } catch (error) {
-    console.error('[publish] summary failed', { policyId, error });
+    if (error instanceof Anthropic.APIError) {
+      console.error('[publish] summary failed (anthropic)', {
+        policyId,
+        error: { name: error.name, status: error.status, code: error.error?.type },
+      });
+      return;
+    }
+    if (error instanceof Error) {
+      console.error('[publish] summary failed (non-anthropic, propagating)', {
+        policyId,
+        error: { name: error.name, message: error.message.slice(0, 120) },
+      });
+    }
+    throw error;
   }
 }
 

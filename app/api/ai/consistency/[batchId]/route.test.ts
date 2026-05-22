@@ -397,4 +397,71 @@ describe('GET /api/ai/consistency/[batchId] — polling + SDK→SPEC translator 
     // Cost-undercounting invariant: input_tokens > 0 (not null).
     expect(insertArgs.inputTokens).toBeGreaterThan(0);
   });
+
+  // ==========================================================================
+  // PR #15 silent-failure review — JSON.parse failure must re-route to 'failed'.
+  // Old behavior: parsedFindings = [] silently → status='completed' with empty
+  // findings → admin saw "No contradictions detected" indistinguishable from a
+  // legitimately clean library. New behavior: status='failed' + raw text persisted.
+  // ==========================================================================
+  it('PR-15-SF — on JSON.parse failure: status=failed, raw text persisted, NO ai_generations row', async () => {
+    // Stale row → forces SDK call into the parse path.
+    mockFindByAnthropicBatchId.mockResolvedValueOnce({
+      anthropicBatchId: BATCH_ID,
+      status: 'in_progress',
+      updatedAt: new Date(Date.now() - 30_000),
+      resultJson: null,
+    });
+    // SDK retrieve → ended + succeeded=1 → translator → 'completed'.
+    mockBatchRetrieve.mockResolvedValueOnce(mockBatch('ended', { succeeded: 1 }));
+    // SDK results stream → 1 succeeded response with NON-JSON text (model drift,
+    // mid-stream truncation, instruction-tuning regression, etc.).
+    mockBatchResults.mockReturnValueOnce(
+      makeBatchResultsStream([
+        {
+          type: 'succeeded',
+          text: 'Here are the contradictions: 1. Policy A says X but Policy B...',
+          usage: {
+            input_tokens: 500,
+            output_tokens: 250,
+            cache_read_input_tokens: 100,
+            cache_creation_input_tokens: 50,
+          },
+        },
+      ]),
+    );
+    mockGetOrgContext.mockResolvedValueOnce(ADMIN_CTX);
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const { GET } = await import('@/app/api/ai/consistency/[batchId]/route');
+    const res = await GET(makeReq(), makeParams());
+
+    // SPEC: response surfaces 'failed' so ConsistencyFailureState renders.
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe('failed');
+    expect(body.result).toBeUndefined();
+
+    // batch_jobs.updateStatus called with status='failed' + raw text in resultJson.
+    expect(mockBatchJobsUpdateStatus).toHaveBeenCalledOnce();
+    const updateArgs = mockBatchJobsUpdateStatus.mock.calls[0]!;
+    const patch = updateArgs[2] as {
+      status: string;
+      resultJson: { error: string; message: string; rawText: string };
+    };
+    expect(patch.status).toBe('failed');
+    expect(patch.resultJson.error).toBe('result_unparseable');
+    expect(patch.resultJson.rawText).toContain('Here are the contradictions');
+
+    // SUCCESS-ONLY invariant (D-06): no ai_generations row on parse failure.
+    expect(mockAiGenerationsInsert).not.toHaveBeenCalled();
+
+    // Sanitized warn log fired.
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      '[ai/consistency/poll] result JSON unparseable',
+      expect.objectContaining({ orgId: 'org_1' }),
+    );
+
+    consoleWarnSpy.mockRestore();
+  });
 });

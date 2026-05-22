@@ -687,7 +687,7 @@ describe('Phase 4 integration — SP-1/SP-2/SP-4/AC-24/AC-29/AC-32 (WARNING-6 vi
     });
   });
 
-  it('AC-32 — Draft insert populates input_tokens + output_tokens + cache columns', async () => {
+  it('AC-32 — Draft insert populates input_tokens + output_tokens + cache columns (cache-creation path)', async () => {
     await withRollback(async (tx, fix) => {
       ctxState.current = {
         orgId: fix.orgAId,
@@ -726,6 +726,61 @@ describe('Phase 4 integration — SP-1/SP-2/SP-4/AC-24/AC-29/AC-32 (WARNING-6 vi
       expect(row?.output_tokens).toBe(80);
       expect(row?.cache_creation_input_tokens).toBe(1024);
       expect(row?.cache_read_input_tokens).toBe(0);
+
+      // Reset for subsequent tests
+      anthropicState.inputTokens = 100;
+      anthropicState.outputTokens = 50;
+      anthropicState.cacheCreationInputTokens = 0;
+      anthropicState.cacheReadInputTokens = 0;
+    });
+  });
+
+  // PR #15 code-review: D-25's intent was to assert the endpoint READS the
+  // cache_read_input_tokens column. AC-32 above only covers the cache-CREATION
+  // path. This sibling covers the cache-HIT path so both directions of the
+  // 4-column token shape are integration-verified.
+  it('AC-32b — Draft insert populates cache_read on cache-hit path (creation=0, read>0)', async () => {
+    await withRollback(async (tx, fix) => {
+      ctxState.current = {
+        orgId: fix.orgAId,
+        userId: fix.adminA_userId,
+        clerkOrgId: fix.clerkOrgA,
+        clerkUserId: fix.clerkUserA,
+        role: 'admin',
+      };
+      anthropicState.mode = 'succeed';
+      anthropicState.inputTokens = 200;
+      anthropicState.outputTokens = 80;
+      // Cache-HIT signature: creation=0, read>0. Mirrors the symmetric token
+      // transition observed during real-key UAT (~1133 tokens swapping columns
+      // between two consecutive identical-system-prompt requests).
+      anthropicState.cacheCreationInputTokens = 0;
+      anthropicState.cacheReadInputTokens = 800;
+
+      const { POST } = await import('@/app/api/ai/draft/route');
+      const req = new Request('http://localhost/api/ai/draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'test for cache-hit columns' }),
+      });
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const rows = await tx<
+        {
+          input_tokens: number | null;
+          output_tokens: number | null;
+          cache_read_input_tokens: number | null;
+          cache_creation_input_tokens: number | null;
+        }[]
+      >`SELECT input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens
+        FROM ai_generations WHERE org_id = ${fix.orgAId} AND type = 'draft' LIMIT 1`;
+      const row = rows[0];
+      expect(row).toBeDefined();
+      expect(row?.input_tokens).toBe(200);
+      expect(row?.output_tokens).toBe(80);
+      expect(row?.cache_creation_input_tokens).toBe(0);
+      expect(row?.cache_read_input_tokens).toBe(800);
 
       // Reset for subsequent tests
       anthropicState.inputTokens = 100;

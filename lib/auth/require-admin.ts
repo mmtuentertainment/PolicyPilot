@@ -15,8 +15,8 @@ import { ForbiddenError } from '@/lib/auth/errors';
  * ADMIN_URL_PATTERNS; the layout-level check is the authoritative source.
  *
  * Note: getOrgContext() already wraps `await auth()` in try/catch (SF-M4
- * fold, lib/auth/context.ts:25-32). Do NOT re-wrap here — let auth
- * failures bubble for the framework error boundary to handle.
+ * fold). Do NOT re-wrap here — let auth failures bubble for the framework
+ * error boundary to handle.
  *
  * Phase 4 D-45 amendment: kept verbatim for backward-compat with Phase 3
  * admin PAGES (which want 404 to "advertise nothing"). New Phase 4 API

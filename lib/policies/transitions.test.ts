@@ -25,6 +25,7 @@
 // `lib/policies/transitions.ts` section, 03-RESEARCH.md Pattern 2, and the
 // L-05 invariant carried forward from Plan 03-04.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import Anthropic from '@anthropic-ai/sdk';
 
 // txUpdateMock + txSetMock are captured by reference so every test can
 // assert on them AND so the mocked withOrgScope can hand the same `tx` to
@@ -337,16 +338,25 @@ describe('approve', () => {
 // AND adds a vi.mock for @/lib/ai/summary at the top of this file.
 // ---------------------------------------------------------------------------
 describe('publish — D-19 post-commit summary graceful-degrade (SP-3, SPEC R3)', () => {
-  it('on generateSummaryForPolicy throw: publish() does NOT throw; state transition stays committed', async () => {
+  it('on Anthropic.APIError: publish() does NOT throw; state transition stays committed', async () => {
     // Mock the state-transition prerequisite — Draft policy ready to publish.
     findByIdMock.mockResolvedValueOnce([
       { id: 'p1', status: 'draft', currentVersion: 1, contentJson: { type: 'doc' } },
     ]);
-    // Plan 04-11 D-19 — flaky Anthropic call. publish() MUST swallow this.
-    generateSummaryForPolicyMock.mockRejectedValueOnce(new Error('Anthropic 503'));
+    // PR #15 silent-failure review: catch is now narrowed to Anthropic.APIError.
+    // Use a real APIError instance so the instanceof check passes and the
+    // graceful-degrade swallow path fires per D-19.
+    const apiError = new Anthropic.APIError(
+      503,
+      { type: 'overloaded_error' },
+      'Anthropic 503',
+      undefined as unknown as Headers,
+    );
+    generateSummaryForPolicyMock.mockRejectedValueOnce(apiError);
     const consoleErrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    // SP-3 contract: publish() resolves cleanly even when the post-commit hook throws.
+    // D-19 contract: publish() resolves cleanly even when the post-commit hook
+    // throws an Anthropic.APIError (Anthropic 5xx, rate-limit, etc.).
     await expect(publish(POLICY_ID_FIXTURE)).resolves.toBeUndefined();
 
     // State-transition transaction committed FIRST (before the AI call):
@@ -363,6 +373,39 @@ describe('publish — D-19 post-commit summary graceful-degrade (SP-3, SPEC R3)'
     // generateSummaryForPolicy was invoked AFTER the state-transition commit
     // (graceful-degrade hook ran, then threw — publish() caught it).
     expect(generateSummaryForPolicyMock).toHaveBeenCalledOnce();
+
+    consoleErrSpy.mockRestore();
+  });
+
+  it('on non-Anthropic Error: publish() RE-THROWS (programming bugs propagate)', async () => {
+    // PR #15 silent-failure review: catch must not swallow programming bugs
+    // (TypeError, ReferenceError, BootstrapError, etc.) — only Anthropic.APIError
+    // is graceful-degraded per D-19. This locks the narrowing contract.
+    findByIdMock.mockResolvedValueOnce([
+      { id: 'p1', status: 'draft', currentVersion: 1, contentJson: { type: 'doc' } },
+    ]);
+    const programmingBug = new TypeError("Cannot read properties of undefined (reading 'foo')");
+    generateSummaryForPolicyMock.mockRejectedValueOnce(programmingBug);
+    const consoleErrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    // Contract: publish() re-throws non-Anthropic errors so they surface in
+    // monitoring. The state transition still committed before the throw.
+    await expect(publish(POLICY_ID_FIXTURE)).rejects.toThrow(programmingBug);
+
+    // State-transition transaction DID commit before the AI call threw.
+    expect(pvCreateMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ policyId: 'p1', versionNumber: 1 }),
+    );
+    expect(txSetMock).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'published' }),
+    );
+
+    // Sanitized non-anthropic log fires before re-throw.
+    expect(consoleErrSpy).toHaveBeenCalledWith(
+      '[publish] summary failed (non-anthropic, propagating)',
+      expect.objectContaining({ policyId: POLICY_ID_FIXTURE }),
+    );
 
     consoleErrSpy.mockRestore();
   });
@@ -389,21 +432,35 @@ describe('publish — D-19 post-commit summary graceful-degrade (SP-3, SPEC R3)'
     );
   });
 
-  it('logs "[publish] summary failed" with policyId on graceful-degrade path (D-19 + D-18)', async () => {
+  it('logs sanitized Anthropic error shape on graceful-degrade path (D-19 + D-18 + D-36)', async () => {
     findByIdMock.mockResolvedValueOnce([
       { id: 'p1', status: 'draft', currentVersion: 1, contentJson: { type: 'doc' } },
     ]);
-    const anthropicError = new Error('Anthropic 500');
-    generateSummaryForPolicyMock.mockRejectedValueOnce(anthropicError);
+    // PR #15 silent-failure review: log is now sanitized to {name, status, code}
+    // — never the raw error object (D-36 PII-safe; raw error.message could carry
+    // policy content or API-key prefixes).
+    const apiError = new Anthropic.APIError(
+      500,
+      { type: 'api_error' },
+      'Anthropic 500',
+      undefined as unknown as Headers,
+    );
+    generateSummaryForPolicyMock.mockRejectedValueOnce(apiError);
     const consoleErrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     await publish(POLICY_ID_FIXTURE);
 
-    // Verify the SPEC R3 + D-18 verbatim log prefix '[publish] summary failed'
-    // was emitted with the policyId + the underlying error attached.
+    // Verify the new sanitized log shape (D-36): prefix differentiates anthropic
+    // vs non-anthropic; payload carries only {name, status, code}, never raw error.
+    // We check status + code (Anthropic-specific fields that prove the narrowed
+    // branch fired) — the `name` field's exact value depends on Anthropic SDK
+    // version (some versions override Error.name, some don't).
     expect(consoleErrSpy).toHaveBeenCalledWith(
-      '[publish] summary failed',
-      expect.objectContaining({ policyId: POLICY_ID_FIXTURE, error: anthropicError }),
+      '[publish] summary failed (anthropic)',
+      expect.objectContaining({
+        policyId: POLICY_ID_FIXTURE,
+        error: expect.objectContaining({ status: 500, code: 'api_error' }),
+      }),
     );
 
     consoleErrSpy.mockRestore();

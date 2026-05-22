@@ -92,14 +92,30 @@ export function ConsistencyCheckRunner({
         }
         const body = (await res.json()) as { status: Status; result?: unknown };
         if (cancelled) return;
-        // Clear any prior poll-error banner if this response succeeded.
-        if (errored) setErrored(false);
+        // Clear any prior poll-error banner unconditionally — call is
+        // idempotent and avoids a stale-closure on `errored` (which is
+        // intentionally not in the effect deps; the `if (errored)` guard
+        // would read the captured render-time value and miss updates).
+        setErrored(false);
         setStatus(body.status);
         if (body.status === 'completed') {
           setFindings(body.result);
         }
-      } catch {
-        if (!cancelled) setErrored(true);
+      } catch (err) {
+        // PR #15 review: bare catch swallowed all failures equally
+        // (network, JSON.parse on empty body, etc.). Sanitized log surfaces
+        // the failure category to console for operator diagnostics; UI still
+        // shows the generic "Polling error. Retrying..." copy.
+        if (!cancelled) {
+          console.error('[consistency-runner] poll failed', {
+            batchId,
+            err:
+              err instanceof Error
+                ? { name: err.name, message: err.message.slice(0, 120) }
+                : 'unknown',
+          });
+          setErrored(true);
+        }
       }
     }
 
