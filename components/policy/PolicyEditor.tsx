@@ -11,10 +11,10 @@
 // javascript: protocol. We do NOT override it. Pin ≥ 2.10.4 satisfies the fix;
 // package.json ships 2.27.2 for all four @tiptap/* packages.
 
-import { useEditor, EditorContent, type JSONContent } from '@tiptap/react';
+import { useEditor, EditorContent, type Editor, type JSONContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Bold,
   Italic,
@@ -33,6 +33,18 @@ type PolicyEditorProps = {
   name?: string;
   /** Optional read-only flag — used by /policies/[id] when status is published-without-edit */
   readOnly?: boolean;
+  /**
+   * Phase 4 Plan 04-12 — optional onMount callback fires once when the TipTap
+   * editor instance is ready. The parent (CreatePolicyForm in /policies/new)
+   * uses this to capture the editor ref for the sibling PolicyAiDraftDialog
+   * (D-22): the dialog's `onDraftReady(rawContent)` callback then routes to
+   *   editor.commands.setContent(rawContent)
+   * — D-28 + AC-23 contract: raw string, NEVER JSON.parse.
+   *
+   * Default = no-op; existing call sites (EditPolicyForm, PolicyEditor.test)
+   * stay backward-compatible without supplying the callback.
+   */
+  onMount?: (editor: Editor) => void;
 };
 
 const EMPTY_DOC: JSONContent = { type: 'doc', content: [{ type: 'paragraph' }] };
@@ -41,6 +53,7 @@ export function PolicyEditor({
   initialContent,
   name = 'content_json',
   readOnly = false,
+  onMount,
 }: PolicyEditorProps) {
   const [json, setJson] = useState<JSONContent>(initialContent ?? EMPTY_DOC);
 
@@ -66,6 +79,15 @@ export function PolicyEditor({
       },
     },
   });
+
+  // Plan 04-12 — fire onMount once when the editor instance materializes.
+  // useEditor returns null during SSR + the first render under jsdom (per
+  // immediatelyRender:false); the instance arrives on the post-mount render.
+  // The effect's dependency on `editor` ensures we only call `onMount` once
+  // the editor is non-null AND the optional callback is supplied.
+  useEffect(() => {
+    if (editor && onMount) onMount(editor);
+  }, [editor, onMount]);
 
   if (!editor) {
     // Pre-mount placeholder — useEditor returns null during SSR.
