@@ -1,0 +1,65 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-05-22T14:21:38.422Z",
+  "phase": "04",
+  "phase_name": "ai-layer",
+  "phase_dir": ".planning/phases/04-ai-layer",
+  "plan": 14,
+  "task": 4,
+  "total_tasks": 14,
+  "status": "shipped-pending-merge",
+  "completed_tasks": [
+    {"id": "04-01", "name": "Wave 0 — SDK install + doc amendments + D-39 probe", "status": "done", "commit": "c1eb22f"},
+    {"id": "04-02", "name": "Wave 0 — 3 migrations + db:push BLOCKING gate", "status": "done", "commit": "b63f6c9"},
+    {"id": "04-03", "name": "Wave 0 — 14 RED test stubs + tests/ai-mocks.ts", "status": "done", "commit": "c91f329"},
+    {"id": "04-04", "name": "Wave 1 — lib/ai foundation + lib/policies/categories.ts BLOCKER-2 closure", "status": "done", "commit": "8284afc"},
+    {"id": "04-05", "name": "Wave 1 — qa-extract + qa-parser + tests/types.ts D-43", "status": "done", "commit": "71512cf"},
+    {"id": "04-06", "name": "Wave 1 — lib/stripe products + errors + check-error-discipline widening", "status": "done", "commit": "e70f82e"},
+    {"id": "04-07", "name": "Wave 1 — 3 repositories + D-45 ForbiddenError + require-admin dual-signature", "status": "done", "commit": "4e85b22"},
+    {"id": "04-08", "name": "Wave 2 — Draft + Summary endpoints + generateSummaryForPolicy helper", "status": "done", "commit": "0502b74"},
+    {"id": "04-09", "name": "Wave 2 — Q&A endpoint (D-31 + D-41 + D-46)", "status": "done", "commit": "2806ac1"},
+    {"id": "04-10", "name": "Wave 2 — Consistency submit + poll + SDK→SPEC translator + check-rls extension", "status": "done", "commit": "eef0347"},
+    {"id": "04-11", "name": "Wave 2 — publishPolicy D-19 hook + check-ai-prompts ts-morph gate", "status": "done", "commit": "efaa9bb"},
+    {"id": "04-12", "name": "Wave 3 — PolicyAiDraftDialog + PolicyRegenerateTldrButton + parent wiring", "status": "done", "commit": "284feed"},
+    {"id": "04-13", "name": "Wave 3 — /dashboard/consistency + 5 admin components + sidebar nav", "status": "done", "commit": "397ef1d"},
+    {"id": "04-14-tasks-1-3", "name": "Wave 4 — check-ai-layer.test.ts + check-artifacts Phase 4 rows + verify:phase-4 chain", "status": "done", "commit": "149a356"},
+    {"id": "04-14-task-4-uat", "name": "Wave 4 — Operator UAT (5/5 PASS via claude-in-chrome MCP automation; real-key smoke verified SPEC R4 cache mechanics)", "status": "done", "commit": "f57b104"},
+    {"id": "secure-phase-4", "name": "gsd-secure-phase audit — 60/60 threats CLOSED (47 mitigated + 13 accepted-risk)", "status": "done", "commit": "6887000"},
+    {"id": "ship", "name": "/gsd-ship 4 — push + PR #15 created + STATE/ROADMAP synced", "status": "done", "commit": "82c1732"},
+    {"id": "hygiene", "name": "PR review hygiene — 6 of 10 findings APPLIED, 4 SKIPPED with reasons", "status": "done", "commit": "4fea328"}
+  ],
+  "remaining_tasks": [
+    {"id": "operator-review", "name": "Operator reviews PR #15 (https://github.com/mmtuentertainment/PolicyPilot/pull/15)", "status": "not_started"},
+    {"id": "squash-merge", "name": "Squash-merge PR #15 to main with --delete-branch (per CLAUDE.md Git Workflow)", "status": "not_started"},
+    {"id": "ff-pull", "name": "Post-merge: git checkout main && git pull --ff-only", "status": "not_started"},
+    {"id": "staging-migrate", "name": "Pre-deploy: pnpm db:migrate against staging/prod DATABASE_URL (Plan 04-02 only migrated TEST_DATABASE_URL — surfaced during UAT)", "status": "not_started"}
+  ],
+  "blockers": [],
+  "human_actions_pending": [
+    {"action": "Review PR #15 (78+ commits ahead of main)", "context": "Phase 4 ship; verifier PASS + UAT 5/5 + secure 60/60 + hygiene pass — ready for squash-merge", "blocking": true},
+    {"action": "Decide on 4 SKIPPED PR review findings (04-06 PLAN auto-append text; 04-CONTEXT 'latest stable' SPEC quote; 04-DISCUSSION-LOG SDK 0.65.1 audit-trail rewrite; STATE.md line 203 historical session log)", "context": "All 4 skipped with explicit rationale; revisit only if you disagree with any rationale", "blocking": false},
+    {"action": "Real-key UAT-1/2 smoke against live Anthropic before staging deploy (optional belt-and-braces; already done in this session for ~$0.021 spend)", "context": "Cache mechanics verified end-to-end with symmetric 1133-token creation→read transition; recorded in 04-UAT-RESULTS.md", "blocking": false},
+    {"action": "Rename the operator's API-key file inside secrets/ to a neutral filename (e.g., secrets/anthropic-dev.txt)", "context": "Hygiene — current filename contains a key-prefix fragment; folder is gitignored, but a neutral filename prevents future accidental Slack/PR/screenshot exposure", "blocking": false}
+  ],
+  "decisions": [
+    {"decision": "Phase 4 D-44 plan-phase READY gate fully resolved before /gsd-plan-phase 4 (D-32 + D-35 operator-approved + AC-26 locked to 403 + F-17 accepted as MVP risk + D-39 SDK-namespace verified STABLE)", "rationale": "Operator approved all 5 pre-conditions 2026-05-21; D-32 + D-35 ship in combined drizzle/0007_ai_generations_audit_extensions.sql", "phase": "04"},
+    {"decision": "Migration filename numbering 0005/0006/0007 (NOT 0004/0005/0006 as CONTEXT.md pre-audit prose suggested)", "rationale": "Phase 3 already shipped drizzle/0004_policy_versions_unique.sql per drizzle/meta/_journal.json; RESEARCH § Drizzle Combined-Migration Pattern caught the drift; SPEC AC-24 amended to reference 0006_rls_batch_jobs.sql", "phase": "04"},
+    {"decision": "translateProcessingStatus extracted from app/api/ai/consistency/[batchId]/route.ts to lib/ai/batch-status.ts", "rationale": "BUG-1 surfaced during UAT — Next.js 15 route-typegen rejects named exports other than HTTP verbs (constrains them to never); extraction preserves test access via dynamic import while satisfying route-typegen", "phase": "04"},
+    {"decision": "Mock-injection UAT path elected (lib/ai/client.ts temporarily replaced) instead of skip-API-dependent-UATs or wait-for-key", "rationale": "Operator chose mock path mid-session; mock reverted before any commit; subsequent real-key smoke verified end-to-end (~$0.021 spend)", "phase": "04"},
+    {"decision": "secrets/ folder gitignored as defense-in-depth (commit d0352a1)", "rationale": "Operator placed Anthropic API key in the local secrets/ folder; .env.local already gitignored, but explicit secrets/ rule prevents accidental `git add secrets/` from leaking the raw key file", "phase": "04"},
+    {"decision": "Q&A endpoint stores rawText (not parsed answer) in ai_generations.result for type='qa'", "rationale": "WARNING-4 lock — better audit-replay primitive (captures Claude's exact output including citation fence + hallucinated IDs); intentional asymmetry vs Draft/Summary which store extracted text", "phase": "04"},
+    {"decision": "Consistency Check batch result tokens AGGREGATED from MessageBatchIndividualResponse stream (NOT null)", "rationale": "WARNING-5 closure — Phase 8 weighted-cost SQL formula (input_tokens + cache_creation × 1.25 + cache_read × 0.1 + output × 5) assumes input_tokens > 0 for every row; null would undercount Consistency by 100%", "phase": "04"},
+    {"decision": "Q&A endpoint has NO requireTierLimit (D-46 accepted MVP risk)", "rationale": "Operator-approved unbounded Q&A cost per Phase 4 SPEC; Phase 8 watch trigger at $50/org/month average Sonnet 4.6 cost over any 30-day window will retrofit a qaRequestsMonthly limit if breached", "phase": "04"},
+    {"decision": "POLICY_CATEGORIES single-source-of-truth at lib/policies/categories.ts (BLOCKER-2 closure)", "rationale": "Plan-checker BLOCKER-2 flagged inline redeclarations across Server Action + Draft dialog + DraftSchema as a silent-drift trap; shared module + z.enum(POLICY_CATEGORIES_TUPLE) at the schema layer prevents future drift; check-artifacts.ts grep gate enforces", "phase": "04"}
+  ],
+  "uncommitted_files": [
+    {"path": ".agents/", "note": "operator-side, untracked, pre-existing"},
+    {"path": ".claude/", "note": "operator-side, untracked, pre-existing"},
+    {"path": ".mcp.json", "note": "operator-side, untracked, contains tokens — DO NOT commit"},
+    {"path": ".wiki/", "note": "operator-side, untracked, raw snapshots"},
+    {"path": "audit-cache/", "note": "operator-side, untracked"},
+    {"path": "localhost-*.log", "note": "dev server logs from UAT, untracked"}
+  ],
+  "next_action": "Review PR #15 at https://github.com/mmtuentertainment/PolicyPilot/pull/15. If satisfied: gh pr merge 15 --squash --delete-branch. If revisions needed: comment on PR or run /gsd-progress 4 for in-place follow-up.",
+  "context_notes": "Phase 4 is ship-ready: 14/14 plans executed, gsd-verifier PASS (5/5 ROADMAP SCs), UAT 5/5 PASS (claude-in-chrome MCP + real-key smoke), gsd-security-auditor SECURED (60/60 threats CLOSED), 6 PR review hygiene findings applied (4 skipped with rationale). One real bug surfaced + fixed during the run (Next.js route-typegen translator extraction). Two op-side issues surfaced: (a) dev DB needed pnpm db:migrate (only TEST_DATABASE_URL was migrated by Plan 04-02); (b) .env.local ANTHROPIC_API_KEY placeholder was empty — operator set during session via secrets/ folder pattern + project-scoped .env.local (Claude Code OAuth/Max sub untouched). Total Phase 4 effort: ~3h plan + ~3h execute + ~30min UAT/security + ~10min hygiene = ~6.7h. Branch gsd/phase-4-ai-layer @ 4fea328, ~80+ atomic commits, ready for squash-merge to main. Context window at 71% at pause — clean handoff."
+}
