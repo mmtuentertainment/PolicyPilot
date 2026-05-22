@@ -137,10 +137,79 @@ Before this commit:
 - `.tmp/uat-*.mjs` scripts left in `.tmp/` (gitignored — operator may delete or reuse)
 - Dev server stop attempted (background process)
 
+## Real-Key Smoke (post-key-rotation, same session)
+
+Operator placed the production Anthropic API key in `C:\Users\matth\Desktop\PolicyPilot\secrets\` (gitignored as of commit `d0352a1`). `.env.local` line 45 `ANTHROPIC_API_KEY=` filled via Node script that never echoed the value (verified via length=108 + `sk-ant-api03-` prefix + file-contents-match boolean). Dev server restarted to clear the cached empty-key Anthropic SDK singleton.
+
+### Draft endpoint — live Anthropic Sonnet 4.6 call
+
+| Check | Result |
+|---|---|
+| `POST /api/ai/draft` status | 200 (20.6s — real Sonnet call) |
+| Editor populated with real prose | ✅ 3484 chars, "Code of Conduct Policy" with Purpose/Integrity/Confidentiality sections (matched prompt verbatim) |
+| AC-23: no JSON.parse called | ✅ no `[object Object]`, no `undefined` |
+| `ai_generations` row | model=`claude-sonnet-4-6`, input_tokens=131, output_tokens=794, result_length=3509 |
+| `cache_creation_input_tokens` | 0 (expected — DRAFT_SYSTEM_PROMPT=88 tokens, well below 1024 Sonnet threshold per D-40) |
+| `cache_read_input_tokens` | 0 (expected — same reason) |
+
+Live spend: ~$0.012 (131 × $3/MTok + 794 × $15/MTok).
+
+### Q&A endpoint — SPEC R4 cache mechanics verified end-to-end
+
+Seeded 3 published policies in UAT Org B (Remote Work, Vacation/PTO, Information Security — ~3281 chars body content ≈ 821 tokens; QA_SYSTEM_PROMPT_TEMPLATE 328 tokens; combined system content ≈ 1149 tokens, comfortably above 1024 Sonnet cache threshold).
+
+Two `POST /api/ai/qa` calls 14 seconds apart, both via browser fetch with Clerk session cookie:
+
+| Call | Question | Status | took_ms | Answer | Citations |
+|------|---------|--------|---------|--------|-----------|
+| 1 (cold cache) | "What are the core hours for remote work?" | 200 | 4450 | "Based on our **Remote Work Policy**, core hours are **10:00 AM to 3:00 PM in the employee's local time zone**…" | 1 (Remote Work Policy UUID) |
+| 2 (warm cache, 14s later) | "How many vacation days do full-time employees get per year?" | 200 | 4203 | "Based on our company policy, full-time employees receive **15 days of paid vacation per year**, prorated based on their start date." | 1 (Vacation Policy UUID) |
+
+### `ai_generations` token columns
+
+| Field | Call 1 (cold) | Call 2 (warm) |
+|---|---|---|
+| `input_tokens` (user message) | 15 | 19 |
+| `output_tokens` | 112 | 205 |
+| **`cache_creation_input_tokens`** | **1133** ← CACHE WRITE | **0** |
+| **`cache_read_input_tokens`** | **0** | **1133** ← CACHE HIT |
+
+**Symmetric `1133`** between call-1 creation and call-2 read confirms:
+
+- D-33c LONG_CACHE (1h TTL) ordering correct — longer-TTL block (library) first, shorter-TTL block (QA template) second; Anthropic accepted the ordering
+- Anthropic returned the cached library on call 2 (not a fresh write)
+- D-35 column widening captures both states; Phase 8 weighted-cost SQL (input_tokens + cache_creation × 1.25 + cache_read × 0.1 + output × 5) is computable per-row
+
+Call 1 weighted cost: 15 + 1133×1.25 + 0 + 112×5 = **1991.25**
+Call 2 weighted cost: 19 + 0 + 1133×0.1 + 205×5 = **1157.3**
+
+→ Call 2's 41% cost reduction vs call 1 (despite generating *more* output) is the cache savings Phase 8 will surface per-org.
+
+### Defense-in-depth cross-checks (incidentally verified during smoke)
+
+- ✅ D-41 cross-org citation strip — both calls returned only the seeded UUIDs from UAT Org B (no leak from any other org)
+- ✅ D-31 prompt-injection guard inert (no adversarial content in seeded policies, so no fixture; the guard is in PROMPTS.md verbatim and present in the wire system content)
+- ✅ D-46 no `requireAdmin` on Q&A — both calls succeeded as Clerk-authenticated user without admin gate
+- ✅ D-06 SUCCESS-ONLY ai_generations write — exactly 1 row per successful call, no rows for the empty-key 503s captured earlier
+
+Live spend on real-key smoke: ~$0.021 total (Draft + 2× Q&A; within ~$0.01–0.02 pre-flight estimate; 5% over due to second Q&A call).
+
+### Cleanup performed post-smoke
+
+- 3 seeded policies deleted from UAT Org B
+- 3 ai_generations rows (1 Draft + 2 Q&A) deleted
+- UAT Org B fully reset (0 policies, 0 ai_generations rows for this org)
+- Dev server stopped
+- `lib/ai/client.ts` is the original (no mock active)
+- `.env.local` line 45 retains the real key (gitignored)
+- `secrets/` folder is gitignored (commit `d0352a1`)
+
 ## Verdict
 
-**5/5 UAT items PASS.** 1 Next.js typegen bug fixed (translator extraction). 2 operator-side issues surfaced + documented (dev DB migration, empty API key). Phase 4 cleared for squash-merge to `main`.
+**5/5 UAT items PASS** (mocked path) **+ real-key smoke PASS** (live Anthropic Draft + 2×Q&A confirming SPEC R4 cache mechanics with symmetric 1133-token creation↔read transition).
+
+1 Next.js typegen bug fixed (`translateProcessingStatus` extraction). 2 operator-side issues surfaced + resolved (dev DB migration applied; ANTHROPIC_API_KEY now set in `.env.local` after operator's `/secrets/` workflow). Phase 4 cleared for squash-merge to `main`.
 
 ---
 
-*UAT executed 2026-05-22 via claude-in-chrome MCP automation; operator approval inferred from "Run all UATs against a mocked-success path I inject" answer to the mid-UAT decision point.*
+*UAT executed 2026-05-22 via claude-in-chrome MCP automation; mocked-path approval and real-key approval both captured via AskUserQuestion mid-session. Total live Anthropic spend during UAT: ~$0.021.*
