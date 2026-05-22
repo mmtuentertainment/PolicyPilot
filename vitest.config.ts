@@ -31,6 +31,11 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./tests/setup.ts'],
     include: ['**/*.{test,spec}.{ts,tsx}'],
-    exclude: ['node_modules', '.next', 'tests/types.ts'],
+    // Phase 4 — scripts/check-ai-layer.test.ts is the WARNING-6 integration harness; it has
+    // its own dedicated config (scripts/check-ai-layer.vitest.config.ts) that runs in node env
+    // with TEST_DATABASE_URL passthrough. Excluding it from the default `pnpm test` glob keeps
+    // unit-test runs fast and DB-independent — the harness fires only via `pnpm check:ai-layer`
+    // (Plan 04-14 Task 3 wires the dedicated config invocation into the verify:phase-4 chain).
+    exclude: ['node_modules', '.next', 'tests/types.ts', 'scripts/check-ai-layer.test.ts'],
   },
 });

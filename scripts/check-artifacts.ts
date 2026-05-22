@@ -777,6 +777,14 @@ function checkServerOnlyBoundary(): Check[] {
     // barrel to translate Clerk text ids → internal UUIDs per gap-closure.
     "lib/auth/context.ts",
     "./lib/auth/context.ts",
+    // Phase 4 WARNING-2 allow-list entry: lib/stripe/products.ts ships the
+    // split-helper architecture (readPlanTier + countDraftsThisMonth) that
+    // tier-checks against organizations.planTier + ai_generations counts
+    // BEFORE withOrgScope opens (per D-37). The AST-based check-db-imports.ts
+    // gate already includes this path (Plan 04-06 Task L-05); this regex
+    // backstop allow-list is kept in lockstep so both gates agree.
+    "lib/stripe/products.ts",
+    "./lib/stripe/products.ts",
   ]);
   const unexpected = hits.filter((h) => !allowed.has(h));
   if (unexpected.length === 0) {
