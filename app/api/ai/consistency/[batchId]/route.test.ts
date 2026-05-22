@@ -139,9 +139,7 @@ describe('GET /api/ai/consistency/[batchId] — polling + SDK→SPEC translator 
   // Translator is exported so we can test it directly.
   // ==========================================================================
   it('translator: processing_status:"in_progress" ⇒ status:"in_progress"', async () => {
-    const { translateProcessingStatus } = await import(
-      '@/app/api/ai/consistency/[batchId]/route'
-    );
+    const { translateProcessingStatus } = await import('@/lib/ai/batch-status');
     expect(
       translateProcessingStatus(
         mockBatch('in_progress', { processing: 1 }) as never,
@@ -150,9 +148,7 @@ describe('GET /api/ai/consistency/[batchId] — polling + SDK→SPEC translator 
   });
 
   it('translator: processing_status:"canceling" ⇒ status:"in_progress"', async () => {
-    const { translateProcessingStatus } = await import(
-      '@/app/api/ai/consistency/[batchId]/route'
-    );
+    const { translateProcessingStatus } = await import('@/lib/ai/batch-status');
     expect(
       translateProcessingStatus(
         mockBatch('canceling', { processing: 1 }) as never,
@@ -161,18 +157,14 @@ describe('GET /api/ai/consistency/[batchId] — polling + SDK→SPEC translator 
   });
 
   it('translator: processing_status:"ended" + request_counts.succeeded>0 + others=0 ⇒ status:"completed"', async () => {
-    const { translateProcessingStatus } = await import(
-      '@/app/api/ai/consistency/[batchId]/route'
-    );
+    const { translateProcessingStatus } = await import('@/lib/ai/batch-status');
     expect(
       translateProcessingStatus(mockBatch('ended', { succeeded: 1 }) as never),
     ).toBe('completed');
   });
 
   it('translator: processing_status:"ended" + request_counts.errored>0 ⇒ status:"failed"', async () => {
-    const { translateProcessingStatus } = await import(
-      '@/app/api/ai/consistency/[batchId]/route'
-    );
+    const { translateProcessingStatus } = await import('@/lib/ai/batch-status');
     expect(
       translateProcessingStatus(
         mockBatch('ended', { succeeded: 0, errored: 1 }) as never,

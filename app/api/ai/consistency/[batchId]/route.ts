@@ -1,13 +1,13 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import type { MessageBatch } from '@anthropic-ai/sdk/resources/messages/batches';
 import { getOrgContext } from '@/lib/auth/context';
 import { requireAdminFromCtx } from '@/lib/auth/require-admin';
 import { withOrgScope } from '@/lib/db/scoped';
 import { getAnthropicClient } from '@/lib/ai/client';
 import { MODEL_SONNET } from '@/lib/ai/models';
 import { CONSISTENCY_SYSTEM_PROMPT } from '@/lib/ai/prompts';
+import { translateProcessingStatus } from '@/lib/ai/batch-status';
 import { BatchJobs } from '@/lib/db/repositories/batch_jobs';
 import { AiGenerations } from '@/lib/db/repositories/ai_generations';
 
@@ -36,34 +36,10 @@ import { AiGenerations } from '@/lib/db/repositories/ai_generations';
  * Failed/in-progress translations update batch_jobs.status only — no ai_generations row.
  */
 
-/**
- * SDK → SPEC enum translator (RESEARCH § Batch API Mechanics lines 199-215).
- *
- * Anthropic SDK MessageBatch.processing_status values: 'in_progress' | 'canceling' | 'ended'.
- * SPEC R5 + API-SPEC.md + D-21 + D-30 describe: 'in_progress' | 'completed' | 'failed'.
- *
- * Mapping:
- *   - SDK 'in_progress' OR 'canceling' → SPEC 'in_progress' (canceling is transient per docs)
- *   - SDK 'ended' + request_counts.succeeded > 0 + zero (errored/expired/canceled) → SPEC 'completed'
- *   - SDK 'ended' + any of (errored/expired/canceled) > 0 → SPEC 'failed'
- *   - SDK 'ended' + zero of everything (anomalous — Anthropic invariant violation) → SPEC 'failed'
- *
- * Exported for direct unit-test fixture coverage (4 translator tests in the test file).
- */
-export function translateProcessingStatus(
-  batch: MessageBatch,
-): 'in_progress' | 'completed' | 'failed' {
-  if (
-    batch.processing_status === 'in_progress' ||
-    batch.processing_status === 'canceling'
-  ) {
-    return 'in_progress';
-  }
-  // batch.processing_status === 'ended' — differentiate via request_counts.
-  const { succeeded, errored, expired, canceled } = batch.request_counts;
-  if (errored > 0 || expired > 0 || canceled > 0) return 'failed';
-  return succeeded > 0 ? 'completed' : 'failed';
-}
+// SDK → SPEC enum translator extracted to lib/ai/batch-status.ts during Phase 4 UAT.
+// Next.js 15 route typegen disallows non-HTTP-verb named exports from route files
+// (`OmitWithTag` indexes to `never` for unknown identifiers). translateProcessingStatus
+// is imported from @/lib/ai/batch-status at the top of this file.
 
 /**
  * D-34 stale-window threshold. Polls within 25s of the last batch_jobs.updatedAt
