@@ -1957,6 +1957,80 @@ function checkPhase4Scaffold(): Check[] {
  * non-zero when any check fails.
  */
 
+function checkDeployPrep(): Check[] {
+  const out: Check[] = [];
+
+  // ── 1. New artifacts (verifier + preflight wrapper + runbook + CI + Vercel) ─
+  assert(out, exists("scripts/check-deploy-schema.ts"), "scripts/check-deploy-schema.ts exists (deploy-prep)", "missing");
+  assert(out, exists("scripts/deploy-preflight.ts"), "scripts/deploy-preflight.ts exists (deploy-prep)", "missing");
+  assert(out, exists("docs/runbooks/deploy-migrations.md"), "docs/runbooks/deploy-migrations.md exists (deploy-prep)", "missing");
+  assert(out, exists("docs/runbooks/README.md"), "docs/runbooks/README.md exists (deploy-prep)", "missing");
+  assert(out, exists(".github/workflows/migrate.yml"), ".github/workflows/migrate.yml exists (deploy-prep)", "missing");
+  assert(out, exists("vercel.json"), "vercel.json exists (deploy-prep)", "missing");
+
+  // ── 2. package.json — 7 new scripts ─────────────────────────────────────────
+  const pkg = read("package.json");
+  // Note: there is no db:verify:test — the test DB is already covered by
+  // check-schema.ts via verify:phase-2, and .env.local.test is intentionally
+  // comments-only per Plan 02-03 SF-DB-1 (the orchestrator does spawnSync
+  // overrides). The deploy verifier targets dev / staging / prod only.
+  const newScripts = [
+    "db:migrate:staging",
+    "db:migrate:prod",
+    "db:verify",
+    "db:verify:staging",
+    "db:verify:prod",
+    "deploy:preflight",
+  ];
+  for (const script of newScripts) {
+    assert(out, pkg.includes(`"${script}"`), `package.json declares ${script}`, `script missing`);
+  }
+
+  // ── 3. CLAUDE.md — Database Migration Discipline section ────────────────────
+  if (exists("CLAUDE.md")) {
+    const claudeMd = read("CLAUDE.md");
+    assert(
+      out,
+      claudeMd.includes("Database Migration Discipline"),
+      "CLAUDE.md includes 'Database Migration Discipline' section (deploy-prep)",
+      "missing — see CLAUDE.md after Git Workflow section",
+    );
+    assert(
+      out,
+      claudeMd.includes("docs/runbooks/deploy-migrations.md"),
+      "CLAUDE.md references docs/runbooks/deploy-migrations.md",
+      "missing reference to runbook",
+    );
+  }
+
+  // ── 4. vercel.json — buildCommand chains deploy:preflight ──────────────────
+  if (exists("vercel.json")) {
+    const vercelJson = read("vercel.json");
+    assert(
+      out,
+      vercelJson.includes("pnpm deploy:preflight"),
+      "vercel.json buildCommand chains pnpm deploy:preflight",
+      "missing — build-time gate not wired",
+    );
+  }
+
+  // ── 5. CI workflow — env-selector + uses GitHub Environment for prod gate ──
+  if (exists(".github/workflows/migrate.yml")) {
+    const wf = read(".github/workflows/migrate.yml");
+    assert(out, wf.includes("workflow_dispatch"), "migrate.yml uses workflow_dispatch", "missing");
+    assert(
+      out,
+      wf.includes("environment: ${{ inputs.env }}"),
+      "migrate.yml uses GitHub Environment for approval gate",
+      "missing — prod won't have manual approval",
+    );
+    assert(out, wf.includes("drizzle-kit migrate"), "migrate.yml runs drizzle-kit migrate", "missing");
+    assert(out, wf.includes("check-deploy-schema.ts"), "migrate.yml runs check-deploy-schema.ts", "missing");
+  }
+
+  return out;
+}
+
 function main(): void {
   console.log("─── Foundation — artifact regression gate ───");
   console.log(`Repo root: ${REPO_ROOT}`);
@@ -1992,6 +2066,8 @@ function main(): void {
     ...checkPhase2VerifyScripts(),
     // Phase 4 (AI Layer) — Plan 04-14 Task 2:
     ...checkPhase4Scaffold(),
+    // Phase 4 deploy-prep (Issue #16 carry, 2026-05-22):
+    ...checkDeployPrep(),
   ];
 
   let passed = 0;
