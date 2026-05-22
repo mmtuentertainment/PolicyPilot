@@ -1,0 +1,88 @@
+name: Migrate database
+
+# Phase 4 deploy-prep (Issue #16 carry, 2026-05-22). Manual-trigger CI workflow
+# that runs `drizzle-kit migrate` then `check-deploy-schema.ts` against staging
+# or production using GitHub Environment secrets.
+#
+# Setup (operator one-time):
+#   1. Repo → Settings → Environments → New environment "staging"
+#      Add secrets: DATABASE_URL (port 6543 pooler), DIRECT_URL (port 5432 direct)
+#   2. Repo → Settings → Environments → New environment "prod"
+#      Add secrets: DATABASE_URL, DIRECT_URL
+#      REQUIRED: Configure "Required reviewers" with your own GitHub user — this
+#      is the manual approval gate. The workflow PAUSES on the prod job until
+#      you approve via the GitHub UI.
+#
+# Trigger:
+#   gh workflow run migrate -f env=staging
+#   gh workflow run migrate -f env=prod        # PAUSES for environment approval
+#
+# See docs/runbooks/deploy-migrations.md for the full procedure + audit log
+# template + rollback notes.
+
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: 'Target environment (staging or prod)'
+        required: true
+        type: choice
+        options:
+          - staging
+          - prod
+
+jobs:
+  migrate:
+    name: Migrate ${{ inputs.env }} DB
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.env }}
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Sanity — typecheck
+        run: pnpm tsc --noEmit
+
+      - name: Apply migrations to ${{ inputs.env }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+        run: |
+          if [ -z "$DIRECT_URL" ] && [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL / DIRECT_URL not set for environment '${{ inputs.env }}'. Configure secrets in Settings → Environments → ${{ inputs.env }}." >&2
+            exit 1
+          fi
+          pnpm exec drizzle-kit migrate
+
+      - name: Verify ${{ inputs.env }} schema
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+        run: pnpm exec tsx scripts/check-deploy-schema.ts
+
+      - name: Report
+        if: always()
+        run: |
+          echo "## Migrate ${{ inputs.env }} — ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Triggered by: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Next: append the audit-log entry to .planning/STATE.md per docs/runbooks/deploy-migrations.md." >> $GITHUB_STEP_SUMMARY
