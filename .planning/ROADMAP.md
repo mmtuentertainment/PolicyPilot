@@ -118,16 +118,27 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 
 ### Phase 5: Employee Portal
 **Goal**: An employee can sign in, see only their assigned + published policies, read them, ask Q&A questions, and one-click acknowledge — with every acknowledgment captured append-only with timestamp and IP. Policy updates correctly require re-acknowledgment.
-**Depends on**: Phase 3 *(amended by ADR-029 2026-05-21; was Phase 4 — Phase 5 SC 1–5 do not consume Phase 4 AI surfaces per `/gsd-manager --analyze-deps`; eligible for Wave 1 parallel with Phase 4)*
+**Depends on**: Phase 3 *(amended by ADR-029 2026-05-21; was Phase 4 — Phase 5 SC 1–5 do not consume Phase 4 AI surfaces per `/gsd-manager --analyze-deps`; eligible for Wave 1 parallel with Phase 4. R-6 Q&A surface added 2026-05-23 via discuss-phase Q-21(c) operator override creates a runtime-consumption link to Phase 4 — orthogonal to ADR-029's dependency-graph parallelism gating, which Phase 4 SHIPPED 2026-05-22 moots anyway.)*
 **Requirements**: REQ-acknowledgment-tracking, REQ-acknowledgment-rules
-**Anchoring decisions**: ADR-018 (append-only), ADR-008 (route group `(employee)`), ADR-009 (employee gate)
+**Anchoring decisions**: ADR-018 (append-only), ADR-008 (route group `(employee)`), ADR-009 (employee gate), ADR-023 (per-aggregate repos), ADR-025 (withOrgScope + RLS), ADR-026 (typed errors), ADR-028 (PolicyId brand)
 **Success Criteria** (what must be TRUE):
   1. Employee dashboard shows only policies assigned to them or to their department AND in `status = 'published'` — Draft and Under Review policies never appear.
   2. One-click "Acknowledge" inserts a row into `acknowledgments` with `{user_id, policy_id, policy_version_id, acknowledged_at, ip_address}` and the UI updates without page reload.
   3. Editing a policy and re-publishing it surfaces "requires re-acknowledgment" to all assigned employees; prior acknowledgment rows remain untouched in the DB.
   4. Bulk assignment to a department creates one `policy_assignments` row with `assigneeType = 'department'` and is visible to every member of that department.
-  5. No code path exists to DELETE or UPDATE rows in `acknowledgments` — verified by code inspection.
-**Plans**: TBD
+  5. No code path exists to DELETE or UPDATE rows in `acknowledgments` — verified by code inspection (tests/types.ts D-07 compile-time + scripts/check-acknowledgment-immutability.ts ts-morph CI + DB GRANT-asymmetry-documented).
+  6. (R-6 — operator amendment 2026-05-23) Employee Q&A surface at `/my-policies/ask` consumes Phase 4 `askQuestion` orchestrator, returns cited answers, with citation Links navigating to `/my-policies/[id]` with D-27 access-aware page handler (assigned → full PolicyView; cited-but-not-assigned → TL;DR-only with banner; else 404).
+**Plans**: 10 plans
+- [ ] 05-01-schema-migrations-PLAN.md — Wave 1: lib/db/schema.ts + drizzle/0010_phase5_uniques.sql (D-28) + drizzle/0011_qa_citation_grants.sql (D-29 + RESEARCH gap-1 wrapped-RLS) + pnpm db:migrate + pnpm db:migrate:test (BLOCKING) + scripts/check-schema.ts Phase 5 column-shape assertions
+- [ ] 05-02-errors-PLAN.md — Wave 1: lib/policies/errors.ts PolicyDomainError hierarchy per D-30 (mirrors ADR-026 BootstrapError shape) — parallel with 05-01
+- [ ] 05-03-repositories-PLAN.md — Wave 2: Acknowledgments.record + PolicyAssignments.create fills (D-06/10/15 ON CONFLICT DO NOTHING) + Policies.listAssignedAndPublishedForUser (D-01..D-04 LEFT JOIN + ackState enum) + NEW lib/db/repositories/qa_citation_grants.ts (D-29 listForUser/upsert/hasGrant)
+- [ ] 05-04-orchestrators-PLAN.md — Wave 2: lib/policies/acknowledgment.ts (D-10a atomic withOrgScope wrapping read+lookup+INSERT + D-07/D-08 typed errors) + lib/ai/qa.ts (D-25 extraction preserving D-41/D-33c/WARNING-4 + D-26 grant UPSERT per RESEARCH gap-3 + D-27a accessibility flag) + app/api/ai/qa/route.ts refactored to thin wrapper
+- [ ] 05-05-employee-routes-PLAN.md — Wave 3: app/(employee)/layout.tsx + my-policies/page.tsx (replaces 03-G3 T9 stub; D-04a empty-state) + my-policies/[id]/page.tsx (D-27 3-branch access logic; D-27 banner) + acknowledgePolicyAction (D-05 IP capture + D-07/D-08 typed catch) + my-policies/ask/page.tsx + askQuestionAction + components/employee/AcknowledgeButton.tsx + AskQuestionForm.tsx (React 19 useActionState)
+- [ ] 05-06-admin-bulk-assign-PLAN.md — Wave 3: app/(admin)/policies/[id]/actions.ts bulkAssignToDepartmentAction + page.tsx renders PolicyAssignmentsPanel at bottom (D-13) + new components/admin/PolicyAssignmentsPanel.tsx (D-14 empty-dept disabled + tooltip; D-16 no Un-assign) + lib/db/repositories/departments.ts listAll method
+- [ ] 05-07-ack-status-badge-PLAN.md — Wave 3: components/policy/AckStatusBadge.tsx (D-11 className override on shadcn Badge — NOT new CVA variant; exhaustive switch on D-04 enum)
+- [ ] 05-08-ci-gates-PLAN.md — Wave 4: NEW scripts/check-acknowledgment-immutability.ts ts-morph gate (D-18) + NEW tests/fixtures/ack-mutation-attempt.ts negative-control (D-20) + check-rls.ts TENANT_TABLES extension (RESEARCH gap-2) + check-policy-id-brand.ts brand-targets extension (RESEARCH gap-4) + check-error-discipline.ts widening to lib/policies/** (D-30) + check-artifacts.ts Phase 5 block
+- [ ] 05-09-integration-test-PLAN.md — Wave 4: NEW scripts/check-employee-portal.test.ts integration test (D-22 raw postgres-js + D-23a Anthropic mock; R-1+R-3+R-4+R-6+AC-10 coverage) + 6 co-located vitest unit test files per D-21
+- [ ] 05-10-verify-chain-uat-PLAN.md — Wave 5: package.json verify:phase-5 chain (D-23) + end-to-end pnpm verify:phase-5 + operator UAT checkpoint (19 numbered checks across admin/employee surfaces)
 **UI hint**: yes
 
 ### Phase 6: Billing
@@ -181,7 +192,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 | 2. Data Layer | 7/7 | Complete | 2026-05-18 |
 | 3. Admin UI | 15/15 | Complete | 2026-05-20 |
 | 4. AI Layer | 0/0 | Not started | - |
-| 5. Employee Portal | 0/0 | Not started | - |
+| 5. Employee Portal | 0/10 | Planned (10 plans drafted 2026-05-23) | - |
 | 6. Billing | 0/0 | Not started | - |
 | 7. Crons + Email | 0/0 | Not started | - |
 | 8. Validation | 0/0 | Not started | - |
