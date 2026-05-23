@@ -43,6 +43,11 @@ const TENANT_TABLES = [
   // Symmetric with scripts/check-rls.ts's batch_jobs assertion;
   // pr-test-analyzer review caught the missing entry here.
   'batch_jobs',
+  // Phase 5 D-29 — new tenant table for Q&A citation-referral grants per
+  // T-2(4c). RLS, policy, and 4 GRANTs auto-asserted by the per-table loop
+  // below; column shape + UNIQUE + indexes + wrapped-form RLS predicate
+  // asserted by the Phase 5 assertion block at the file tail.
+  'qa_citation_grants',
 ] as const;
 
 const REQUIRED_PRIVS = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'] as const;
@@ -153,6 +158,107 @@ async function main(): Promise<void> {
       });
     }
 
+    // Phase 5 D-28 + D-29 — assert the three new UNIQUE constraints exist.
+    // D-28 (0010_phase5_uniques): acknowledgments + policy_assignments idempotency
+    //   constraints driving Acknowledgments.record + PolicyAssignments.create
+    //   ON CONFLICT DO NOTHING semantics (Plan 05-03).
+    // D-29 (0011_qa_citation_grants): the new qa_citation_grants UNIQUE on
+    //   (org_id, user_id, policy_id) drives QaCitationGrants.upsert idempotency
+    //   in askQuestion orchestrator (Plan 05-04). Org_id included as
+    //   defense-in-depth against cross-org UUID collision (RESEARCH Pitfall 3).
+    const phase5Constraints = await sql<{ conname: string }[]>`
+      SELECT conname FROM pg_catalog.pg_constraint
+      WHERE conname IN (
+        'acknowledgments_user_id_policy_id_policy_version_id_unique',
+        'policy_assignments_policy_id_assignee_type_assignee_id_unique',
+        'qa_citation_grants_org_user_policy_unique'
+      )
+        AND contype = 'u'
+    `;
+    if (phase5Constraints.length !== 3) {
+      failures.push({
+        table: '(phase-5 multiple)',
+        check: 'Phase 5 D-28 + D-29 — UNIQUE constraints',
+        detail: `${phase5Constraints.length} of 3 expected (got: ${phase5Constraints.map((r) => r.conname).join(', ') || '(none)'})`,
+      });
+    }
+
+    // Phase 5 D-29 — assert qa_citation_grants column shape (5 columns) in
+    // ordinal-position order. Drift here means the migration was edited or the
+    // schema export was hand-modified out of sync.
+    const grantCols = await sql<{ column_name: string; data_type: string; is_nullable: string }[]>`
+      SELECT column_name, data_type, is_nullable FROM information_schema.columns
+      WHERE table_name = 'qa_citation_grants' AND table_schema = 'public'
+      ORDER BY ordinal_position
+    `;
+    const expectedGrantCols = [
+      { column_name: 'id', data_type: 'uuid', is_nullable: 'NO' },
+      { column_name: 'org_id', data_type: 'uuid', is_nullable: 'NO' },
+      { column_name: 'user_id', data_type: 'uuid', is_nullable: 'NO' },
+      { column_name: 'policy_id', data_type: 'uuid', is_nullable: 'NO' },
+      { column_name: 'granted_at', data_type: 'timestamp without time zone', is_nullable: 'NO' },
+    ];
+    if (grantCols.length !== expectedGrantCols.length) {
+      failures.push({
+        table: 'qa_citation_grants',
+        check: 'D-29 column count',
+        detail: `${grantCols.length} columns (expected ${expectedGrantCols.length}: ${expectedGrantCols.map((c) => c.column_name).join(', ')})`,
+      });
+    } else {
+      for (let i = 0; i < expectedGrantCols.length; i++) {
+        const got = grantCols[i]!;
+        const want = expectedGrantCols[i]!;
+        if (
+          got.column_name !== want.column_name ||
+          got.data_type !== want.data_type ||
+          got.is_nullable !== want.is_nullable
+        ) {
+          failures.push({
+            table: 'qa_citation_grants',
+            check: `D-29 column ${i} shape`,
+            detail: `got ${JSON.stringify(got)}, expected ${JSON.stringify(want)}`,
+          });
+        }
+      }
+    }
+
+    // Phase 5 D-29 — assert qa_citation_grants RLS policy uses the WRAPPED form
+    // (SELECT auth.jwt()->>'org_id') per RESEARCH gap-1. Unwrapped form would
+    // (a) trigger splinter lint 0003_auth_rls_initplan and (b) re-evaluate JWT
+    // per row at scale.
+    const grantPolicy = await sql<{ qual: string | null }[]>`
+      SELECT qual FROM pg_policies
+      WHERE tablename = 'qa_citation_grants' AND policyname = 'org_isolation'
+    `;
+    if (grantPolicy.length !== 1) {
+      failures.push({
+        table: 'qa_citation_grants',
+        check: 'D-29 org_isolation policy exists',
+        detail: `${grantPolicy.length} policy row(s) (expected 1)`,
+      });
+    } else if (!grantPolicy[0]!.qual?.includes('(SELECT auth.jwt(')) {
+      failures.push({
+        table: 'qa_citation_grants',
+        check: 'D-29 RLS wrapped (SELECT auth.jwt()) form per RESEARCH gap-1',
+        detail: `qual=${grantPolicy[0]!.qual ?? '(null)'} — unwrapped auth.jwt() will trigger splinter lint and per-row JWT eval`,
+      });
+    }
+
+    // Phase 5 D-29 — assert qa_citation_grants indexes exist (RLS-predicate
+    // path + hasGrant fast-path).
+    const grantIdx = await sql<{ indexname: string }[]>`
+      SELECT indexname FROM pg_indexes
+      WHERE tablename = 'qa_citation_grants'
+        AND indexname IN ('qa_citation_grants_org_id_idx', 'qa_citation_grants_user_policy_idx')
+    `;
+    if (grantIdx.length !== 2) {
+      failures.push({
+        table: 'qa_citation_grants',
+        check: 'D-29 indexes (org_id_idx + user_policy_idx)',
+        detail: `${grantIdx.length} of 2 expected (got: ${grantIdx.map((r) => r.indexname).join(', ') || '(none)'})`,
+      });
+    }
+
     if (failures.length > 0) {
       console.error(`Schema audit FAILED: ${failures.length} issue(s) found:`);
       for (const f of failures) {
@@ -161,7 +267,11 @@ async function main(): Promise<void> {
       process.exit(1);
     }
 
-    console.log(`OK — schema audit: ${TENANT_TABLES.length} tenant-scoped tables verified (exists + RLS + policy + 4 GRANTs); 2 service-role tables verified (NO RLS); policy_versions UNIQUE(policy_id, version_number) constraint present.`);
+    console.log(
+      `OK — schema audit: ${TENANT_TABLES.length} tenant-scoped tables verified (exists + RLS + policy + 4 GRANTs); ` +
+        `2 service-role tables verified (NO RLS); ` +
+        `policy_versions UNIQUE + Phase 5 acknowledgments/policy_assignments UNIQUE + qa_citation_grants UNIQUE + columns + indexes + wrapped-RLS all present.`,
+    );
     process.exit(0);
   } catch (err) {
     console.error(
