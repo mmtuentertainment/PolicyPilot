@@ -94,4 +94,4 @@ Write-Host ""
 Write-Host "OK: stored $len chars into SecretStore as '$secretName'" -ForegroundColor Green
 Write-Host "SHA256[0..3] (one-way verification token): $hex8"
 Write-Host ""
-Write-Host "Next step: pnpm db:verify:staging  (pre-flight) -- or db:migrate:staging directly if you trust the pre-flight will reach the DB."
+Write-Host "Next step: pnpm db:verify:$Environment  (pre-flight) -- or db:migrate:$Environment directly if you trust the pre-flight will reach the DB."

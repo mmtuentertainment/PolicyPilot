@@ -48,29 +48,50 @@ Both must be set:
 
 The pooler chokes on some DDL (e.g., `CREATE INDEX CONCURRENTLY`); drizzle-kit uses `DIRECT_URL` per `drizzle.config.ts` D-05.
 
-### Env file pattern (operator-side)
+### Credential pattern (operator-side) — Pattern 3
 
-Stored in `secrets/` (gitignored). Each env gets its own file:
+Database passwords for non-dev environments live in **PowerShell SecretStore**
+(DPAPI-encrypted at rest, tied to the Windows user account). No file on disk
+carries plaintext credentials; no value transits chat. Non-secret routing —
+host, pooler/direct ports, `postgres.<project_ref>` user, database name, and
+SecretStore secret-name per env — lives in `scripts/deploy-config.json`
+(tracked, gitignore-safe because nothing in it is sensitive).
 
-```
-secrets/
-├── anthropic-dev.txt        (existing — API key)
-├── staging.env              (NEW — DATABASE_URL + DIRECT_URL for staging Supabase)
-└── prod.env                 (NEW — DATABASE_URL + DIRECT_URL for production Supabase)
-```
+One-time operator setup per machine:
 
-Env-var names inside the files are the standard `DATABASE_URL` + `DIRECT_URL` — drizzle-kit and `check-deploy-schema.ts` both read those exact names from `process.env`. There is no `STAGING_*` / `PROD_*` prefix because `--env-file=secrets/<env>.env` scopes the lookup to that file.
-
-**Format of `secrets/staging.env`** (mirrors `.env.local`):
-
-```bash
-DATABASE_URL=postgres://...@aws-...-pooler.supabase.com:6543/postgres
-DIRECT_URL=postgres://postgres.<project_ref>:<password>@aws-...-pooler.supabase.com:5432/postgres
+```powershell
+Install-Module Microsoft.PowerShell.SecretManagement, Microsoft.PowerShell.SecretStore -Scope CurrentUser -Force
+Register-SecretVault -Name PolicyPilot -ModuleName Microsoft.PowerShell.SecretStore -DefaultVault
+Set-SecretStoreConfiguration -Authentication None -Interaction None -Confirm:$false
 ```
 
-Same shape for `secrets/prod.env`.
+`Authentication None` lets `powershell -NonInteractive` open the vault without
+prompting; the DPAPI encryption-at-rest still applies (only this Windows user
+can decrypt the vault file).
 
-**Never** commit these files (`secrets/` is gitignored as of `d0352a1`).
+Per-env password capture — uses Windows `Get-Credential` GUI dialog to avoid
+the Read-Host paste-truncation bug some ConHost configurations have:
+
+```powershell
+./scripts/store-deploy-password.ps1 staging   # or prod
+```
+
+The helper validates length 8..128 and prints a SHA-256 prefix for one-way
+verification before storing under the secret name from `deploy-config.json`
+(currently `PolicyPilotStagingDB` / `PolicyPilotProdDB`).
+
+How the runtime wrapper assembles the URL — `scripts/with-deploy-creds.ps1
+<env> <child-command>` reads the password via `Get-Secret -Vault PolicyPilot`,
+URL-encodes it with `[Uri]::EscapeDataString` (defense against URL-special
+characters in auto-generated passwords), constructs `DATABASE_URL` (port 6543
+transaction pool) and `DIRECT_URL` (port 5432 session pool) from the
+deploy-config host/user templates, and materializes them as env vars only for
+the spawned child process. On exit — success OR exception — the wrapper's
+`try/finally` clears the env vars so no plaintext credential lingers in the
+parent shell's environment.
+
+Dev still uses `.env.local` directly (Pattern 1) — only staging + prod cross
+the Pattern 3 isolation line.
 
 ---
 
@@ -83,7 +104,7 @@ API) for the target project. If no rotation happened, skip to *Procedure*.
 After a rotation, pooler-routed auth (port 6543 transaction pool OR port 5432
 session pool) returns:
 
-```
+```text
 28P01 password authentication failed for user "postgres"
 ```
 
@@ -126,11 +147,13 @@ paced gate below, never a tight retry loop.
      `scripts/store-deploy-password.ps1`, NOT in a file
 
 3. **Update** the SecretStore entry:
+
    ```powershell
    ./scripts/store-deploy-password.ps1 staging   # or prod
    ```
 
 4. **Run the gate** to wait for pooler cache propagation:
+
    ```powershell
    pnpm db:wait-pooler-auth:staging              # or :prod
    ```
@@ -186,11 +209,11 @@ distribution is the same backlog item for issue #44210.
 pnpm db:migrate:staging
 ```
 
-This runs `drizzle-kit migrate` with `--env-file=secrets/staging.env`. Drizzle reads the journal, computes the diff against `drizzle.__drizzle_migrations` on the target DB, and applies the pending entries in order inside a single transaction (PostgreSQL DDL is transactional — a failure mid-migration rolls back all changes).
+This invokes the Pattern 3 wrapper — `scripts/with-deploy-creds.ps1 staging tsx node_modules/drizzle-kit/bin.cjs migrate`. The wrapper retrieves the password from SecretStore, materializes `DATABASE_URL` + `DIRECT_URL` for the child process only, and drizzle-kit reads the journal, computes the diff against `drizzle.__drizzle_migrations` on the target DB, and applies pending entries in order inside a single transaction (PostgreSQL DDL is transactional — a failure mid-migration rolls back all changes).
 
 Expected output on first run (Phase 4 first deploy applies 0005 + 0006 + 0007 if staging was already at journal entry 0004; on a virgin staging DB all 8 entries 0000-0007 apply):
 
-```
+```text
 > drizzle-kit migrate
 3 migrations applied: 0005_initial_batch_jobs, 0006_rls_batch_jobs, 0007_ai_generations_audit_extensions
 ```
@@ -203,7 +226,7 @@ Expected output on first run (Phase 4 first deploy applies 0005 + 0006 + 0007 if
 pnpm db:verify:staging
 ```
 
-Runs `scripts/check-deploy-schema.ts` against the `DIRECT_URL` loaded from `secrets/staging.env`. Asserts:
+Invokes `scripts/with-deploy-creds.ps1 staging tsx scripts/check-deploy-schema.ts` — same Pattern 3 wrapper materializes `DIRECT_URL` from SecretStore for the child process, and the verifier asserts:
 
 - Journal entry count matches applied count
 - All 11 tenant tables exist with RLS + `org_isolation` policy + 4 GRANTs
@@ -215,7 +238,7 @@ Runs `scripts/check-deploy-schema.ts` against the `DIRECT_URL` loaded from `secr
 
 Expected output:
 
-```
+```text
 OK — deploy schema audit passed: 8 migrations applied, 11 tenant-scoped tables (RLS + policy + 4 GRANTs each), 2 service-role tables (no RLS), Phase 4 column shape + partial-unique index present, Phase 3 G3 + Phase 4 unique constraints present.
 ```
 
@@ -236,7 +259,7 @@ If any of those fail, **STOP** — do not proceed to prod. Roll back staging via
 pnpm db:migrate:prod
 ```
 
-Same shape as staging, against `secrets/prod.env`. **There is no auto-rollback once this succeeds** — the next step (verify) is mandatory.
+Same Pattern 3 wrapper chain as staging, against the `prod` env (`PolicyPilotProdDB` secret + `prod` block of `deploy-config.json`). **There is no auto-rollback once this succeeds** — the next step (verify) is mandatory.
 
 ### 5. Verify Production
 

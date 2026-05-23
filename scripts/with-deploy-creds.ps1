@@ -102,9 +102,12 @@ Then re-run this script.
 # catch and translate into clear Authentication=None setup guidance.
 
 # --- Retrieve password ---
+# -Vault PolicyPilot pins lookup to the vault that store-deploy-password.ps1
+# writes to (Set-Secret -Vault PolicyPilot), avoiding multi-vault ambiguity
+# if the operator has other registered SecretManagement vaults.
 $password = $null
 try {
-  $password = Get-Secret -Name $envConfig.secretName -AsPlainText -ErrorAction Stop
+  $password = Get-Secret -Name $envConfig.secretName -Vault PolicyPilot -AsPlainText -ErrorAction Stop
 } catch {
   $errMsg = $_.Exception.Message
   # Two failure modes:

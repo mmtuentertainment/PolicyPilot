@@ -58,9 +58,15 @@ import postgres from 'postgres';
 const DB_URL = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 
 // Schedule constants — see header for rationale.
-const ATTEMPT_SCHEDULE_SEC: readonly number[] = [
+// Tuple-shaped via `as const` so `.entries()` gives a non-undefined element type,
+// removing the need for non-null assertions when iterating.
+const ATTEMPT_SCHEDULE_SEC = [
   0, 15, 75, 135, 195, 255, 315, 375, 435, 495,
 ] as const;
+// Last-element accessor with a safe fallback for the empty-tuple edge case.
+// `at(-1)` returns `T | undefined` regardless of tuple type, so the `??` keeps
+// the type narrowed to `number`.
+const LAST_PROBE_SEC: number = ATTEMPT_SCHEDULE_SEC.at(-1) ?? 0;
 const SUCCESS_STREAK_REQUIRED = 5;
 const CONFIRM_INTERVAL_SEC = 30;
 const CIRCUIT_BREAKER_HAZARD_COUNT = 10;
@@ -144,17 +150,17 @@ async function main(): Promise<void> {
   );
   console.log(
     `[wait-pooler-auth] strategy: ${ATTEMPT_SCHEDULE_SEC.length} discovery probes over ` +
-      `~${Math.round(ATTEMPT_SCHEDULE_SEC[ATTEMPT_SCHEDULE_SEC.length - 1]! / 60)} min, ` +
+      `~${Math.round(LAST_PROBE_SEC / 60)} min, ` +
       `then ${SUCCESS_STREAK_REQUIRED} consecutive confirmations at ${CONFIRM_INTERVAL_SEC}s intervals.`,
   );
 
   let count28P01 = 0;
-  let lastError = '';
+  let lastErrorCode: string = '';
   let firstSuccessTime: number | null = null;
 
   // ---------- Phase 1: discovery ----------
-  for (let i = 0; i < ATTEMPT_SCHEDULE_SEC.length; i++) {
-    const targetMs = startTime + ATTEMPT_SCHEDULE_SEC[i]! * 1000;
+  for (const [i, sec] of ATTEMPT_SCHEDULE_SEC.entries()) {
+    const targetMs = startTime + sec * 1000;
     const waitMs = Math.max(0, targetMs - Date.now());
     if (waitMs > 0) {
       await sleep(waitMs);
@@ -171,6 +177,11 @@ async function main(): Promise<void> {
       break;
     }
 
+    // PII-safe log: emit only the sqlstate/code (or the error class name as
+    // fallback). The raw driver message (`result.msg`) is intentionally NOT
+    // logged because postgres-js can surface the connection URL (which carries
+    // the password) inside parse/connect-error messages. The code alone is
+    // enough to diagnose 28P01 / connect timeouts / circuit-breaker trips.
     if (result.code === '28P01') {
       count28P01++;
       console.log(
@@ -178,10 +189,10 @@ async function main(): Promise<void> {
       );
     } else {
       console.log(
-        `[wait-pooler-auth] discovery ${i + 1}/${ATTEMPT_SCHEDULE_SEC.length} ${result.code ?? 'unknown'} at T+${elapsedSec}s — ${result.msg ?? '(no message)'}`,
+        `[wait-pooler-auth] discovery ${i + 1}/${ATTEMPT_SCHEDULE_SEC.length} ${result.code ?? 'unknown'} at T+${elapsedSec}s`,
       );
     }
-    lastError = `${result.code ?? 'unknown'}: ${result.msg ?? ''}`;
+    lastErrorCode = result.code ?? 'unknown';
 
     if (count28P01 >= CIRCUIT_BREAKER_HAZARD_COUNT) {
       console.error('');
@@ -238,7 +249,7 @@ async function main(): Promise<void> {
     if (i >= 2 && result.code && !knownTransient) {
       console.error('');
       console.error(
-        `✗ wait-pooler-auth FAILED — non-recoverable error class: ${lastError}`,
+        `✗ wait-pooler-auth FAILED — non-recoverable error class: ${lastErrorCode}`,
       );
       console.error(
         `  Error code ${result.code} is not a known propagation symptom.`,
@@ -267,7 +278,7 @@ async function main(): Promise<void> {
     console.error(
       `✗ wait-pooler-auth TIMEOUT — no successful auth after ${ATTEMPT_SCHEDULE_SEC.length} attempts (${elapsedSec}s).`,
     );
-    console.error(`  Last error: ${lastError}`);
+    console.error(`  Last error: ${lastErrorCode}`);
     console.error(`  28P01 count: ${count28P01}`);
     console.error('');
     console.error(
