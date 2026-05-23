@@ -174,6 +174,38 @@ No unregistered flags. SUMMARY.md `## Threat Flags` sections in plans 04-04, 04-
 | Audit Date | Threats Total | Closed | Open | Run By |
 |------------|---------------|--------|------|--------|
 | 2026-05-22 | 60 | 60 | 0 | Claude (gsd-secure-phase, ASVS L1, verify-mitigations mode) |
+| 2026-05-23 | 60 | 60 | 0 | Claude (gsd-secure-phase, post-ship delta verification — see 2026-05-23 entry below) |
+
+### 2026-05-23 — Post-ship delta verification
+
+**Trigger:** Re-audit after Phase 4 ship (PR #15 `f8207f4`, 2026-05-22) followed by 3 post-ship infrastructure pushes:
+- PR #17 (`eda7bb4`) — one-shot HANDOFF artifact deletions (no source change)
+- PR #18 (`bae9174`) — deploy-prep migration infrastructure (scripts + runbook + CI workflow + Vercel hook; no `lib/ai`/`app/api/ai` change)
+- PR #19 (`a4968de`) — `force-dynamic` on `(admin)` + `(auth)` layouts (Vercel prerender hotfix, 2 lines; no AI surface change)
+- PR #20 (in flight, `884f6ed`/`b06f102`/`cda4109`) — Pattern 3 credential isolation + wait-pooler-auth gate + 0008 RLS subquery-wrap + 0009 btree(org_id) indexes
+
+**Mode:** Short-circuit per workflow §3 (`threats_open: 0 AND register_authored_at_plan_time: true`) — no auditor agent spawned. Evidence-pointer spot verification + delta analysis only.
+
+**Phase 4 source-file delta since ship:** `git diff f8207f4..HEAD -- lib/ai app/api/ai` returns empty. Zero modifications to Phase 4 source code. Threat mitigations on Phase 4 surface (24 STRIDE entries) remain intact by absence of change.
+
+**0008 RLS subquery-wrap impact on Phase 4 threats:** 0008 issues `ALTER POLICY "org_isolation" ON <table> ... USING (org_id::text = (SELECT auth.jwt()->>'org_id'))` for all 11 tenant tables (`acknowledgments`, `ai_generations`, `batch_jobs`, `departments`, `notifications`, `organizations`, `policies`, `policy_assignments`, `policy_versions`, `users`, `workflow_stages`). This is a Postgres `initPlan` optimization (94.97–99.993% speedup per Supabase docs) — same set of rows passes each predicate; only evaluation strategy changes (once-per-statement instead of once-per-row). Direct impact on Phase 4 threats:
+- **T-04-02-DT** (`batch_jobs` RLS bypass) — `drizzle/0008_rls_subquery_wrap.sql:81` carries the `batch_jobs` ALTER. Policy identity preserved (`ALTER`, not `DROP+CREATE`); cross-org isolation semantics unchanged. **CLOSED** (mitigation strengthened, not weakened).
+- **T-04-10-IL** (cross-org `batch_jobs` visibility) — same as above + repo filter at `lib/db/repositories/batch_jobs.ts:111-123` unchanged (`and(eq(batchJobs.orgId, s.orgId), eq(batchJobs.anthropicBatchId, ...))`). **CLOSED**.
+- **T-04-07-IL** (`Policies.listPublishedForOrg` cross-org leak) — RLS predicate on `policies` table now uses initPlan subquery; repo filter at `lib/db/repositories/policies.ts:70-83` unchanged (`and(eq(policies.orgId, s.orgId), eq(policies.status, 'published'))`). **CLOSED**.
+
+**0009 btree(org_id) impact on Phase 4 threats:** 9 pure-additive `CREATE INDEX <table>_org_id_idx ON <table> USING btree (org_id)` statements (skips `organizations` no-org-id and `departments` covered-by-existing-unique). No predicate change; no data read, written, or deleted. Strengthens RLS evaluation performance and `OrgScope` queries (`eq(table.orgId, ctx.orgId)`). Indexes covering `batch_jobs`, `ai_generations`, and `policies` directly benefit Phase 4 surface. No Phase 4 threats affected (informational strengthening only).
+
+**Cross-cutting controls re-verified by spot check (2026-05-23):**
+- `lib/ai/client.ts:1` = `import 'server-only';` (T-04-04-IL) — present
+- `CLIENT_OPTIONS = { maxRetries: 0, timeout: 25_000 } as const` at `lib/ai/client.ts:19-22` (T-04-04-DV / T-04-04-DV2) — present
+- `lib/ai/schemas.ts:35, 39, 43` — 3 `.strict()` calls (T-04-04-MA / T-04-08-DT) — present
+- `app/api/ai/draft/route.ts:55-56` — `getOrgContext()` + `requireAdminFromCtx(ctx)` outside try (T-04-08-EL / D-37) — present
+- `drizzle/0006_rls_batch_jobs.sql` — ENABLE RLS + POLICY + GRANT block (T-04-02-DT) — intact at `drizzle/0006_rls_batch_jobs.sql:6-15`
+- `scripts/check-rls.ts:46` — `'batch_jobs'` in TENANT_TABLES (cross-cutting: RLS on every tenant table) — present
+
+**New threats introduced by post-ship infrastructure:** None on Phase 4 surface. Pattern 3 credential isolation (PR #20 commit `884f6ed`) and the wait-pooler-auth gate (`b06f102`) are deploy-prep tooling that doesn't reach the Phase 4 codepath; they protect operator credentials for staging/prod migrations, which is orthogonal to runtime AI threats. The `scripts/wait-pooler-auth.ts` script uses the same Pattern 3 wrapper (`with-deploy-creds.ps1`) as the existing `db:migrate:<env>` / `db:verify:<env>` chain — no plaintext credentials on disk, no new secret-handling surface.
+
+**Verdict:** All 60 STRIDE threats remain CLOSED. No new threats. Phase 4 stays `status: verified`.
 
 ---
 
@@ -185,5 +217,6 @@ No unregistered flags. SUMMARY.md `## Threat Flags` sections in plans 04-04, 04-
 - [x] `status: verified` set in frontmatter
 - [x] Cross-cutting verifications (server-only, RLS, typed errors, gitignored secrets, no `any`, ts-morph gates, BLOCKER-2 invariant, SUCCESS-ONLY semantic, D-36/D-37/D-41/D-43)
 - [x] No unregistered threat flags
+- [x] 2026-05-23 post-ship delta verification: 0 Phase 4 source-file changes; 0008/0009 strengthen rather than weaken Phase 4 RLS mitigations; no new threats from deploy-prep infrastructure (PR #18/#19/#20)
 
-**Approval:** verified 2026-05-22 (audit-stage; ships pending operator squash-merge per Plan 04-14 Task 4 checkpoint already approved per UAT-RESULTS 5/5 PASS).
+**Approval:** verified 2026-05-22 (audit-stage; ships pending operator squash-merge per Plan 04-14 Task 4 checkpoint already approved per UAT-RESULTS 5/5 PASS). Re-verified 2026-05-23 post-ship + post-deploy-prep PR #20 in flight.
