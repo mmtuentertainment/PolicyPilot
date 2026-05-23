@@ -140,12 +140,35 @@ if ([string]::IsNullOrWhiteSpace($password)) {
 }
 
 # --- Construct URLs in script scope ---
-# URL-encode the password component. Supabase auto-generated passwords can include
-# URL-special characters (:, @, /, ?, #, &, %, [, ]). Embedding those literally in
-# the URL breaks the postgres-js parser - e.g., a ':' in the password is mis-parsed
-# as the port separator, leading to confusing 28P01 "password authentication failed"
-# errors. [Uri]::EscapeDataString covers all reserved characters per RFC 3986.
-$encodedPassword = [Uri]::EscapeDataString($password)
+# URL-encode the password component. Supabase auto-generated passwords can
+# include URL-special characters (:, @, /, ?, #, &, %, [, ], +). Embedding
+# those literally breaks the postgres-js URL parser — e.g., a ':' in the
+# password is mis-parsed as the port separator, surfacing as 28P01
+# "password authentication failed". [Uri]::EscapeDataString applies RFC 3986
+# percent-encoding for the userinfo grammar (§3.2.1), which is the contract
+# postgres-js's parser implements.
+#
+# The try/catch covers a pathological case: passwords containing UTF-16
+# surrogate halves (e.g., from a corrupted clipboard) cause EscapeDataString
+# to throw. Surfacing that as a clear error beats a raw .NET ArgumentException.
+try {
+  $encodedPassword = [Uri]::EscapeDataString($password)
+} catch {
+  Write-WrapperError @"
+[$scriptName] Password contains characters that cannot be URL-encoded.
+
+Cause: $($_.Exception.Message)
+
+Likely root cause: UTF-16 surrogate-half from a corrupted clipboard paste.
+
+Remediation: re-capture the password via:
+  ./scripts/store-deploy-password.ps1 $Environment
+"@
+  # Best-effort: drop the local password reference even though we never built URLs.
+  $password = $null
+  [System.GC]::Collect()
+  exit 1
+}
 $databaseUrl = "postgres://$($envConfig.user):$encodedPassword@$($envConfig.host):$($envConfig.poolerPort)/$($envConfig.database)"
 $directUrl   = "postgres://$($envConfig.user):$encodedPassword@$($envConfig.host):$($envConfig.directPort)/$($envConfig.database)"
 $encodedPassword = $null
@@ -176,7 +199,18 @@ try {
   if ($Command.Length -gt 1) { $cmdArgs = $Command[1..($Command.Length - 1)] }
 
   & $cmdExe @cmdArgs
+  $childOk = $?
   $exitCode = $LASTEXITCODE
+
+  # Spawn-failure detection: if the call operator never reached the child
+  # (e.g., $cmdExe not on PATH), $LASTEXITCODE may be inherited from a prior
+  # unrelated command. $? is the canonical pipeline-success indicator and
+  # flips false on spawn failures even when $LASTEXITCODE looks clean.
+  # Without this guard, the wrapper exits 0 on a launch failure.
+  if (-not $childOk -and ($exitCode -eq 0 -or $null -eq $exitCode)) {
+    Write-Error "[$scriptName] Child invocation failed before exit (spawn error). Likely cause: '$cmdExe' not on PATH or unreadable. Verify with: where.exe $cmdExe"
+    $exitCode = 1
+  }
 } finally {
   # Always restore env state, even if the inner command threw.
   if ($null -eq $originalDatabaseUrl) {

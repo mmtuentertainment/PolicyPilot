@@ -60,7 +60,10 @@ Write-Host ""
 $cred = Get-Credential -UserName $Environment -Message "Paste the Supabase $Environment database password into the Password field below"
 
 if (-not $cred) {
-  Write-Host "Cancelled (Get-Credential returned null)." -ForegroundColor Yellow
+  # Write-Error (not Write-Host) so CI/automation parsing stderr sees the
+  # failure. Also distinguishes the two ways Get-Credential can return null:
+  # ESC/Cancel in the GUI, OR no GUI subsystem available (Server Core, etc.).
+  Write-Error "[$scriptName] Cancelled or unavailable (Get-Credential returned null). No secret was stored. If you're on a server without a desktop session, use Set-Secret -Name $secretName -Secret (Read-Host -AsSecureString -Prompt 'Paste $Environment password') -Vault PolicyPilot instead."
   exit 1
 }
 
@@ -82,16 +85,32 @@ if ($len -gt 128) {
   exit 1
 }
 
-# Compute SHA prefix for verification (one-way, safe to display)
+# Compute SHA prefix for verification (one-way, safe to display).
+# Uses the modern SHA256.HashData static API instead of the obsolete
+# SHA256Managed class (deprecated in .NET 6+; pending removal).
 $bytes = [System.Text.Encoding]::UTF8.GetBytes($cred.GetNetworkCredential().Password)
-$sha = (New-Object System.Security.Cryptography.SHA256Managed).ComputeHash($bytes)
+$sha = [System.Security.Cryptography.SHA256]::HashData($bytes)
 $hex8 = -join ($sha[0..3] | ForEach-Object { $_.ToString('x2') })
 $bytes = $null
 
 Set-Secret -Name $secretName -Secret $cred.Password -Vault PolicyPilot
 
+# Read-back verification — SecretStore has historically silently stored
+# empty/truncated secrets when the SecureString source was disposed mid-call.
+# Without this check, the operator sees "OK" and discovers the failure only
+# at the next pnpm db:verify:<env> attempt (which gets a confusing 28P01).
+$verify = Get-Secret -Name $secretName -Vault PolicyPilot -AsPlainText -ErrorAction Stop
+if ($verify.Length -ne $len) {
+  Write-Error "[$scriptName] Read-back verification failed: stored $($verify.Length) chars, expected $len. The secret in '$secretName' is incomplete or empty; do not proceed."
+  $verify = $null
+  [System.GC]::Collect()
+  exit 1
+}
+$verify = $null
+[System.GC]::Collect()
+
 Write-Host ""
-Write-Host "OK: stored $len chars into SecretStore as '$secretName'" -ForegroundColor Green
+Write-Host "OK: stored $len chars into SecretStore as '$secretName' (read-back verified)" -ForegroundColor Green
 Write-Host "SHA256[0..3] (one-way verification token): $hex8"
 Write-Host ""
 Write-Host "Next step: pnpm db:verify:$Environment  (pre-flight) -- or db:migrate:$Environment directly if you trust the pre-flight will reach the DB."

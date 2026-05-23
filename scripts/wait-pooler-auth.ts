@@ -189,10 +189,10 @@ async function main(): Promise<void> {
       );
     } else {
       console.log(
-        `[wait-pooler-auth] discovery ${i + 1}/${ATTEMPT_SCHEDULE_SEC.length} ${result.code ?? 'unknown'} at T+${elapsedSec}s`,
+        `[wait-pooler-auth] discovery ${i + 1}/${ATTEMPT_SCHEDULE_SEC.length} ${result.code ?? 'NO_CODE'} at T+${elapsedSec}s`,
       );
     }
-    lastErrorCode = result.code ?? 'unknown';
+    lastErrorCode = result.code ?? 'NO_CODE';
 
     if (count28P01 >= CIRCUIT_BREAKER_HAZARD_COUNT) {
       console.error('');
@@ -332,7 +332,7 @@ async function main(): Promise<void> {
     // (one pooler lane refreshed, another stale) or a brief network blip.
     // Reset streak; do NOT abort unless we hit the circuit-breaker threshold.
     console.log(
-      `[wait-pooler-auth] confirm regression at T+${elapsedSec}s — ${result.code ?? 'unknown'}; resetting streak`,
+      `[wait-pooler-auth] confirm regression at T+${elapsedSec}s — ${result.code ?? 'NO_CODE'}; resetting streak`,
     );
     streak = 0;
     if (result.code === '28P01') {
@@ -378,9 +378,13 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
+  // Top-level catch is by definition NOT in the probe path (probes are
+  // already caught inside probe()). An error escaping main() is a logic
+  // bug — stack trace is the only useful signal and cannot contain
+  // postgres-js connection strings. Logging it is safe.
   console.error(
     '[wait-pooler-auth] unexpected error:',
-    err instanceof Error ? err.message : err,
+    err instanceof Error ? (err.stack ?? err.message) : err,
   );
   process.exit(3);
 });
