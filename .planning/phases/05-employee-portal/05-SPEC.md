@@ -1,8 +1,9 @@
 # Phase 5: Employee Portal — Specification
 
 **Created:** 2026-05-23
-**Ambiguity score:** 0.183 (gate: ≤ 0.20)
-**Requirements:** 5 locked
+**Amended:** 2026-05-23 — R-6 added per discuss-phase Q-21=(c) (operator decision); Q&A UI surface moved from Out-of-Scope to In-Scope
+**Ambiguity score:** 0.162 (gate: ≤ 0.20)
+**Requirements:** 6 locked
 
 ## Goal
 
@@ -41,6 +42,11 @@ The schema, RLS policies, and append-only invariant are all locked. `lib/db/repo
    - Target: After Phase 5 ships, the type-system invariant still holds (`tsc --noEmit` still exits 0 with D-07 type tests active). A new ts-morph-grade CI gate `scripts/check-acknowledgment-immutability.ts` scans `lib/**/*.ts` (excluding `tests/types.ts` fixture) and fails non-zero on any call expression matching `.update(acknowledgments)`, `.delete(acknowledgments)`, `Acknowledgments.update`, or `Acknowledgments.delete`. The gate is wired into `pnpm verify:phase-5`.
    - Acceptance: `pnpm tsc --noEmit` exits 0 with the existing D-07 `@ts-expect-error` lines passing. `pnpm check:acknowledgment-immutability` exits 0 against the shipped phase-5 code; the same script exits non-zero against a deliberate negative-control fixture (a stubbed file under `tests/fixtures/ack-mutation-attempt.ts` that calls `.update(acknowledgments)`) — gate proven to actually catch the violation it claims to catch.
 
+6. **Employee Q&A surface**: Authenticated employees can ask natural-language questions about their org's published policies and get cited answers — the goal-narrative's third employee capability ("read them, ask Q&A questions, and one-click acknowledge").
+   - Current: `POST /api/ai/qa` endpoint exists from Phase 4 (Sonnet 4.6, prompt-cached on the policy-library block, returns `{ answer: string, citations: { title: string, id: string }[] }`; constrained to the requesting org's published policies only per Phase 4 SPEC R4). The endpoint is reachable by any authenticated user but no employee UI consumes it. ADR-029's "Phase 5 SC 1–5 do not consume Phase 4 AI surfaces" was an analyze-deps observation made before Phase 4 shipped; Phase 4 shipped 2026-05-22, so consuming the endpoint in Phase 5 is no longer a Wave-1 parallelism blocker.
+   - Target: New `app/(employee)/my-policies/ask/page.tsx` (Server Component shell rendering a question form) + `app/(employee)/my-policies/ask/actions.ts` (Server Action `askQuestionAction(formData)` — Zod-validates `question`, opens `withOrgScope`, calls the existing Phase 4 `/api/ai/qa` handler logic via internal import OR posts to the route, depending on Phase 4 D-decision on internal-vs-HTTP), and an "Ask the AI" affordance on the `/my-policies` list page header that navigates to `/my-policies/ask`. The answer renders with citations as clickable links that navigate to `/my-policies/[id]` for each cited policy.
+   - Acceptance: Employee submits a question on `/my-policies/ask`; receives a response with a non-empty `answer` string AND a `citations` array of `{ title, id }` shape (per Phase 4 SPEC R4 citation contract); every citation's `id` corresponds to a real published policy in the employee's org (no hallucinated IDs reach the UI — Phase 4 already strips them server-side per its D-41); clicking a citation navigates to `/my-policies/[id]` for that policy; one `ai_generations` row with `type='qa'` is written per submission (the existing Phase 4 contract).
+
 ## Boundaries
 
 **In scope:**
@@ -48,6 +54,9 @@ The schema, RLS policies, and append-only invariant are all locked. `lib/db/repo
 - `app/(employee)/my-policies/page.tsx` — real Server Component listing assigned+published policies, replacing the 03-G3 T9 stub Card wholesale
 - `app/(employee)/my-policies/[id]/page.tsx` — policy detail Server Component rendering TipTap `contentJson` via `generateHTML` (reuse the Phase 3 `PolicyView` component verbatim) + Acknowledge button (Client Component) wired to the Server Action
 - `app/(employee)/my-policies/[id]/actions.ts` — `acknowledgePolicyAction` Server Action
+- `app/(employee)/my-policies/ask/page.tsx` — Server Component shell rendering the Q&A question form (R-6)
+- `app/(employee)/my-policies/ask/actions.ts` — `askQuestionAction` Server Action that consumes the existing Phase 4 `POST /api/ai/qa` endpoint (R-6)
+- "Ask the AI" affordance on the `/my-policies` list page header — link navigating to `/my-policies/ask` (R-6)
 - `lib/db/repositories/acknowledgments.ts` — fill `record()` body
 - `lib/db/repositories/policy_assignments.ts` — fill `create()` body
 - `lib/db/repositories/policies.ts` — add `listAssignedAndPublishedForUser(s, userId, departmentId)` method (returns rows + `requiresReacknowledgment` boolean column)
@@ -56,12 +65,11 @@ The schema, RLS policies, and append-only invariant are all locked. `lib/db/repo
 - Server Action `bulkAssignToDepartmentAction` on the admin policy detail page
 - `scripts/check-acknowledgment-immutability.ts` — new ts-morph CI gate
 - `package.json` — new `check:acknowledgment-immutability` script + `verify:phase-5` chain entry
-- `scripts/check-artifacts.ts` — append-only Phase 5 block asserting all new files exist
+- `scripts/check-artifacts.ts` — append-only Phase 5 block asserting all new files exist (including R-6 ask page + action)
 - `tests/fixtures/ack-mutation-attempt.ts` (or equivalent) — negative-control fixture proving the new CI gate actually catches violations (see R5 acceptance)
 - Re-acknowledgment indicator UI (shadcn Badge variant) on `/my-policies` cards
 
 **Out of scope:**
-- Employee Q&A UI surface — ADR-029 (2026-05-21) explicitly states Phase 5 SC 1–5 do not consume Phase 4 AI surfaces. The `POST /api/ai/qa` endpoint already exists from Phase 4 and is reachable by any authenticated user, but no employee Q&A page or component ships in Phase 5. (The Phase 5 ROADMAP entry's goal narrative mentions Q&A; the explicit SC list does not — SC governs.)
 - Email notifications (assignment / re-ack required / review-due / ack-reminder) — Phase 7 (REQ-notification-system; Resend + React Email + Railway cron)
 - In-app notification bell with unread count — Phase 7
 - Individual user assignment admin UI (`assigneeType='user'` from a UI) — repository method supports it, but Phase 5 SC #4 covers only the bulk-department case; individual assignment is deferred to a thin admin polish PR or absorbed into a later phase's scope
@@ -100,32 +108,36 @@ The schema, RLS policies, and append-only invariant are all locked. `lib/db/repo
 - [ ] `pnpm tsc --noEmit` exits 0 — `tests/types.ts` D-07 `@ts-expect-error` lines still pass (Acknowledgments has no update/delete).
 - [ ] `pnpm check:acknowledgment-immutability` exits 0 against shipped code AND exits non-zero against the negative-control fixture (R5 acceptance — gate proven non-vacuous).
 - [ ] Cross-org isolation: User in Org A with a `departmentId` UUID that collides with a `departments.id` UUID in Org B (constructed test) does NOT see Org B policies — verified by integration test seeding both orgs with overlapping UUIDs and asserting `/my-policies` for the Org-A user contains zero Org-B rows.
-- [ ] `pnpm verify:phase-5` exits 0 (orchestrator wires: tsc + check-artifacts Phase 5 block + check-acknowledgment-immutability + vitest suites for R1–R5).
+- [ ] Employee Q&A page renders at `/my-policies/ask` and successfully consumes `POST /api/ai/qa`, displaying a non-empty `answer` plus a citations list of `{title, id}` shape — citations link to `/my-policies/[id]` (R-6 acceptance).
+- [ ] `pnpm verify:phase-5` exits 0 (orchestrator wires: tsc + check-artifacts Phase 5 block + check-acknowledgment-immutability + vitest suites for R1–R6).
 
 ## Ambiguity Report
 
 | Dimension          | Score | Min  | Status | Notes                                                                                             |
 |--------------------|-------|------|--------|---------------------------------------------------------------------------------------------------|
-| Goal Clarity       | 0.85  | 0.75 | ✓      | 5 explicit SC; Q&A goal-text-vs-SC nuance resolved out by ADR-029                                 |
-| Boundary Clarity   | 0.78  | 0.70 | ✓      | Bulk-dept admin UI required (SC #4 needs an actor); individual-user assignment intentionally out  |
+| Goal Clarity       | 0.85  | 0.75 | ✓      | 6 explicit requirements; Q&A surface now IN-SCOPE per R-6 (goal-narrative now aligned with SC)    |
+| Boundary Clarity   | 0.85  | 0.70 | ✓      | Q-21=(c) amendment closed the prior goal-vs-SC gap; SPEC now mirrors goal narrative verbatim      |
 | Constraint Clarity | 0.80  | 0.65 | ✓      | ADR-018/019/023/025/028 all locked; schema unchanged; IP capture = x-forwarded-for first hop      |
-| Acceptance Criteria| 0.82  | 0.70 | ✓      | 12 pass/fail checks; type-test + new ts-morph gate both prove append-only invariant               |
-| **Ambiguity**      | 0.183 | ≤0.20| ✓      | 1 − (0.35×0.85 + 0.25×0.78 + 0.20×0.80 + 0.20×0.82)                                                |
+| Acceptance Criteria| 0.84  | 0.70 | ✓      | 13 pass/fail checks (12 + R-6); type-test + new ts-morph gate both prove append-only invariant     |
+| **Ambiguity**      | 0.162 | ≤0.20| ✓      | 1 − (0.35×0.85 + 0.25×0.85 + 0.20×0.80 + 0.20×0.84)                                                |
 
 Status: ✓ = met minimum, ⚠ = below minimum (planner treats as assumption)
 
 ## Interview Log
 
-`--auto` mode: initial ambiguity (0.183) already ≤ 0.20 with all dimensions ≥ their minimums on the first assessment — Socratic interview loop skipped per workflow Step 3 short-circuit. Decisions auto-derived from ROADMAP.md Phase 5 entry + REQ-acknowledgment-tracking + REQ-acknowledgment-rules + ADR-018/019/023/025/028/029 + STATE.md "Next: /gsd-spec-phase 5" entry point.
+`--auto` mode (initial): initial ambiguity (0.183) already ≤ 0.20 with all dimensions ≥ their minimums on the first assessment — Socratic interview loop skipped per workflow Step 3 short-circuit. Decisions auto-derived from ROADMAP.md Phase 5 entry + REQ-acknowledgment-tracking + REQ-acknowledgment-rules + ADR-018/019/023/025/028/029 + STATE.md "Next: /gsd-spec-phase 5" entry point.
 
-| Round | Perspective    | Decision auto-locked                                                                                   |
+**Amendment 2026-05-23:** Operator's `/gsd-discuss-phase 5 --power` answer Q-21=(c) overrode the spec-phase auto-decision that Q&A UI was out-of-scope. R-6 added; Q&A boundary item removed from Out-of-Scope; ambiguity re-scored 0.183 → 0.162.
+
+| Round | Perspective    | Decision locked                                                                                        |
 |-------|----------------|--------------------------------------------------------------------------------------------------------|
 | 0     | Researcher (codebase scout) | `Acknowledgments.record` + `PolicyAssignments.create` are throw-stubs ready for Phase 5 body; D-07 `@ts-expect-error` invariant active; `/my-policies` is a 03-G3 T9 stub Card; ADR-018 append-only locked; `publish()`/`editPublished()` already produce the version lineage Phase 5 needs |
-| 0     | Boundary Keeper (auto)      | Q&A UI is OUT — ROADMAP SC #1–5 don't mention it AND ADR-029 explicitly states "Phase 5 SC 1–5 do not consume Phase 4 AI surfaces". Goal-narrative mention is non-binding per SC-governs convention |
+| 0     | Boundary Keeper (auto-then-overridden) | ~~Q&A UI is OUT — ROADMAP SC #1–5 don't mention it AND ADR-029 explicitly states "Phase 5 SC 1–5 do not consume Phase 4 AI surfaces"~~ → **OVERRIDDEN** by operator via Q-21=(c). Q&A UI surface is now IN-SCOPE as R-6. Phase 4 shipped 2026-05-22 so the parallelism rationale behind ADR-029's exclusion is moot |
 | 0     | Boundary Keeper (auto)      | Bulk-dept admin assignment UI is IN — SC #4 ("bulk assignment to a department creates one row... is visible to every member") cannot be exercised end-to-end without an admin actor; thin UI on existing `/policies/[id]` page |
 | 0     | Failure Analyst (auto)      | Append-only enforcement gets a new ts-morph CI gate AND a negative-control fixture proving the gate is non-vacuous; type-test from Phase 2 is necessary but not sufficient (it covers the repository module only; a future helper could in principle smuggle a raw `.update(acknowledgments)` past the type test from a different file) |
 | 0     | Failure Analyst (auto)      | IP capture from `x-forwarded-for` first hop only (Vercel edge; connection-level IP would be the CDN's); store NULL when header absent rather than synthesizing |
 | 0     | Seed Closer (auto)          | Re-ack indicator computed as a SELECT-time join, not a denormalized column — no schema change required; the `policyVersions(policy_id, version_number)` UNIQUE constraint from 03-G3 T2/T3 makes the lookup deterministic |
+| Power | Operator (Q-21)             | Q-21=(c) "Wire it through — ship thin /my-policies/ask page calling existing POST /api/ai/qa" — explicitly chose to amend SPEC.md (vs treating as CONTEXT-only or reverting to a/b) |
 
 ---
 
