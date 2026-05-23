@@ -10,7 +10,9 @@
 
 Run this BEFORE deploying any code that depends on a not-yet-applied migration. PolicyPilot's policy: **code cannot ship to an environment whose DB has not been migrated to that code's schema**. Without that ordering, the deployed code's first request to the new schema 503s (missing table / missing column / missing index).
 
-PolicyPilot's first end-to-end deploy lands the journal at 0007 (`drizzle/meta/_journal.json` entries 0000..0007). Future migrations follow the same procedure.
+PolicyPilot's `drizzle/meta/_journal.json` currently has 10 entries (0000..0009): 5 from Phase 1-3, 3 from Phase 4 (0005-0007 including the destructive 0007 `DROP COLUMN tokens_used`), and 2 post-Phase-4 deploy-prep RLS-perf additions (0008 subquery-wrap + 0009 btree(org_id), both additive). Future migrations append to the journal and follow this same procedure.
+
+**Prod project not yet provisioned.** `scripts/deploy-config.json` carries a `REPLACE_WITH_PROD_PROJECT_REF` placeholder in the `prod` block; `scripts/with-deploy-creds.ps1` rejects this string explicitly (line 75-77) to prevent accidental use against the wrong env. When the prod Supabase project is created (Pro tier + PITR add-on required for the append-only audit-trail invariant per ADR-018), populate the placeholder with the real `project_ref` + store the password via `./scripts/store-deploy-password.ps1 prod` before running any `pnpm db:*:prod` command.
 
 ---
 
