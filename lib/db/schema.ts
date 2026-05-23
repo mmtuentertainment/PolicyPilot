@@ -32,6 +32,7 @@ import {
   timestamp,
   jsonb,
   foreignKey,
+  index,
   unique,
 } from 'drizzle-orm/pg-core';
 
@@ -49,7 +50,11 @@ export const acknowledgments = pgTable('acknowledgments', {
   // Type-system enforcement lives in lib/db/repositories/acknowledgments.ts
   // (no update / delete keys exported) and tests/types.ts (@ts-expect-error
   // invariants per D-07).
-});
+}, (table) => [
+  // RLS predicate + app-layer OrgScope filter both query on org_id; without
+  // this btree, tenant-filtered SELECTs fall back to seq scan.
+  index('acknowledgments_org_id_idx').on(table.orgId),
+]);
 
 export const aiGenerations = pgTable('ai_generations', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -73,7 +78,12 @@ export const aiGenerations = pgTable('ai_generations', {
   idempotencyKey: text('idempotency_key'),
   model: text('model').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
-});
+}, (table) => [
+  // The partial-unique `ai_generations_org_idempotency_key` on
+  // (org_id, idempotency_key) WHERE idempotency_key IS NOT NULL only covers
+  // keyed rows; the bulk `WHERE org_id = $1` path still needs a regular btree.
+  index('ai_generations_org_id_idx').on(table.orgId),
+]);
 
 // D-06 + D-29 + D-34: Phase 4 — Anthropic batch state tracking for Consistency Check.
 // SDK returns processing_status: 'in_progress' | 'canceling' | 'ended' + request_counts;
@@ -90,7 +100,11 @@ export const batchJobs = pgTable('batch_jobs', {
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   resultJson: jsonb('result_json'),
-});
+}, (table) => [
+  // anthropic_batch_id is uniquely-indexed but doesn't cover the org_id filter
+  // used by RLS + repository listForOrg queries.
+  index('batch_jobs_org_id_idx').on(table.orgId),
+]);
 
 export const clerkEvents = pgTable('clerk_events', {
   // D-03b: idempotency table for Clerk webhook deliveries. NO org_id —
@@ -122,7 +136,9 @@ export const notifications = pgTable('notifications', {
   payloadJson: jsonb('payload_json'),
   read: boolean('read').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow(),
-});
+}, (table) => [
+  index('notifications_org_id_idx').on(table.orgId),
+]);
 
 export const organizations = pgTable('organizations', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -153,7 +169,9 @@ export const policies = pgTable('policies', {
   createdBy: uuid('created_by').references(() => users.id),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
-});
+}, (table) => [
+  index('policies_org_id_idx').on(table.orgId),
+]);
 
 export const policyAssignments = pgTable('policy_assignments', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -163,7 +181,9 @@ export const policyAssignments = pgTable('policy_assignments', {
   assigneeId: uuid('assignee_id').notNull(),
   assignedBy: uuid('assigned_by').references(() => users.id),
   assignedAt: timestamp('assigned_at').defaultNow(),
-});
+}, (table) => [
+  index('policy_assignments_org_id_idx').on(table.orgId),
+]);
 
 export const policyVersions = pgTable(
   'policy_versions',
@@ -189,6 +209,9 @@ export const policyVersions = pgTable(
       table.policyId,
       table.versionNumber,
     ),
+    // The unique constraint above is on (policy_id, version_number) and
+    // does NOT cover org_id; this btree handles the RLS + listForOrg path.
+    index('policy_versions_org_id_idx').on(table.orgId),
   ],
 );
 
@@ -225,6 +248,9 @@ export const users = pgTable(
       foreignColumns: [departments.orgId, departments.id],
       name: 'users_org_id_department_id_departments_fk',
     }),
+    // Postgres does NOT auto-create a single-column index on org_id from the
+    // composite FK above (users_org_id_department_id_departments_fk).
+    index('users_org_id_idx').on(table.orgId),
   ],
 );
 
@@ -237,4 +263,6 @@ export const workflowStages = pgTable('workflow_stages', {
   status: text('status').notNull().default('pending'),
   reviewedAt: timestamp('reviewed_at'),
   comment: text('comment'),
-});
+}, (table) => [
+  index('workflow_stages_org_id_idx').on(table.orgId),
+]);

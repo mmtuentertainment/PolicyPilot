@@ -10,7 +10,9 @@
 
 Run this BEFORE deploying any code that depends on a not-yet-applied migration. PolicyPilot's policy: **code cannot ship to an environment whose DB has not been migrated to that code's schema**. Without that ordering, the deployed code's first request to the new schema 503s (missing table / missing column / missing index).
 
-PolicyPilot's first end-to-end deploy lands the journal at 0007 (`drizzle/meta/_journal.json` entries 0000..0007). Future migrations follow the same procedure.
+PolicyPilot's `drizzle/meta/_journal.json` currently has 10 entries (0000..0009): 5 from Phase 1-3, 3 from Phase 4 (0005-0007 including the destructive 0007 `DROP COLUMN tokens_used`), and 2 post-Phase-4 deploy-prep RLS-perf additions (0008 subquery-wrap + 0009 btree(org_id), both additive). Future migrations append to the journal and follow this same procedure.
+
+**Prod project not yet provisioned.** `scripts/deploy-config.json` carries a `REPLACE_WITH_PROD_PROJECT_REF` placeholder in the `prod` block; `scripts/with-deploy-creds.ps1` rejects this string explicitly (line 75-77) to prevent accidental use against the wrong env. When the prod Supabase project is created (Pro tier + PITR add-on required for the append-only audit-trail invariant per ADR-018), populate the placeholder with the real `project_ref` + store the password via `./scripts/store-deploy-password.ps1 prod` before running any `pnpm db:*:prod` command.
 
 ---
 
@@ -32,6 +34,8 @@ Before touching any non-dev database, confirm ALL of the following:
 | `0005_initial_batch_jobs.sql` | No (CREATE TABLE) | Reversible via `DROP TABLE batch_jobs CASCADE`. |
 | `0006_rls_batch_jobs.sql` | No (RLS + GRANTs) | Reversible via `DROP POLICY org_isolation ON batch_jobs; ALTER TABLE batch_jobs DISABLE ROW LEVEL SECURITY; REVOKE ALL ON batch_jobs FROM authenticated;`. |
 | `0007_ai_generations_audit_extensions.sql` | **YES — `DROP COLUMN tokens_used`** | Operator-approved 2026-05-21 per CLAUDE.md ASK-FIRST (CONTEXT.md D-44). Pre-paying-customer state verified — no production AI calls exist when this lands. **NOT REVERSIBLE without data loss** once any rows are written to the new columns. |
+| `0008_rls_subquery_wrap.sql` | No (`ALTER POLICY`) | Subquery-wraps `auth.jwt()` in all 11 `org_isolation` policies for Postgres `initPlan` optimization. Same set of rows passes; only the evaluation strategy changes. Reversible via 11 mirror `ALTER POLICY … USING (org_id::text = auth.jwt()->>'org_id')` statements. |
+| `0009_org_id_indexes.sql` | No (9 `CREATE INDEX`) | Adds btree(org_id) to 9 tenant-scoped tables (skips `organizations` no-org-id and `departments` covered-by-existing-unique). Reversible via `DROP INDEX <name>` for each. Brief `ACCESS EXCLUSIVE` catalog lock during creation; tables are pre-paying-customer scale so no `CREATE INDEX CONCURRENTLY` needed today. |
 
 ---
 
@@ -46,29 +50,155 @@ Both must be set:
 
 The pooler chokes on some DDL (e.g., `CREATE INDEX CONCURRENTLY`); drizzle-kit uses `DIRECT_URL` per `drizzle.config.ts` D-05.
 
-### Env file pattern (operator-side)
+### Credential pattern (operator-side) — Pattern 3
 
-Stored in `secrets/` (gitignored). Each env gets its own file:
+Database passwords for non-dev environments live in **PowerShell SecretStore**
+(DPAPI-encrypted at rest, tied to the Windows user account). No file on disk
+carries plaintext credentials; no value transits chat. Non-secret routing —
+host, pooler/direct ports, `postgres.<project_ref>` user, database name, and
+SecretStore secret-name per env — lives in `scripts/deploy-config.json`
+(tracked, gitignore-safe because nothing in it is sensitive).
 
-```
-secrets/
-├── anthropic-dev.txt        (existing — API key)
-├── staging.env              (NEW — DATABASE_URL + DIRECT_URL for staging Supabase)
-└── prod.env                 (NEW — DATABASE_URL + DIRECT_URL for production Supabase)
-```
+One-time operator setup per machine:
 
-Env-var names inside the files are the standard `DATABASE_URL` + `DIRECT_URL` — drizzle-kit and `check-deploy-schema.ts` both read those exact names from `process.env`. There is no `STAGING_*` / `PROD_*` prefix because `--env-file=secrets/<env>.env` scopes the lookup to that file.
-
-**Format of `secrets/staging.env`** (mirrors `.env.local`):
-
-```bash
-DATABASE_URL=postgres://...@aws-...-pooler.supabase.com:6543/postgres
-DIRECT_URL=postgres://postgres.<project_ref>:<password>@aws-...-pooler.supabase.com:5432/postgres
+```powershell
+Install-Module Microsoft.PowerShell.SecretManagement, Microsoft.PowerShell.SecretStore -Scope CurrentUser -Force
+Register-SecretVault -Name PolicyPilot -ModuleName Microsoft.PowerShell.SecretStore -DefaultVault
+Set-SecretStoreConfiguration -Authentication None -Interaction None -Confirm:$false
 ```
 
-Same shape for `secrets/prod.env`.
+`Authentication None` lets `powershell -NonInteractive` open the vault without
+prompting; the DPAPI encryption-at-rest still applies (only this Windows user
+can decrypt the vault file).
 
-**Never** commit these files (`secrets/` is gitignored as of `d0352a1`).
+Per-env password capture — uses Windows `Get-Credential` GUI dialog to avoid
+the Read-Host paste-truncation bug some ConHost configurations have:
+
+```powershell
+./scripts/store-deploy-password.ps1 staging   # or prod
+```
+
+The helper validates length 8..128 and prints a SHA-256 prefix for one-way
+verification before storing under the secret name from `deploy-config.json`
+(currently `PolicyPilotStagingDB` / `PolicyPilotProdDB`).
+
+How the runtime wrapper assembles the URL — `scripts/with-deploy-creds.ps1
+<env> <child-command>` reads the password via `Get-Secret -Vault PolicyPilot`,
+URL-encodes it with `[Uri]::EscapeDataString` (defense against URL-special
+characters in auto-generated passwords), constructs `DATABASE_URL` (port 6543
+transaction pool) and `DIRECT_URL` (port 5432 session pool) from the
+deploy-config host/user templates, and materializes them as env vars only for
+the spawned child process. On exit — success OR exception — the wrapper's
+`try/finally` clears the env vars so no plaintext credential lingers in the
+parent shell's environment.
+
+Dev still uses `.env.local` directly (Pattern 1) — only staging + prod cross
+the Pattern 3 isolation line.
+
+---
+
+## Post-rotation auth-propagation gate
+
+**When to use this section**: ONLY if the operator has just clicked **Reset
+database password** in the Supabase Dashboard (or rotated via the Management
+API) for the target project. If no rotation happened, skip to *Procedure*.
+
+After a rotation, pooler-routed auth (port 6543 transaction pool OR port 5432
+session pool) returns:
+
+```text
+28P01 password authentication failed for user "postgres"
+```
+
+…for a window ranging from "instant" to multi-minute, **with no documented
+upper bound**. This is a Supavisor *cache* phenomenon, not a Postgres-side
+issue:
+
+| Layer | Behavior | Source |
+|---|---|---|
+| Postgres `pg_authid` | Updated synchronously on `ALTER ROLE … PASSWORD …`; MVCC-visible to next session | postgresql.org/docs/current/auth-password.html |
+| Supavisor tenant secret cache | Cachex TTL = 24h | `supabase/supavisor` `lib/supavisor/tenants.ex` |
+| Supavisor `SecretChecker` | Polls source-of-truth every 15s | `lib/supavisor/secret_checker.ex` |
+| Supavisor `CacheRefreshLimiter` | Caps refreshes at 3/minute/tenant | `lib/supavisor/cache_refresh_limiter.ex` (PR #728) |
+| Dashboard SQL Editor | Uses a separate auth path; works throughout | observed 2026-05-22 incident |
+
+Open issue [`supabase/supabase#44210`](https://github.com/supabase/supabase/issues/44210)
+names our region (`aws-1-us-east-1`) with the identical symptom — **unresolved
+as of 2026-05-22**. PR #44216 to fix it was closed unmerged 2026-03-26.
+
+**Hazard**: Supavisor trips an **auth-error circuit breaker** at ~10 errors
+in a 150-second window, locking the source IP out for 2 minutes. **Naive
+retry loops self-DoS** — they trigger the lockout, which then blocks recovery
+for an additional 2 min on top of the propagation window. Always use the
+paced gate below, never a tight retry loop.
+
+### Step-by-step procedure after `Reset database password`
+
+1. **Pause** any active workers / cron / preview deploys that might hammer
+   the pooler with cached credentials and trip the breaker. Specifically:
+   - Vercel: disable auto-deploy on the target branch, or set `vercel.json`
+     `buildCommand` to a no-op temporarily
+   - Railway: pause the worker service from the dashboard
+   - Local: do not run `pnpm dev` against the rotated project until step 6
+
+2. **Capture** the new password from the Dashboard reset dialog:
+   - Use the GUI clipboard copy button (do NOT paste into `Read-Host` —
+     PowerShell paste truncation can silently drop trailing chars)
+   - Optionally verify SHA-256 prefix against the dialog before clearing
+   - The password gets stored in PowerShell SecretStore by
+     `scripts/store-deploy-password.ps1`, NOT in a file
+
+3. **Update** the SecretStore entry:
+
+   ```powershell
+   ./scripts/store-deploy-password.ps1 staging   # or prod
+   ```
+
+4. **Run the gate** to wait for pooler cache propagation:
+
+   ```powershell
+   pnpm db:wait-pooler-auth:staging              # or :prod
+   ```
+
+   The gate probes auth at T+0s, T+15s, then every 60s for 10 attempts
+   (~8m15s discovery deadline). On first success, it requires 5 consecutive
+   confirmations at 30s intervals (~2 min) before exiting 0. Total
+   worst-case wall time: ~10m15s.
+
+   On success, the gate prints a paste-ready audit line for *Audit log*
+   below.
+
+   Exit codes:
+   - `0` — propagation confirmed; **safe to migrate**
+   - `1` — timeout (10 attempts exhausted); see *Escalation: project restart*
+   - `2` — circuit-breaker hazard reached; STOP, wait ≥5 min before any
+     further pooler auth attempts from this IP
+   - `3` — non-propagation error (DNS, wrong host, paused project, missing
+     env var); fix the underlying issue, do NOT retry until corrected
+
+5. **Resume** workers only after the gate exits 0.
+
+6. **Proceed** with `pnpm db:migrate:<env>` per *Procedure* below.
+
+### Escalation: project restart
+
+If `wait-pooler-auth` exits 1 (timeout) **AND** the Dashboard SQL Editor
+confirms the new password works (proving the credential is correct and only
+the pooler cache is stale):
+
+1. Supabase Dashboard → Project Settings → General → **Restart project**
+2. Wait ~30s for restart to complete
+3. Re-run `pnpm db:wait-pooler-auth:<env>`
+
+Restart forcibly invalidates the Supavisor cache for the tenant. This is
+the only documented escape hatch per issue #44210.
+
+### Tier note
+
+Free-tier projects (dev + staging as of 2026-05-22) and Pro-tier projects
+share the same Supavisor cache infrastructure. **Tier does not change
+propagation timing** as far as primary-source docs say; the empirical
+distribution is the same backlog item for issue #44210.
 
 ---
 
@@ -81,14 +211,16 @@ Same shape for `secrets/prod.env`.
 pnpm db:migrate:staging
 ```
 
-This runs `drizzle-kit migrate` with `--env-file=secrets/staging.env`. Drizzle reads the journal, computes the diff against `drizzle.__drizzle_migrations` on the target DB, and applies the pending entries in order inside a single transaction (PostgreSQL DDL is transactional — a failure mid-migration rolls back all changes).
+This invokes the Pattern 3 wrapper — `scripts/with-deploy-creds.ps1 staging tsx node_modules/drizzle-kit/bin.cjs migrate`. The wrapper retrieves the password from SecretStore, materializes `DATABASE_URL` + `DIRECT_URL` for the child process only, and drizzle-kit reads the journal, computes the diff against `drizzle.__drizzle_migrations` on the target DB, and applies pending entries in order inside a single transaction (PostgreSQL DDL is transactional — a failure mid-migration rolls back all changes).
 
-Expected output on first run (Phase 4 first deploy applies 0005 + 0006 + 0007 if staging was already at journal entry 0004; on a virgin staging DB all 8 entries 0000-0007 apply):
+Expected output applies whichever entries in `drizzle/meta/_journal.json` are not yet present in the target's `drizzle.__drizzle_migrations` table. The journal currently has 10 entries (0000..0009). For example, a staging DB already at 0007 receiving the post-Phase-4 deploy-prep additions:
 
-```
+```text
 > drizzle-kit migrate
-3 migrations applied: 0005_initial_batch_jobs, 0006_rls_batch_jobs, 0007_ai_generations_audit_extensions
+2 migrations applied: 0008_rls_subquery_wrap, 0009_org_id_indexes
 ```
+
+On a virgin DB, all 10 entries 0000..0009 apply. The Phase-4 first-deploy window (0005..0007) is now historical — present-day deploys catch the target up to the journal HEAD regardless of starting point.
 
 (Note: drizzle-kit's exact phrasing may vary; the key signal is exit 0.)
 
@@ -98,7 +230,7 @@ Expected output on first run (Phase 4 first deploy applies 0005 + 0006 + 0007 if
 pnpm db:verify:staging
 ```
 
-Runs `scripts/check-deploy-schema.ts` against the `DIRECT_URL` loaded from `secrets/staging.env`. Asserts:
+Invokes `scripts/with-deploy-creds.ps1 staging tsx scripts/check-deploy-schema.ts` — same Pattern 3 wrapper materializes `DIRECT_URL` from SecretStore for the child process, and the verifier asserts:
 
 - Journal entry count matches applied count
 - All 11 tenant tables exist with RLS + `org_isolation` policy + 4 GRANTs
@@ -110,8 +242,8 @@ Runs `scripts/check-deploy-schema.ts` against the `DIRECT_URL` loaded from `secr
 
 Expected output:
 
-```
-OK — deploy schema audit passed: 8 migrations applied, 11 tenant-scoped tables (RLS + policy + 4 GRANTs each), 2 service-role tables (no RLS), Phase 4 column shape + partial-unique index present, Phase 3 G3 + Phase 4 unique constraints present.
+```text
+OK — deploy schema audit passed: 10 migrations applied, 11 tenant-scoped tables (RLS + policy + 4 GRANTs each), 2 service-role tables (no RLS), Phase 4 column shape + partial-unique index present, Phase 3 G3 + Phase 4 unique constraints present.
 ```
 
 ### 3. Operator approval gate
@@ -131,7 +263,7 @@ If any of those fail, **STOP** — do not proceed to prod. Roll back staging via
 pnpm db:migrate:prod
 ```
 
-Same shape as staging, against `secrets/prod.env`. **There is no auto-rollback once this succeeds** — the next step (verify) is mandatory.
+Same Pattern 3 wrapper chain as staging, against the `prod` env (`PolicyPilotProdDB` secret + `prod` block of `deploy-config.json`). **There is no auto-rollback once this succeeds** — the next step (verify) is mandatory.
 
 ### 5. Verify Production
 
@@ -157,10 +289,10 @@ After every successful prod migration, append to `.planning/STATE.md` (Session C
 - **Deploy migration YYYY-MM-DDTHH:MM:SSZ**: Applied drizzle/<N>..drizzle/<M> to staging at HH:MM (verify OK at HH:MM); applied to prod at HH:MM (verify OK at HH:MM). Operator: <name>. Migration types: <additive|destructive>. Notes: <any deviation or observation>.
 ```
 
-Example (Phase 4 first deploy, 2026-05-22):
+Example (most recent staging migration, drawn from `.planning/STATE.md` Session Continuity):
 
 ```markdown
-- **Deploy migration 2026-05-23T14:00:00Z**: Applied drizzle/0005..0007 to staging at 13:42Z (verify OK at 13:43Z); applied to prod at 14:00Z (verify OK at 14:01Z). Operator: matthewutt. Migration types: 0005/0006 additive + 0007 destructive (DROP COLUMN tokens_used — operator-approved 2026-05-21 per pre-paying-customer status). No app errors observed in 30-min staging soak.
+- **Deploy migration 2026-05-23T03:36Z**: Applied drizzle/0008..0009 to staging at 03:36Z (verify OK at 03:38Z); prod deferred pending Pro+PITR project provisioning per `.wiki/supabase/06-project-lifecycle.md`. Operator: matthewutt. Migration types: 0008 + 0009 additive (RLS initPlan subquery-wrap + btree(org_id) indexes per `.wiki/supabase` research). Notes: `wait-pooler-auth.ts` cleared a transient 28P01 in 2m1s between migrate and verify, confirming research finding #4 (multi-instance Supavisor cache lag in `aws-1-us-east-1`).
 ```
 
 This is the load-bearing audit trail for compliance + future-troubleshooting.
@@ -239,6 +371,24 @@ If a single migration mixes both (like 0007 does — drops `tokens_used` AND add
 ---
 
 ## Troubleshooting
+
+### "28P01 password authentication failed for user 'postgres'"
+
+The Supabase pooler is still serving the **old** role secret from cache.
+See *Post-rotation auth-propagation gate* above. **Do not retry blindly** —
+the 2-min circuit-breaker IP lockout will block recovery for an additional
+2 min on top of the propagation window.
+
+Diagnostic order:
+1. Run `pnpm db:wait-pooler-auth:<env>` — paces probes to stay under the
+   refresh limiter and detects the propagation window deterministically.
+2. If the gate exits 1 (timeout) **and** the Dashboard SQL Editor works
+   with the new password → restart the project (Dashboard → Project
+   Settings → General → Restart). This is the only documented escape
+   hatch per issue #44210.
+3. If the Dashboard SQL Editor ALSO returns 28P01 → the credential capture
+   failed; re-rotate via the dashboard and re-store via
+   `./scripts/store-deploy-password.ps1`.
 
 ### "relation drizzle.__drizzle_migrations does not exist"
 

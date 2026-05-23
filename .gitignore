@@ -32,6 +32,7 @@ yarn-error.log*
 
 # GSD ephemeral
 .planning/intel/classifications/*.tmp
+.planning/reports/
 
 # Next.js / create-next-app additions
 /.pnp
@@ -65,6 +66,7 @@ yarn-error.log*
 .claude/
 .wiki/
 audit-cache/
+skills-lock.json
 
 # Dev server logs (UAT smoke runs, real-key probes)
 localhost-*.log

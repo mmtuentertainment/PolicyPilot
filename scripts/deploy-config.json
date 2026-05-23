@@ -1,0 +1,20 @@
+{
+  "$comment": "Non-secret per-environment deploy config. Read by scripts/with-deploy-creds.ps1 to construct DATABASE_URL + DIRECT_URL at runtime from a password retrieved from PowerShell SecretStore. The actual password is never in this file or in any tracked file. The project_ref portion of `user` is half-credential at most (it's in public URLs anyway); committing it is acceptable for a private repo.",
+  "staging": {
+    "host": "aws-1-us-east-1.pooler.supabase.com",
+    "poolerPort": 6543,
+    "directPort": 5432,
+    "user": "postgres.qwtbbbjbxffioeeazxrw",
+    "database": "postgres",
+    "secretName": "PolicyPilotStagingDB"
+  },
+  "prod": {
+    "$comment": "PLACEHOLDER — prod Supabase project not yet provisioned. Replace REPLACE_WITH_PROD_PROJECT_REF in `user` once the project exists (requires Pro tier + PITR add-on per ADR-018). scripts/with-deploy-creds.ps1 rejects this placeholder string explicitly (line 75-77) so any accidental `pnpm db:*:prod` invocation fails fast. After replacement, populate the secret via `./scripts/store-deploy-password.ps1 prod`.",
+    "host": "aws-1-us-east-1.pooler.supabase.com",
+    "poolerPort": 6543,
+    "directPort": 5432,
+    "user": "postgres.REPLACE_WITH_PROD_PROJECT_REF",
+    "database": "postgres",
+    "secretName": "PolicyPilotProdDB"
+  }
+}
