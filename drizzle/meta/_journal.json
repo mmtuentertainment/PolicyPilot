@@ -57,6 +57,20 @@
       "when": 1779400538815,
       "tag": "0007_ai_generations_audit_extensions",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1779512038453,
+      "tag": "0008_rls_subquery_wrap",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1779512291822,
+      "tag": "0009_org_id_indexes",
+      "breakpoints": true
     }
   ]
 }

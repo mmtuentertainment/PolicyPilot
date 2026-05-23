@@ -32,6 +32,7 @@ import {
   timestamp,
   jsonb,
   foreignKey,
+  index,
   unique,
 } from 'drizzle-orm/pg-core';
 
@@ -49,7 +50,12 @@ export const acknowledgments = pgTable('acknowledgments', {
   // Type-system enforcement lives in lib/db/repositories/acknowledgments.ts
   // (no update / delete keys exported) and tests/types.ts (@ts-expect-error
   // invariants per D-07).
-});
+}, (table) => [
+  // 0009 — RLS predicate `org_id::text = (SELECT auth.jwt()->>'org_id')`
+  // (post-0008) and the app-layer OrgScope filter `eq(table.orgId, ctx.orgId)`
+  // both filter on org_id; without this btree, queries fall back to seq scan.
+  index('acknowledgments_org_id_idx').on(table.orgId),
+]);
 
 export const aiGenerations = pgTable('ai_generations', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -73,7 +79,13 @@ export const aiGenerations = pgTable('ai_generations', {
   idempotencyKey: text('idempotency_key'),
   model: text('model').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
-});
+}, (table) => [
+  // 0009 — see acknowledgments_org_id_idx rationale. Note 0007's partial-unique
+  // index `ai_generations_org_idempotency_key` on (org_id, idempotency_key)
+  // WHERE idempotency_key IS NOT NULL only covers the keyed subset; the bulk
+  // `WHERE org_id = $1` path still needs a regular btree.
+  index('ai_generations_org_id_idx').on(table.orgId),
+]);
 
 // D-06 + D-29 + D-34: Phase 4 — Anthropic batch state tracking for Consistency Check.
 // SDK returns processing_status: 'in_progress' | 'canceling' | 'ended' + request_counts;
@@ -90,7 +102,12 @@ export const batchJobs = pgTable('batch_jobs', {
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   resultJson: jsonb('result_json'),
-});
+}, (table) => [
+  // 0009 — see acknowledgments_org_id_idx rationale.
+  // batch_jobs.anthropic_batch_id has its own unique index but doesn't help
+  // the RLS/org-scope filter.
+  index('batch_jobs_org_id_idx').on(table.orgId),
+]);
 
 export const clerkEvents = pgTable('clerk_events', {
   // D-03b: idempotency table for Clerk webhook deliveries. NO org_id —
@@ -122,7 +139,10 @@ export const notifications = pgTable('notifications', {
   payloadJson: jsonb('payload_json'),
   read: boolean('read').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow(),
-});
+}, (table) => [
+  // 0009 — see acknowledgments_org_id_idx rationale.
+  index('notifications_org_id_idx').on(table.orgId),
+]);
 
 export const organizations = pgTable('organizations', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -153,7 +173,10 @@ export const policies = pgTable('policies', {
   createdBy: uuid('created_by').references(() => users.id),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
-});
+}, (table) => [
+  // 0009 — see acknowledgments_org_id_idx rationale.
+  index('policies_org_id_idx').on(table.orgId),
+]);
 
 export const policyAssignments = pgTable('policy_assignments', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -163,7 +186,10 @@ export const policyAssignments = pgTable('policy_assignments', {
   assigneeId: uuid('assignee_id').notNull(),
   assignedBy: uuid('assigned_by').references(() => users.id),
   assignedAt: timestamp('assigned_at').defaultNow(),
-});
+}, (table) => [
+  // 0009 — see acknowledgments_org_id_idx rationale.
+  index('policy_assignments_org_id_idx').on(table.orgId),
+]);
 
 export const policyVersions = pgTable(
   'policy_versions',
@@ -189,6 +215,9 @@ export const policyVersions = pgTable(
       table.policyId,
       table.versionNumber,
     ),
+    // 0009 — see acknowledgments_org_id_idx rationale. The unique above
+    // is on (policy_id, version_number) — it does NOT help filter on org_id.
+    index('policy_versions_org_id_idx').on(table.orgId),
   ],
 );
 
@@ -225,6 +254,10 @@ export const users = pgTable(
       foreignColumns: [departments.orgId, departments.id],
       name: 'users_org_id_department_id_departments_fk',
     }),
+    // 0009 — see acknowledgments_org_id_idx rationale. The composite FK
+    // above creates an index on (org_id, department_id) but Postgres
+    // does NOT auto-create a single-column index on org_id from a composite FK.
+    index('users_org_id_idx').on(table.orgId),
   ],
 );
 
@@ -237,4 +270,7 @@ export const workflowStages = pgTable('workflow_stages', {
   status: text('status').notNull().default('pending'),
   reviewedAt: timestamp('reviewed_at'),
   comment: text('comment'),
-});
+}, (table) => [
+  // 0009 — see acknowledgments_org_id_idx rationale.
+  index('workflow_stages_org_id_idx').on(table.orgId),
+]);
