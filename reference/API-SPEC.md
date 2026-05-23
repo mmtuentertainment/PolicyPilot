@@ -42,11 +42,20 @@ Process:
   3. Call claude-sonnet-4-6
   4. Log to ai_generations (type: 'qa')
   5. Return answer + citations
-Response: `{ answer: string, citations: { title: string, id: string }[] }`
+Response: `{ answer: string, citations: { title: string, id: string, accessibility: 'full' | 'tldr-only' }[] }`
 # Citation shape widened in Phase 4 ship (SPEC.md R4 + CONTEXT D-27) — { title, id } enables
 # client-side rendering of "Cited: Policy Name" links without a second DB lookup. Old string[]
 # shape is removed (no parallel endpoint version). Application layer strips hallucinated IDs
 # (those not in the requesting org's published-policy set) before returning to client.
+#
+# `accessibility` field added in Phase 5 ship (CONTEXT D-27a — server-tracked Q&A→citation grants).
+# Semantics: 'full' when the requesting user is policy-assigned (can render full PolicyView at
+# /my-policies/[id]); 'tldr-only' when the user is NOT assigned but a qa_citation_grant row
+# was UPSERTed for this (user, policy) pair, granting TL;DR-only access at /my-policies/[id].
+# The field is a UI HINT ONLY — the security boundary is enforced server-side at the
+# /my-policies/[id] page handler (D-27 3-branch: assigned → full / has-grant+published →
+# tldr-only / else → notFound()). Backward-compatibility: existing Phase 4 consumers ignore
+# unknown response fields per standard JSON contract convention; the field is purely additive.
 
 ---
 

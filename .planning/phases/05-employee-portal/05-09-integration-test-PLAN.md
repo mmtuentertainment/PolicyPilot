@@ -33,6 +33,8 @@ must_haves:
   truths:
     - "scripts/check-employee-portal.ts exists per D-22 — postgres-js + BYPASSRLS seed + SET LOCAL ROLE authenticated + intentional ROLLBACK + final TRUNCATE for idempotency"
     - "Integration test covers R-1 (4-row dashboard query), R-3 (re-ack indicator after editPublished+publish), R-4 (bulk-assign 1 row + 3 members see it), R-6 (Q&A returns citations + grant UPSERT), cross-org isolation (SPEC AC-10)"
+    - "EAPI advisor H-5 closure — pure-hallucination negative test: hallucinated UUID (not in any policies row for any org) is stripped by parseQaResponse validIds filter AND grant write never fires for that UUID"
+    - "EAPI advisor H-6 closure — runtime cross-org leak negative test: REAL org-B policy UUID cited by mocked Anthropic is stripped before citation return (validIds Set built from same-closure Policies.listPublishedForOrg(s) only contains org-A IDs) AND no grant row written for the foreign-org policy under ANY user"
     - "Anthropic mocking per D-23a — vi.mock('@/lib/ai/client') mirroring Phase 4 check-ai-layer.test.ts pattern"
     - "Co-located vitest test files exist for all 6 Phase 5 surfaces per D-21"
     - "tests/types.ts D-07 @ts-expect-error invariants STILL pass (R-5 type-system layer preserved)"
@@ -233,12 +235,17 @@ Test structure:
 
 **describe('R-6 Q&A surface + grant UPSERT', ...) — SPEC AC-11:**
 - Mock Anthropic via top-level vi.mock (D-23a)
-- Seed: org A, user U6 (NOT assigned to anything), 2 policies P1 (published) + P2 (published) — U6 has zero assignments
+- Seed: org A, user U6 (NOT assigned to anything), 2 policies P1 (published) + P2 (published) — U6 has zero assignments. Also seed: org B, policy P_B_real (published in org B; UUID known to the test for the cross-org test case below).
 - Mock askQuestion to return citations to BOTH P1 and P2 (override mockResolvedValue with dynamic policy ids)
 - it('askQuestion returns answer + citations[]; each citation gets accessibility=\\'tldr-only\\' because U6 has no assignments'): call askQuestion(ctxU6, 'what is the limit?') → assert result.citations.length === 2 + all carry `accessibility: 'tldr-only'`
 - it('grant UPSERT inserts 1 row per cited policy in qa_citation_grants'): raw COUNT(*) FROM qa_citation_grants WHERE userId=U6 AND policyId IN (P1, P2) === 2
 - it('grant UPSERT is idempotent on repeated calls'): call askQuestion again with same citations → raw COUNT still === 2 (UNIQUE on (org_id, user_id, policy_id) fires)
-- it('grant UPSERT iterates over parseQaResponse-validated citations, NOT raw fence — hallucinated foreign-org UUID is stripped'): mock Anthropic to return a citation with id = a foreign-org policy's UUID → call askQuestion → assert qa_citation_grants has NO row for that UUID (validIds filter at lib/ai/qa-parser.ts:54 stripped it before reaching grant write; RESEARCH gap-3)
+
+**EAPI advisor H-5 closure** — pure-hallucination case (LLM invents a UUID not present in ANY org):
+- it('H-5 — hallucinated UUID (not in any org) is stripped before grant write'): mock Anthropic to return citations including `{ id: '00000000-0000-4000-8000-000000000000', title: 'Hallucinated Policy' }` (a syntactically-valid UUID v4 that doesn't exist in `policies` for any org) → call askQuestion(ctxU6, '...') → assert (a) `result.citations` contains zero entries with id === '00000000-0000-4000-8000-000000000000' (parseQaResponse stripped it via validIds.has(c.id) at lib/ai/qa-parser.ts:54), (b) raw `SELECT COUNT(*) FROM qa_citation_grants WHERE policy_id = '00000000-0000-4000-8000-000000000000'` returns 0 (grant write never fired because the iteration source is `parsed.citations`, not raw fence — RESEARCH gap-3 invariant). NEGATIVE assertion at TWO layers: API-shape (no citation in result) AND data (no grant row).
+
+**EAPI advisor H-6 closure** — runtime cross-org citation leak case (LLM cites a REAL foreign-org policy UUID):
+- it('H-6 — foreign-org real policy UUID is stripped before citation return AND before grant write'): mock Anthropic to return citations including `{ id: P_B_real.id, title: 'Foreign Org Policy' }` (the seeded org-B policy UUID, which is a REAL row in `policies` but for a DIFFERENT org than U6's) → call askQuestion(ctxU6, '...') → assert (a) `result.citations` does NOT contain any entry with id === P_B_real.id (validIds Set was built inside the SAME withOrgScope closure from `Policies.listPublishedForOrg(s)` which RLS-scopes to org A only, so P_B_real.id is NOT in validIds, so parseQaResponse strips it), (b) raw `SELECT COUNT(*) FROM qa_citation_grants WHERE user_id = U6 AND policy_id = P_B_real.id` returns 0 (no cross-org grant written), (c) defensive: raw `SELECT COUNT(*) FROM qa_citation_grants WHERE policy_id = P_B_real.id` returns 0 across the entire grants table (no grant written for the foreign policy under ANY user). This is the runtime complement to the structural `grep -c "validIds = new Set"` acceptance — proves Phase 4 D-41 same-closure defense holds in extracted lib/ai/qa.ts at runtime, not just by source-pattern presence.
 
 **describe('SPEC AC-10 Cross-org isolation', ...) — uses SET LOCAL ROLE + intentional ROLLBACK:**
 - Seed in BYPASSRLS: orgA + orgB; userA-in-orgA with departmentId D_A; userB-in-orgB with departmentId D_B; CRUCIAL — make D_A.id and D_B.id collide by SEED CHOICE (insert with same UUID — bypassing RLS allows this; in production the composite FK would prevent any user from referencing another org's dept, but the test setup directly bypasses for the threat scenario). Policy P_A in orgA, policy P_B in orgB.
@@ -302,9 +309,12 @@ DO NOT yet wire `verify:phase-5` chain target (Plan 05-10 does this).
     - `grep -c "check:employee-portal" package.json` returns 1
     - File `scripts/check-employee-portal.vitest.config.ts` exists (or operator chose inline-config — flag in SUMMARY)
     - The integration test asserts the RESEARCH gap-3 invariant (R-6 mocked with foreign-org citation id → grant UPSERT does NOT create row for foreign id)
+    - **EAPI advisor H-5 closure** — `grep -c "H-5" scripts/check-employee-portal.test.ts` returns ≥ 1 AND the test asserts BOTH (a) result.citations does NOT contain the hallucinated UUID AND (b) raw COUNT(*) FROM qa_citation_grants WHERE policy_id = hallucinated-uuid returns 0
+    - **EAPI advisor H-6 closure** — `grep -c "H-6" scripts/check-employee-portal.test.ts` returns ≥ 1 AND the test asserts BOTH (a) result.citations does NOT contain the foreign-org policy UUID even though the UUID is a REAL row in `policies` for a different org AND (b) raw COUNT(*) FROM qa_citation_grants WHERE policy_id = P_B_real.id returns 0 across the entire grants table
+    - `grep -c "P_B_real" scripts/check-employee-portal.test.ts` returns ≥ 2 (test seeds the real org-B policy UUID + asserts against it in H-6 test case)
   </acceptance_criteria>
   <done>
-    Integration test ships with R-1+R-3+R-4+R-6+AC-10 coverage; exits 0 against live TEST DB; Anthropic mocked per D-23a; package.json wired for the new script entry.
+    Integration test ships with R-1+R-3+R-4+R-6+AC-10 coverage PLUS H-5 (pure-hallucination) + H-6 (cross-org real-UUID) runtime negative assertions; exits 0 against live TEST DB; Anthropic mocked per D-23a; package.json wired for the new script entry. EAPI advisor H-5 + H-6 findings closed at runtime (complementing the structural grep checks in Plan 05-04).
   </done>
 </task>
 

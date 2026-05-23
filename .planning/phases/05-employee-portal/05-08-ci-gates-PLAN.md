@@ -28,8 +28,9 @@ requirements_addressed:
 must_haves:
   truths:
     - "scripts/check-acknowledgment-immutability.ts ts-morph gate exists per D-18 — scans lib/**/*.ts excluding tests/fixtures/** for .update(acknowledgments) / .delete(acknowledgments) calls"
-    - "tests/fixtures/ack-mutation-attempt.ts negative-control fixture exists per D-20 — calls .update(acknowledgments).set({}) — required for --self-test mode"
-    - "Gate has --self-test mode per D-20 — scans ONLY the fixture, exits 0 if EXACTLY 1+ violations found (reverse-interpreted)"
+    - "Gate INCLUDES a raw-SQL bypass sub-pass per EAPI advisor H-1: detects `db.execute(sql\\`UPDATE/DELETE acknowledgments...\\`)` template literals — closes the bypass class NOT caught by Drizzle-API CallExpression matching (Phase 2 0001_rls_policies.sql:69 GRANTs UPDATE+DELETE to authenticated so the DB layer does NOT prevent raw SQL bypass)"
+    - "tests/fixtures/ack-mutation-attempt.ts negative-control fixture exists per D-20 — calls BOTH .update(acknowledgments).set({}) AND db.execute(sql\\`UPDATE acknowledgments...\\`) — proves BOTH detection paths non-vacuous"
+    - "Gate has --self-test mode per D-20 — scans ONLY the fixture, exits 0 if EXACTLY 2+ violations found (reverse-interpreted; 1 Drizzle-API + 1 raw-SQL)"
     - "scripts/check-rls.ts TENANT_TABLES array extended with 'qa_citation_grants' per RESEARCH gap-2"
     - "scripts/check-policy-id-brand.ts REPO_TARGETS + ORCH_TARGETS + OBJECT_FIELD_TARGETS extended for Phase 5 brand-bearing surfaces per RESEARCH gap-4"
     - "scripts/check-error-discipline.ts widened to scan lib/policies/** per D-30"
@@ -243,15 +244,58 @@ for (const sourceFile of project.getSourceFiles()) {
 
 Also detect `Acknowledgments.update(...)` / `Acknowledgments.delete(...)` (the repository object) — the same CallExpression walk: check if `propAccess.getExpression()` is an Identifier resolving to `Acknowledgments` from `lib/db/repositories/acknowledgments`. Optional but recommended for defense-in-depth.
 
+**Sub-pass 2: Raw-SQL bypass detection (EAPI advisor H-1).**
+
+The above AST walk catches Drizzle-API calls (`tx.update(acknowledgments)`, aliased imports, repository-object methods) but does NOT catch raw SQL passed via `sql\`\`` template literals to `.execute()` / `.query()`. This bypass class is REAL because Phase 2 `drizzle/0001_rls_policies.sql:69` GRANTs `UPDATE, DELETE` on `acknowledgments` to the `authenticated` role — the DB layer does NOT block `db.execute(sql\`UPDATE acknowledgments SET ...\`)` from a future bug. The ts-morph gate is therefore the SOLE runtime-side defense against raw-SQL mutation.
+
+Add this sub-pass AFTER the Drizzle-API walk completes:
+
+```typescript
+// Sub-pass 2: regex scan for raw SQL bypass (EAPI advisor H-1).
+// Catches: sql`UPDATE acknowledgments SET ...`
+//          sql`DELETE FROM acknowledgments WHERE ...`
+//          sql`DELETE FROM "acknowledgments" ...`
+//          Multi-line variants via . matching \n through s-flag substitute below.
+const RAW_SQL_PATTERN =
+  /\bsql\s*`[^`]*?\b(UPDATE|DELETE\s+FROM)\s+(?:"acknowledgments"|acknowledgments)\b[^`]*?`/gi;
+
+for (const sourceFile of project.getSourceFiles()) {
+  const filePath = sourceFile.getFilePath();
+  // Same exclude as Sub-task 1a (tests/fixtures/** excluded in default mode; included in --self-test).
+  if (!shouldScan(filePath)) continue;
+  const text = sourceFile.getFullText();
+  let match: RegExpExecArray | null;
+  // Reset lastIndex per file (RegExp state is per-instance).
+  RAW_SQL_PATTERN.lastIndex = 0;
+  while ((match = RAW_SQL_PATTERN.exec(text)) !== null) {
+    const pos = match.index;
+    const lineCol = sourceFile.getLineAndColumnAtPos(pos);
+    violations.push({
+      file: filePath,
+      line: lineCol.line,
+      method: `raw SQL ${match[1].toUpperCase().replace(/\s+/g, ' ')}`,
+    });
+  }
+}
+```
+
+The regex is conservative — it only matches `sql\`...\`` tagged template literals (the canonical Drizzle escape hatch). It does NOT attempt to catch arbitrary `db.execute("...")` string literals because (a) plain-string execution is rare in this codebase and (b) regex on free-form strings produces false positives in comments/docs. The Drizzle convention is `sql\`...\`` (per `lib/db/scoped.ts` precedent); if a future contributor uses raw `db.execute("UPDATE acknowledgments SET ...")` as a string, this gate will not catch it — that's a documented secondary gap, mitigated by ADR-018 review discipline and the type-system D-07 invariant.
+
+**Self-test expectation update:** the fixture now contains 2+ violations (1 Drizzle-API + 1 raw-SQL), so the self-test reverse-interpretation must require `>= 2` violations instead of `>= 1` per Sub-task 1b's updated fixture.
+
 Result mode handling:
 ```typescript
 if (selfTest) {
-  // Reverse-interpretation: gate is proven non-vacuous if 1+ violations found in fixture
-  if (violations.length >= 1) {
-    console.log(`OK — self-test: ${violations.length} violation(s) detected in ${FIXTURE_FILE} (gate is non-vacuous)`);
+  // Reverse-interpretation: gate is proven non-vacuous if 2+ violations found in fixture
+  // (1 Drizzle-API .update(acknowledgments) + 1 raw-SQL sql`UPDATE acknowledgments...`).
+  // Per EAPI advisor H-1: BOTH detection paths must be exercised by the negative-control fixture.
+  const hasDrizzle = violations.some(v => v.method === 'update' || v.method === 'delete');
+  const hasRawSql = violations.some(v => v.method.startsWith('raw SQL'));
+  if (violations.length >= 2 && hasDrizzle && hasRawSql) {
+    console.log(`OK — self-test: ${violations.length} violation(s) detected in ${FIXTURE_FILE} (gate is non-vacuous; both Drizzle-API and raw-SQL detection paths exercised)`);
     process.exit(0);
   }
-  console.error(`FAIL — self-test: 0 violations detected in ${FIXTURE_FILE} — gate is broken (fixture not triggering detection)`);
+  console.error(`FAIL — self-test: gate is broken. Found ${violations.length} violations; expected ≥2 with both Drizzle-API and raw-SQL detection paths (hasDrizzle=${hasDrizzle}, hasRawSql=${hasRawSql})`);
   process.exit(1);
 } else {
   if (violations.length === 0) {
@@ -277,24 +321,36 @@ File-header comment block:
 - "DO NOT EXECUTE — this is a STATIC fixture for AST scanning; the function body is unreachable at runtime."
 - "The production gate's default-mode glob (lib/**/*.ts) EXCLUDES tests/fixtures/** so this file does not trigger the production gate per D-19."
 
-Body:
+Body (updated per EAPI advisor H-1 — covers BOTH Drizzle-API + raw-SQL detection paths):
 ```typescript
 import 'server-only';
+import { sql } from 'drizzle-orm';
 import { acknowledgments } from '@/lib/db/schema';
 
-// Intentional ADR-018 violation — fixture proves D-18 ts-morph gate is non-vacuous.
-// DO NOT IMPORT FROM PRODUCTION CODE. DO NOT INVOKE. The function exists ONLY so
-// scripts/check-acknowledgment-immutability.ts --self-test detects 1+ violation here.
+// Intentional ADR-018 violations — fixture proves D-18 ts-morph gate is non-vacuous
+// across BOTH detection paths (Drizzle-API CallExpression + raw-SQL template literal).
+// DO NOT IMPORT FROM PRODUCTION CODE. DO NOT INVOKE. The functions exist ONLY so
+// scripts/check-acknowledgment-immutability.ts --self-test detects 2+ violations here.
+
 type FakeTx = {
   update: (t: typeof acknowledgments) => { set: (v: Record<string, unknown>) => Promise<unknown> };
+  execute: (q: unknown) => Promise<unknown>;
 };
 
-export function _violationFixture(tx: FakeTx) {
+// Violation 1: Drizzle-API .update(acknowledgments) — Sub-task 1a AST walk.
+export function _violationFixtureDrizzle(tx: FakeTx) {
   return tx.update(acknowledgments).set({});
+}
+
+// Violation 2: Raw-SQL bypass — Sub-pass 2 regex (EAPI advisor H-1 closure).
+// Phase 2 drizzle/0001_rls_policies.sql:69 GRANTs UPDATE+DELETE to authenticated
+// so this would succeed at DB level; the ts-morph gate is the sole runtime defense.
+export function _violationFixtureRawSql(tx: FakeTx) {
+  return tx.execute(sql`UPDATE acknowledgments SET ip_address = '0.0.0.0'`);
 }
 ```
 
-The file MUST contain at least ONE `.update(acknowledgments)` or `.delete(acknowledgments)` call expression for the self-test mode to detect.
+The file MUST contain BOTH (a) at least ONE `.update(acknowledgments)` / `.delete(acknowledgments)` Drizzle-API call AND (b) at least ONE `sql\`UPDATE/DELETE acknowledgments...\`` raw-SQL template literal — for the self-test mode to detect both detection paths and exit 0.
 
 **Sub-task 1c: Add 2 new script entries to package.json.**
 
@@ -315,19 +371,23 @@ PRESERVE all existing script entries verbatim.
   <acceptance_criteria>
     - `pnpm tsc --noEmit` exits 0
     - `tsx scripts/check-acknowledgment-immutability.ts` exits 0 — production gate against shipped Phase 5 code (post-Plan 05-03) MUST pass; if it fails, Plan 05-03 leaked a `.update(acknowledgments)` call past the type test (highly improbable but possible)
-    - `tsx scripts/check-acknowledgment-immutability.ts --self-test` exits 0 — proves the gate is non-vacuous (fixture detection works)
+    - `tsx scripts/check-acknowledgment-immutability.ts --self-test` exits 0 — proves the gate is non-vacuous across BOTH detection paths (Drizzle-API + raw-SQL)
     - `grep -c "check:acknowledgment-immutability" package.json` returns at least 2 (two new script entries)
     - `grep -c "check:acknowledgment-immutability:self-test" package.json` returns 1
     - `grep -c "ts-morph" scripts/check-acknowledgment-immutability.ts` returns at least 1
     - `grep -c "VIOLATION_METHODS\|update\|delete" scripts/check-acknowledgment-immutability.ts` returns multiple (method-name detection set + the check)
     - `grep -c "tests/fixtures" scripts/check-acknowledgment-immutability.ts` returns at least 1 (exclusion glob)
     - `grep -c "--self-test" scripts/check-acknowledgment-immutability.ts` returns at least 1
-    - `grep -c "_violationFixture" tests/fixtures/ack-mutation-attempt.ts` returns 1 (fixture function present)
-    - `grep -c ".update(acknowledgments)" tests/fixtures/ack-mutation-attempt.ts` returns 1 (intentional violation present)
+    - **EAPI advisor H-1 closure** — gate INCLUDES raw-SQL bypass sub-pass: `grep -cE "RAW_SQL_PATTERN|sql\\\\s\\*\`" scripts/check-acknowledgment-immutability.ts` returns ≥ 1 (regex literal for the bypass class)
+    - **EAPI advisor H-1 closure** — gate REJECTS self-test if either detection path missing: `grep -c "hasDrizzle\|hasRawSql" scripts/check-acknowledgment-immutability.ts` returns ≥ 2 (both flags checked in self-test branch)
+    - `grep -c "_violationFixture" tests/fixtures/ack-mutation-attempt.ts` returns 2 (both Drizzle + raw-SQL fixture functions present per H-1)
+    - `grep -c ".update(acknowledgments)" tests/fixtures/ack-mutation-attempt.ts` returns 1 (Drizzle-API violation present)
+    - `grep -cE "sql\`UPDATE acknowledgments" tests/fixtures/ack-mutation-attempt.ts` returns 1 (raw-SQL violation present per H-1)
+    - Manual smoke: introduce a temporary `tx.execute(sql\`UPDATE acknowledgments SET foo = 'x'\`)` in any `lib/**/*.ts` file → `tsx scripts/check-acknowledgment-immutability.ts` exits non-zero; remove → exits 0. (Operator verifies during UAT Plan 05-10.)
     - `pnpm verify:phase-4` still exits 0 (no regression; tests/fixtures/** scanning is opt-in via --self-test)
   </acceptance_criteria>
   <done>
-    Gate works in both modes: default mode green against shipped Phase 5 code; --self-test mode green against the fixture (proving non-vacuous). 2 new package.json entries.
+    Gate works in both modes across BOTH detection paths: default mode green against shipped Phase 5 code (no Drizzle-API or raw-SQL acknowledgments-mutation calls); --self-test mode green against the 2-violation fixture (proving non-vacuous on both paths). 2 new package.json entries. EAPI advisor H-1 finding closed at CI layer; defense-in-depth REVOKE migration recommended as ASK-FIRST deferred item (see deferred section below).
   </done>
 </task>
 
@@ -478,5 +538,27 @@ DO NOT remove any existing Phase 1-4 assertions. DO NOT modify the assertion hel
 </success_criteria>
 
 <output>
-Create `.planning/phases/05-employee-portal/05-08-SUMMARY.md` when done — document the file deltas, confirm both modes of check-acknowledgment-immutability green, list any unexpected lib/policies/** violations that surfaced + how addressed, and note check:employee-portal + verify:phase-5 entries remain pending for Plans 05-09 / 05-10.
+Create `.planning/phases/05-employee-portal/05-08-SUMMARY.md` when done — document the file deltas, confirm both modes of check-acknowledgment-immutability green (Drizzle-API + raw-SQL detection paths both exercised per EAPI advisor H-1), list any unexpected lib/policies/** violations that surfaced + how addressed, and note check:employee-portal + verify:phase-5 entries remain pending for Plans 05-09 / 05-10.
 </output>
+
+<deferred>
+## Deferred — ASK-FIRST candidates (post-execute follow-up)
+
+**EAPI advisor H-1 follow-up: defense-in-depth REVOKE migration.** Phase 2 `drizzle/0001_rls_policies.sql:69` GRANTs `UPDATE, DELETE` on `acknowledgments` to the `authenticated` role. Plan 05-08's ts-morph gate is the SOLE runtime-side defense against raw SQL bypass; a determined attacker with code-write access to `lib/**/*.ts` could in principle craft a non-`sql\`...\`` execute path that evades the regex (e.g., string concatenation into `db.execute("UPDATE acknowledgments ...")`). The cleanest defense-in-depth is a new migration `drizzle/0012_acknowledgments_revoke_mutation.sql`:
+
+```sql
+-- Plan 05-08 follow-up — EAPI advisor H-1 defense-in-depth (ASK-FIRST per CLAUDE.md).
+-- Phase 2 0001_rls_policies.sql:69 granted SELECT, INSERT, UPDATE, DELETE on acknowledgments.
+-- ADR-018 append-only invariant means UPDATE + DELETE should never fire from application code.
+-- Revoke at DB layer so even a raw `db.execute("UPDATE acknowledgments...")` bypass would 42501.
+REVOKE UPDATE, DELETE ON "acknowledgments" FROM authenticated;
+-- service_role (BYPASSRLS) retains UPDATE+DELETE for migration/backfill operations.
+```
+
+Rationale to ASK FIRST before applying:
+1. **Destructive** in the CLAUDE.md sense — removes capabilities from existing role; requires operator approval per "Destructive migrations (DROP COLUMN, DROP TABLE, NOT NULL on existing column): ASK FIRST." block. REVOKE matches the spirit (removes capability) even if not the literal pattern.
+2. **Operator-impact** — admin restore workflows (Phase 7+ tenant lifecycle) MAY need UPDATE/DELETE in narrow cases (e.g., GDPR right-to-erasure). Confirm with operator before locking.
+3. **Pre-paying-customer status** — same basis as 0010/0011 ASK-FIRST approvals; safer to apply now than after first customer.
+
+If approved, this migration ships as 0012 in Phase 5.5 polish PR or absorbed into Phase 7 (notifications) where tenant-lifecycle code paths land. Until then, the ts-morph gate (default mode + --self-test mode) is the operative defense.
+</deferred>

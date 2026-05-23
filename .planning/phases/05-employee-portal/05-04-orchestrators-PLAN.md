@@ -10,6 +10,7 @@ files_modified:
   - lib/policies/acknowledgment.ts
   - lib/ai/qa.ts
   - app/api/ai/qa/route.ts
+  - reference/API-SPEC.md
 autonomous: true
 requirements:
   - REQ-acknowledgment-tracking
@@ -30,6 +31,7 @@ must_haves:
     - "D-26 grant UPSERT iterates over parseQaResponse-validated citations (RESEARCH gap-3 — NOT raw fence JSON)"
     - "D-27a accessibility annotation: each citation tagged 'full' if assigned, else 'tldr-only'"
     - "app/api/ai/qa/route.ts refactored to thin ~30-line wrapper around askQuestion (HTTP contract UNCHANGED per D-25 invariant)"
+    - "reference/API-SPEC.md POST /api/ai/qa response shape updated to document additive accessibility field — closes EAPI advisor H-4 contract-drift finding"
   artifacts:
     - path: "lib/policies/acknowledgment.ts"
       provides: "recordAcknowledgment orchestrator"
@@ -512,9 +514,12 @@ The line count goal is ~35-40 lines for the file (down from 147). If you exceed 
     - File does NOT contain `AiGenerations.insert` (`grep -c "AiGenerations.insert" app/api/ai/qa/route.ts` returns 0)
     - File does NOT import from `@/lib/ai/cache|client|models|prompts|qa-extract|qa-parser|extract` (`grep -cE "from '@/lib/ai/(cache|client|models|prompts|qa-extract|qa-parser|extract)'" app/api/ai/qa/route.ts` returns 0 — those imports all moved to lib/ai/qa.ts)
     - File does NOT import from `@/lib/db/scoped|@/lib/db/repositories/*` (`grep -cE "from '@/lib/db/(scoped|repositories)" app/api/ai/qa/route.ts` returns 0)
+    - **EAPI advisor H-4 closure** — `reference/API-SPEC.md` POST /api/ai/qa response shape documents the additive `accessibility: 'full' \| 'tldr-only'` field in the citations array: `grep -c "accessibility" reference/API-SPEC.md` returns ≥ 2 (response type signature + explanatory comment block)
+    - `reference/API-SPEC.md` documents that `accessibility` is additive (existing consumers ignore unknown fields per JSON contract convention): `grep -c "additive" reference/API-SPEC.md` returns ≥ 1
+    - `reference/API-SPEC.md` cross-references D-27a + D-27 3-branch page handler as the actual security boundary (field is UI hint only): `grep -c "D-27a" reference/API-SPEC.md` returns ≥ 1
   </acceptance_criteria>
   <done>
-    `app/api/ai/qa/route.ts` slimmed to ~35-40 lines; HTTP contract unchanged; Phase 4 error mapping (ZodError 400, Anthropic.APIError 503 + Retry-After) preserved verbatim; tsc clean.
+    `app/api/ai/qa/route.ts` slimmed to ~35-40 lines; HTTP contract unchanged; Phase 4 error mapping (ZodError 400, Anthropic.APIError 503 + Retry-After) preserved verbatim; tsc clean; `reference/API-SPEC.md` updated to document the additive `accessibility` field (EAPI advisor H-4 contract-drift finding closed).
   </done>
 </task>
 
