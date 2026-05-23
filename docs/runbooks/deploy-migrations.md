@@ -32,6 +32,8 @@ Before touching any non-dev database, confirm ALL of the following:
 | `0005_initial_batch_jobs.sql` | No (CREATE TABLE) | Reversible via `DROP TABLE batch_jobs CASCADE`. |
 | `0006_rls_batch_jobs.sql` | No (RLS + GRANTs) | Reversible via `DROP POLICY org_isolation ON batch_jobs; ALTER TABLE batch_jobs DISABLE ROW LEVEL SECURITY; REVOKE ALL ON batch_jobs FROM authenticated;`. |
 | `0007_ai_generations_audit_extensions.sql` | **YES — `DROP COLUMN tokens_used`** | Operator-approved 2026-05-21 per CLAUDE.md ASK-FIRST (CONTEXT.md D-44). Pre-paying-customer state verified — no production AI calls exist when this lands. **NOT REVERSIBLE without data loss** once any rows are written to the new columns. |
+| `0008_rls_subquery_wrap.sql` | No (`ALTER POLICY`) | Subquery-wraps `auth.jwt()` in all 11 `org_isolation` policies for Postgres `initPlan` optimization. Same set of rows passes each policy; only the evaluation strategy changes (per-statement instead of per-row). Reversible via 11 mirror `ALTER POLICY … USING (org_id::text = auth.jwt()->>'org_id')` statements. Operator-approved 2026-05-22 per research finding [#4](`.wiki/supabase/04-rls-multitenant.md`). |
+| `0009_org_id_indexes.sql` | No (9 `CREATE INDEX`) | Adds btree(org_id) to 9 tenant-scoped tables (skips `organizations` no-org-id and `departments` covered-by-existing-unique). Reversible via `DROP INDEX <name>` for each. Brief `ACCESS EXCLUSIVE` catalog lock during creation; tables are pre-paying-customer scale so no `CREATE INDEX CONCURRENTLY` needed today. Operator-approved 2026-05-22 per research finding [#4](`.wiki/supabase/04-rls-multitenant.md`). |
 
 ---
 
@@ -69,6 +71,109 @@ DIRECT_URL=postgres://postgres.<project_ref>:<password>@aws-...-pooler.supabase.
 Same shape for `secrets/prod.env`.
 
 **Never** commit these files (`secrets/` is gitignored as of `d0352a1`).
+
+---
+
+## Post-rotation auth-propagation gate
+
+**When to use this section**: ONLY if the operator has just clicked **Reset
+database password** in the Supabase Dashboard (or rotated via the Management
+API) for the target project. If no rotation happened, skip to *Procedure*.
+
+After a rotation, pooler-routed auth (port 6543 transaction pool OR port 5432
+session pool) returns:
+
+```
+28P01 password authentication failed for user "postgres"
+```
+
+…for a window ranging from "instant" to multi-minute, **with no documented
+upper bound**. This is a Supavisor *cache* phenomenon, not a Postgres-side
+issue:
+
+| Layer | Behavior | Source |
+|---|---|---|
+| Postgres `pg_authid` | Updated synchronously on `ALTER ROLE … PASSWORD …`; MVCC-visible to next session | postgresql.org/docs/current/auth-password.html |
+| Supavisor tenant secret cache | Cachex TTL = 24h | `supabase/supavisor` `lib/supavisor/tenants.ex` |
+| Supavisor `SecretChecker` | Polls source-of-truth every 15s | `lib/supavisor/secret_checker.ex` |
+| Supavisor `CacheRefreshLimiter` | Caps refreshes at 3/minute/tenant | `lib/supavisor/cache_refresh_limiter.ex` (PR #728) |
+| Dashboard SQL Editor | Uses a separate auth path; works throughout | observed 2026-05-22 incident |
+
+Open issue [`supabase/supabase#44210`](https://github.com/supabase/supabase/issues/44210)
+names our region (`aws-1-us-east-1`) with the identical symptom — **unresolved
+as of 2026-05-22**. PR #44216 to fix it was closed unmerged 2026-03-26.
+
+**Hazard**: Supavisor trips an **auth-error circuit breaker** at ~10 errors
+in a 150-second window, locking the source IP out for 2 minutes. **Naive
+retry loops self-DoS** — they trigger the lockout, which then blocks recovery
+for an additional 2 min on top of the propagation window. Always use the
+paced gate below, never a tight retry loop.
+
+### Step-by-step procedure after `Reset database password`
+
+1. **Pause** any active workers / cron / preview deploys that might hammer
+   the pooler with cached credentials and trip the breaker. Specifically:
+   - Vercel: disable auto-deploy on the target branch, or set `vercel.json`
+     `buildCommand` to a no-op temporarily
+   - Railway: pause the worker service from the dashboard
+   - Local: do not run `pnpm dev` against the rotated project until step 6
+
+2. **Capture** the new password from the Dashboard reset dialog:
+   - Use the GUI clipboard copy button (do NOT paste into `Read-Host` —
+     PowerShell paste truncation can silently drop trailing chars)
+   - Optionally verify SHA-256 prefix against the dialog before clearing
+   - The password gets stored in PowerShell SecretStore by
+     `scripts/store-deploy-password.ps1`, NOT in a file
+
+3. **Update** the SecretStore entry:
+   ```powershell
+   ./scripts/store-deploy-password.ps1 staging   # or prod
+   ```
+
+4. **Run the gate** to wait for pooler cache propagation:
+   ```powershell
+   pnpm db:wait-pooler-auth:staging              # or :prod
+   ```
+
+   The gate probes auth at T+0s, T+15s, then every 60s for 10 attempts
+   (~8m15s discovery deadline). On first success, it requires 5 consecutive
+   confirmations at 30s intervals (~2 min) before exiting 0. Total
+   worst-case wall time: ~10m15s.
+
+   On success, the gate prints a paste-ready audit line for *Audit log*
+   below.
+
+   Exit codes:
+   - `0` — propagation confirmed; **safe to migrate**
+   - `1` — timeout (10 attempts exhausted); see *Escalation: project restart*
+   - `2` — circuit-breaker hazard reached; STOP, wait ≥5 min before any
+     further pooler auth attempts from this IP
+   - `3` — non-propagation error (DNS, wrong host, paused project, missing
+     env var); fix the underlying issue, do NOT retry until corrected
+
+5. **Resume** workers only after the gate exits 0.
+
+6. **Proceed** with `pnpm db:migrate:<env>` per *Procedure* below.
+
+### Escalation: project restart
+
+If `wait-pooler-auth` exits 1 (timeout) **AND** the Dashboard SQL Editor
+confirms the new password works (proving the credential is correct and only
+the pooler cache is stale):
+
+1. Supabase Dashboard → Project Settings → General → **Restart project**
+2. Wait ~30s for restart to complete
+3. Re-run `pnpm db:wait-pooler-auth:<env>`
+
+Restart forcibly invalidates the Supavisor cache for the tenant. This is
+the only documented escape hatch per issue #44210.
+
+### Tier note
+
+Free-tier projects (dev + staging as of 2026-05-22) and Pro-tier projects
+share the same Supavisor cache infrastructure. **Tier does not change
+propagation timing** as far as primary-source docs say; the empirical
+distribution is the same backlog item for issue #44210.
 
 ---
 
@@ -239,6 +344,24 @@ If a single migration mixes both (like 0007 does — drops `tokens_used` AND add
 ---
 
 ## Troubleshooting
+
+### "28P01 password authentication failed for user 'postgres'"
+
+The Supabase pooler is still serving the **old** role secret from cache.
+See *Post-rotation auth-propagation gate* above. **Do not retry blindly** —
+the 2-min circuit-breaker IP lockout will block recovery for an additional
+2 min on top of the propagation window.
+
+Diagnostic order:
+1. Run `pnpm db:wait-pooler-auth:<env>` — paces probes to stay under the
+   refresh limiter and detects the propagation window deterministically.
+2. If the gate exits 1 (timeout) **and** the Dashboard SQL Editor works
+   with the new password → restart the project (Dashboard → Project
+   Settings → General → Restart). This is the only documented escape
+   hatch per issue #44210.
+3. If the Dashboard SQL Editor ALSO returns 28P01 → the credential capture
+   failed; re-rotate via the dashboard and re-store via
+   `./scripts/store-deploy-password.ps1`.
 
 ### "relation drizzle.__drizzle_migrations does not exist"
 
