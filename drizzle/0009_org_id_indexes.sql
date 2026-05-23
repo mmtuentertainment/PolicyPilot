@@ -1,8 +1,5 @@
 -- drizzle/0009_org_id_indexes.sql
--- Phase 4.5 deploy-prep — btree(org_id) indexes on 9 tenant-scoped tables
--- (from .wiki/supabase research, 2026-05-22).
--- Drizzle-generated via lib/db/schema.ts updates; originally
--- 0009_lovely_lyja.sql, renamed for semantic clarity 2026-05-22.
+-- btree(org_id) indexes on 9 tenant-scoped tables.
 --
 -- WHAT
 -- Adds a regular btree index on `org_id` to every tenant-scoped table whose
@@ -47,8 +44,6 @@
 -- pre-paying-customer). On tables with large row counts at production scale,
 -- this would warrant CREATE INDEX CONCURRENTLY; not needed for our current
 -- footprint per CLAUDE.md "pre-paying-customer" stance.
---
--- See: .wiki/supabase/04-rls-multitenant.md for the full research trail.
 
 CREATE INDEX "acknowledgments_org_id_idx" ON "acknowledgments" USING btree ("org_id");--> statement-breakpoint
 CREATE INDEX "ai_generations_org_id_idx" ON "ai_generations" USING btree ("org_id");--> statement-breakpoint

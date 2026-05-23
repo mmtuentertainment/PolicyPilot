@@ -4,7 +4,7 @@
 // (or any role-credential rotation) to confirm the Supavisor cache has
 // converged on the new secret BEFORE running migrations or resuming workers.
 //
-// Why this exists (incident-driven, 2026-05-22):
+// Why this exists:
 //
 // After Reset password, pooler-routed auth (postgres.<ref>@<host>:6543/5432)
 // returns `28P01 password authentication failed for user "postgres"` for a
@@ -13,13 +13,12 @@
 // Postgres-side `ALTER ROLE PASSWORD` commit is instant (pg_authid MVCC
 // visibility); the transient is entirely a Supavisor-cache phenomenon.
 //
-// Authoritative source map (verified 2026-05-22 against supabase/supavisor):
+// Authoritative source map (supabase/supavisor):
 //   - lib/supavisor/tenants.ex          Cachex TTL = 24h on tenant secret cache
 //   - lib/supavisor/secret_checker.ex   @interval = 15_000 ms refresh poll
 //   - lib/supavisor/cache_refresh_limiter.ex  3 refreshes / minute / tenant
 //   - PR #905 (PBKDF2 verifier result cache); PR #728 (refresh limiter)
-//   - Open issue supabase/supabase#44210 — our region aws-1-us-east-1,
-//     unresolved as of 2026-05-22
+//   - Open issue supabase/supabase#44210 — aws-1-us-east-1 region symptom
 //
 // Hazard: Supavisor trips an auth-error circuit breaker at ~10 errors in a
 // 150-second window, locking the source IP out for 2 minutes. Naive retry
@@ -57,15 +56,11 @@ import postgres from 'postgres';
 
 const DB_URL = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 
-// Schedule constants — see header for rationale.
-// Tuple-shaped via `as const` so `.entries()` gives a non-undefined element type,
-// removing the need for non-null assertions when iterating.
+// Schedule from header. Tuple via `as const` gives non-undefined element type
+// for `.entries()` and `.at(-1)`, removing the need for non-null assertions.
 const ATTEMPT_SCHEDULE_SEC = [
   0, 15, 75, 135, 195, 255, 315, 375, 435, 495,
 ] as const;
-// Last-element accessor with a safe fallback for the empty-tuple edge case.
-// `at(-1)` returns `T | undefined` regardless of tuple type, so the `??` keeps
-// the type narrowed to `number`.
 const LAST_PROBE_SEC: number = ATTEMPT_SCHEDULE_SEC.at(-1) ?? 0;
 const SUCCESS_STREAK_REQUIRED = 5;
 const CONFIRM_INTERVAL_SEC = 30;

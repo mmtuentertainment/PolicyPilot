@@ -51,9 +51,8 @@ export const acknowledgments = pgTable('acknowledgments', {
   // (no update / delete keys exported) and tests/types.ts (@ts-expect-error
   // invariants per D-07).
 }, (table) => [
-  // 0009 — RLS predicate `org_id::text = (SELECT auth.jwt()->>'org_id')`
-  // (post-0008) and the app-layer OrgScope filter `eq(table.orgId, ctx.orgId)`
-  // both filter on org_id; without this btree, queries fall back to seq scan.
+  // RLS predicate + app-layer OrgScope filter both query on org_id; without
+  // this btree, tenant-filtered SELECTs fall back to seq scan.
   index('acknowledgments_org_id_idx').on(table.orgId),
 ]);
 
@@ -80,10 +79,9 @@ export const aiGenerations = pgTable('ai_generations', {
   model: text('model').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
 }, (table) => [
-  // 0009 — see acknowledgments_org_id_idx rationale. Note 0007's partial-unique
-  // index `ai_generations_org_idempotency_key` on (org_id, idempotency_key)
-  // WHERE idempotency_key IS NOT NULL only covers the keyed subset; the bulk
-  // `WHERE org_id = $1` path still needs a regular btree.
+  // The partial-unique `ai_generations_org_idempotency_key` on
+  // (org_id, idempotency_key) WHERE idempotency_key IS NOT NULL only covers
+  // keyed rows; the bulk `WHERE org_id = $1` path still needs a regular btree.
   index('ai_generations_org_id_idx').on(table.orgId),
 ]);
 
@@ -103,9 +101,8 @@ export const batchJobs = pgTable('batch_jobs', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   resultJson: jsonb('result_json'),
 }, (table) => [
-  // 0009 — see acknowledgments_org_id_idx rationale.
-  // batch_jobs.anthropic_batch_id has its own unique index but doesn't help
-  // the RLS/org-scope filter.
+  // anthropic_batch_id is uniquely-indexed but doesn't cover the org_id filter
+  // used by RLS + repository listForOrg queries.
   index('batch_jobs_org_id_idx').on(table.orgId),
 ]);
 
@@ -140,7 +137,6 @@ export const notifications = pgTable('notifications', {
   read: boolean('read').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow(),
 }, (table) => [
-  // 0009 — see acknowledgments_org_id_idx rationale.
   index('notifications_org_id_idx').on(table.orgId),
 ]);
 
@@ -174,7 +170,6 @@ export const policies = pgTable('policies', {
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (table) => [
-  // 0009 — see acknowledgments_org_id_idx rationale.
   index('policies_org_id_idx').on(table.orgId),
 ]);
 
@@ -187,7 +182,6 @@ export const policyAssignments = pgTable('policy_assignments', {
   assignedBy: uuid('assigned_by').references(() => users.id),
   assignedAt: timestamp('assigned_at').defaultNow(),
 }, (table) => [
-  // 0009 — see acknowledgments_org_id_idx rationale.
   index('policy_assignments_org_id_idx').on(table.orgId),
 ]);
 
@@ -215,8 +209,8 @@ export const policyVersions = pgTable(
       table.policyId,
       table.versionNumber,
     ),
-    // 0009 — see acknowledgments_org_id_idx rationale. The unique above
-    // is on (policy_id, version_number) — it does NOT help filter on org_id.
+    // The unique constraint above is on (policy_id, version_number) and
+    // does NOT cover org_id; this btree handles the RLS + listForOrg path.
     index('policy_versions_org_id_idx').on(table.orgId),
   ],
 );
@@ -254,9 +248,8 @@ export const users = pgTable(
       foreignColumns: [departments.orgId, departments.id],
       name: 'users_org_id_department_id_departments_fk',
     }),
-    // 0009 — see acknowledgments_org_id_idx rationale. The composite FK
-    // above creates an index on (org_id, department_id) but Postgres
-    // does NOT auto-create a single-column index on org_id from a composite FK.
+    // Postgres does NOT auto-create a single-column index on org_id from the
+    // composite FK above (users_org_id_department_id_departments_fk).
     index('users_org_id_idx').on(table.orgId),
   ],
 );
@@ -271,6 +264,5 @@ export const workflowStages = pgTable('workflow_stages', {
   reviewedAt: timestamp('reviewed_at'),
   comment: text('comment'),
 }, (table) => [
-  // 0009 — see acknowledgments_org_id_idx rationale.
   index('workflow_stages_org_id_idx').on(table.orgId),
 ]);

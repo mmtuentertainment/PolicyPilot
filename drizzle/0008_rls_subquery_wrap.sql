@@ -1,15 +1,12 @@
 -- drizzle/0008_rls_subquery_wrap.sql
--- Phase 4.5 deploy-prep — RLS initPlan optimization (from .wiki/supabase research, 2026-05-22).
--- Generated empty via: drizzle-kit generate --custom --name=rls_subquery_wrap.
--- Body added 2026-05-22 per operator approval to proceed with research-derived
--- migration 0008 (subquery-wrap rewrite).
+-- RLS initPlan optimization.
 --
 -- WHAT
 -- Wraps every org_isolation policy's `auth.jwt()->>'org_id'` call in a
 -- `(SELECT …)` subquery. This triggers Postgres's `initPlan` optimization:
 -- the JWT call evaluates ONCE per statement (subplan node) instead of ONCE
--- PER ROW. Documented speedup: 94.97–99.993% on multi-thousand-row queries
--- per supabase.com/docs/guides/database/postgres/row-level-security#performance.
+-- PER ROW. See supabase.com/docs/guides/database/postgres/row-level-security#performance
+-- for the documented speedup on multi-thousand-row queries.
 --
 -- The `splinter` lint rule `0003_auth_rls_initplan` flags the unwrapped
 -- pattern as a perf gap — pre-migration baseline: ALL 11 policies flagged.
@@ -45,8 +42,6 @@
 -- `InitPlan 1 (returns $0)` node BEFORE the row-source nodes. Without
 -- the subquery wrap, the `auth.jwt()` call appears in the Filter expression
 -- and re-evaluates per row.
---
--- See: .wiki/supabase/04-rls-multitenant.md for the full research trail.
 
 ALTER POLICY "org_isolation" ON "organizations"
   USING (id::text = (SELECT auth.jwt()->>'org_id'));
