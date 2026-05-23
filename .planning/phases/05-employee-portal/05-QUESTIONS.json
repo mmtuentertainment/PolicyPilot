@@ -1,11 +1,11 @@
 {
   "phase": "05-employee-portal",
-  "generated_at": "2026-05-23T00:00:00.000Z",
+  "generated_at": "2026-05-23T16:42:59.823Z",
   "stats": {
     "total": 23,
-    "answered": 0,
+    "answered": 23,
     "chat_more": 0,
-    "remaining": 23
+    "remaining": 0
   },
   "sections": [
     {
@@ -38,9 +38,9 @@
               "description": ""
             }
           ],
-          "answer": null,
+          "answer": "a",
           "chat_more": "",
-          "status": "unanswered"
+          "status": "answered"
         },
         {
           "id": "Q-02",
@@ -68,9 +68,9 @@
               "description": ""
             }
           ],
-          "answer": null,
+          "answer": "a",
           "chat_more": "",
-          "status": "unanswered"
+          "status": "answered"
         },
         {
           "id": "Q-03",
@@ -98,9 +98,9 @@
               "description": ""
             }
           ],
-          "answer": null,
+          "answer": "a",
           "chat_more": "",
-          "status": "unanswered"
+          "status": "answered"
         }
       ]
     },
@@ -134,9 +134,9 @@
               "description": ""
             }
           ],
-          "answer": null,
+          "answer": "a",
           "chat_more": "",
-          "status": "unanswered"
+          "status": "answered"
         },
         {
           "id": "Q-05",
@@ -164,9 +164,9 @@
               "description": ""
             }
           ],
-          "answer": null,
+          "answer": "a",
           "chat_more": "",
-          "status": "unanswered"
+          "status": "answered"
         },
         {
           "id": "Q-06",
@@ -194,9 +194,9 @@
               "description": ""
             }
           ],
-          "answer": null,
+          "answer": "a",
           "chat_more": "",
-          "status": "unanswered"
+          "status": "answered"
         },
         {
           "id": "Q-07",
@@ -224,9 +224,9 @@
               "description": ""
             }
           ],
-          "answer": null,
+          "answer": "a",
           "chat_more": "",
-          "status": "unanswered"
+          "status": "answered"
         },
         {
           "id": "Q-08",
@@ -254,9 +254,9 @@
               "description": ""
             }
           ],
-          "answer": null,
+          "answer": "a",
           "chat_more": "",
-          "status": "unanswered"
+          "status": "answered"
         }
       ]
     },
@@ -290,9 +290,9 @@
               "description": ""
             }
           ],
-          "answer": null,
+          "answer": "a",
           "chat_more": "",
-          "status": "unanswered"
+          "status": "answered"
         },
         {
           "id": "Q-10",
@@ -320,9 +320,9 @@
               "description": ""
             }
           ],
-          "answer": null,
+          "answer": "a",
           "chat_more": "",
-          "status": "unanswered"
+          "status": "answered"
         }
       ]
     },
@@ -356,9 +356,9 @@
               "description": ""
             }
           ],
-          "answer": null,
+          "answer": "a",
           "chat_more": "",
-          "status": "unanswered"
+          "status": "answered"
         },
         {
           "id": "Q-12",
@@ -386,9 +386,9 @@
               "description": ""
             }
           ],
-          "answer": null,
+          "answer": "a",
           "chat_more": "",
-          "status": "unanswered"
+          "status": "answered"
         },
         {
           "id": "Q-13",
@@ -416,9 +416,9 @@
               "description": ""
             }
           ],
-          "answer": null,
+          "answer": "a",
           "chat_more": "",
-          "status": "unanswered"
+          "status": "answered"
         },
         {
           "id": "Q-14",
@@ -446,9 +446,9 @@
               "description": ""
             }
           ],
-          "answer": null,
+          "answer": "a",
           "chat_more": "",
-          "status": "unanswered"
+          "status": "answered"
         }
       ]
     },
@@ -482,9 +482,9 @@
               "description": ""
             }
           ],
-          "answer": null,
+          "answer": "a",
           "chat_more": "",
-          "status": "unanswered"
+          "status": "answered"
         },
         {
           "id": "Q-16",
@@ -512,9 +512,9 @@
               "description": ""
             }
           ],
-          "answer": null,
+          "answer": "a",
           "chat_more": "",
-          "status": "unanswered"
+          "status": "answered"
         },
         {
           "id": "Q-17",
@@ -542,9 +542,9 @@
               "description": ""
             }
           ],
-          "answer": null,
+          "answer": "a",
           "chat_more": "",
-          "status": "unanswered"
+          "status": "answered"
         }
       ]
     },
@@ -578,9 +578,9 @@
               "description": ""
             }
           ],
-          "answer": null,
+          "answer": "a",
           "chat_more": "",
-          "status": "unanswered"
+          "status": "answered"
         },
         {
           "id": "Q-19",
@@ -608,9 +608,9 @@
               "description": ""
             }
           ],
-          "answer": null,
+          "answer": "a",
           "chat_more": "",
-          "status": "unanswered"
+          "status": "answered"
         },
         {
           "id": "Q-20",
@@ -638,9 +638,9 @@
               "description": ""
             }
           ],
-          "answer": null,
+          "answer": "a",
           "chat_more": "",
-          "status": "unanswered"
+          "status": "answered"
         }
       ]
     },
@@ -674,9 +674,9 @@
               "description": ""
             }
           ],
-          "answer": null,
+          "answer": "a",
           "chat_more": "",
-          "status": "unanswered"
+          "status": "answered"
         }
       ]
     },
@@ -710,9 +710,9 @@
               "description": ""
             }
           ],
-          "answer": null,
+          "answer": "a",
           "chat_more": "",
-          "status": "unanswered"
+          "status": "answered"
         },
         {
           "id": "Q-23",
@@ -740,9 +740,9 @@
               "description": ""
             }
           ],
-          "answer": null,
+          "answer": "a",
           "chat_more": "",
-          "status": "unanswered"
+          "status": "answered"
         }
       ]
     }
