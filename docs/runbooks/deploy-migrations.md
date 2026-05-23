@@ -211,12 +211,14 @@ pnpm db:migrate:staging
 
 This invokes the Pattern 3 wrapper — `scripts/with-deploy-creds.ps1 staging tsx node_modules/drizzle-kit/bin.cjs migrate`. The wrapper retrieves the password from SecretStore, materializes `DATABASE_URL` + `DIRECT_URL` for the child process only, and drizzle-kit reads the journal, computes the diff against `drizzle.__drizzle_migrations` on the target DB, and applies pending entries in order inside a single transaction (PostgreSQL DDL is transactional — a failure mid-migration rolls back all changes).
 
-Expected output on first run (Phase 4 first deploy applies 0005 + 0006 + 0007 if staging was already at journal entry 0004; on a virgin staging DB all 8 entries 0000-0007 apply):
+Expected output applies whichever entries in `drizzle/meta/_journal.json` are not yet present in the target's `drizzle.__drizzle_migrations` table. The journal currently has 10 entries (0000..0009). For example, a staging DB already at 0007 receiving the post-Phase-4 deploy-prep additions:
 
 ```text
 > drizzle-kit migrate
-3 migrations applied: 0005_initial_batch_jobs, 0006_rls_batch_jobs, 0007_ai_generations_audit_extensions
+2 migrations applied: 0008_rls_subquery_wrap, 0009_org_id_indexes
 ```
+
+On a virgin DB, all 10 entries 0000..0009 apply. The Phase-4 first-deploy window (0005..0007) is now historical — present-day deploys catch the target up to the journal HEAD regardless of starting point.
 
 (Note: drizzle-kit's exact phrasing may vary; the key signal is exit 0.)
 
@@ -239,7 +241,7 @@ Invokes `scripts/with-deploy-creds.ps1 staging tsx scripts/check-deploy-schema.t
 Expected output:
 
 ```text
-OK — deploy schema audit passed: 8 migrations applied, 11 tenant-scoped tables (RLS + policy + 4 GRANTs each), 2 service-role tables (no RLS), Phase 4 column shape + partial-unique index present, Phase 3 G3 + Phase 4 unique constraints present.
+OK — deploy schema audit passed: 10 migrations applied, 11 tenant-scoped tables (RLS + policy + 4 GRANTs each), 2 service-role tables (no RLS), Phase 4 column shape + partial-unique index present, Phase 3 G3 + Phase 4 unique constraints present.
 ```
 
 ### 3. Operator approval gate
@@ -285,10 +287,10 @@ After every successful prod migration, append to `.planning/STATE.md` (Session C
 - **Deploy migration YYYY-MM-DDTHH:MM:SSZ**: Applied drizzle/<N>..drizzle/<M> to staging at HH:MM (verify OK at HH:MM); applied to prod at HH:MM (verify OK at HH:MM). Operator: <name>. Migration types: <additive|destructive>. Notes: <any deviation or observation>.
 ```
 
-Example (Phase 4 first deploy, 2026-05-22):
+Example (most recent staging migration, drawn from `.planning/STATE.md` Session Continuity):
 
 ```markdown
-- **Deploy migration 2026-05-23T14:00:00Z**: Applied drizzle/0005..0007 to staging at 13:42Z (verify OK at 13:43Z); applied to prod at 14:00Z (verify OK at 14:01Z). Operator: matthewutt. Migration types: 0005/0006 additive + 0007 destructive (DROP COLUMN tokens_used — operator-approved 2026-05-21 per pre-paying-customer status). No app errors observed in 30-min staging soak.
+- **Deploy migration 2026-05-23T03:36Z**: Applied drizzle/0008..0009 to staging at 03:36Z (verify OK at 03:38Z); prod deferred pending Pro+PITR project provisioning per `.wiki/supabase/06-project-lifecycle.md`. Operator: matthewutt. Migration types: 0008 + 0009 additive (RLS initPlan subquery-wrap + btree(org_id) indexes per `.wiki/supabase` research). Notes: `wait-pooler-auth.ts` cleared a transient 28P01 in 2m1s between migrate and verify, confirming research finding #4 (multi-instance Supavisor cache lag in `aws-1-us-east-1`).
 ```
 
 This is the load-bearing audit trail for compliance + future-troubleshooting.
