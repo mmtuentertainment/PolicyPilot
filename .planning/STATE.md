@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: "Phase 05 (Employee Portal) PLANNED + EAPI-ADVISED 2026-05-23 on gsd/phase-5-employee-portal @ 1d78487. 10 plans across 5 waves shipped at 48d5398; EAPI Critical Path refinements (H-1/H-4/H-5/H-6) applied at 1d78487 — ts-morph gate strengthened against raw-SQL bypass class + reference/API-SPEC.md updated for additive `accessibility` field + 2 behavioral negative tests added to Plan 05-09 (H-5 pure-hallucination + H-6 runtime cross-org real-UUID). All 6 SPEC requirements + all 30 CONTEXT decisions + all 6 RESEARCH gaps covered. Plan-checker VERIFICATION PASSED + EAPI advisor 0 CRITICAL / 13 CONFIRMED-CORRECT / 4 of 6 HIGH closed in-plan (H-2 + H-3 + 6 MEDIUM + 2 ADVISORY carried forward). UI-SPEC intentionally skipped (CONTEXT.md locks all novel visual decisions). Next: `/gsd-execute-phase 5` in next session — Wave 1 (05-01 schema+migrations BLOCKING + 05-02 errors + 05-07 AckStatusBadge) executes first."
-last_updated: "2026-05-23T19:45:00.000Z"
+status: "Phase 05 (Employee Portal) EXECUTING — Plan 05-01 (schema migrations) code-complete 2026-05-23T23:30Z on gsd/phase-5-employee-portal @ 298cb59. Tasks 1+2+4 shipped (schema.ts UNIQUE adds + qaCitationGrants export, drizzle/0010+0011 migrations with operator-approval headers + wrapped-form RLS per RESEARCH gap-1, scripts/check-schema.ts extended with column+UNIQUE+wrapped-RLS assertions). DEV DB migrations APPLIED successfully — 12 migrations recorded + qa_citation_grants table + 3 new UNIQUE constraints all verified live. TEST DB BLOCKED on 28P01 pooler auth failure (10 consecutive failures over 8min — diagnostic via scripts/wait-pooler-auth.ts confirms genuine stale credential, NOT propagation lag). Operator must rotate TEST DB password (project qwtbbbjbxffioeeazxrw) and update .env.local before Task 3 step 2 + Task 4 live verification + Wave 2/4 plans can proceed. CREDENTIAL LEAK ALERT: TEST DB password exposed in chat transcript during diagnostic Read of .env.local.test — rotate during refresh. Wave 1 parallel plans (05-02 errors + 05-07 AckStatusBadge) are pure code with no DB dependency and can ship in parallel."
+last_updated: "2026-05-23T23:34:24.641Z"
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 50
-  completed_plans: 41
-  percent: 82
+  completed_plans: 42
+  percent: 84
 ---
 
 # STATE — PolicyPilot
@@ -31,8 +31,8 @@ GSD session state. Updated each time a phase or plan transitions. Source of trut
 
 ## Current Position
 
-Phase: 04 (AI Layer) — **SHIPPED 2026-05-22**
-Plan: 14 of 14 (all executed, verified, secured, UAT'd, shipped)
+Phase: 05 (Employee Portal) — EXECUTING
+Plan: 2 of 10
 Branch: `chore/phase-4-deploy-prep` (deploy-prep PR in flight off `main`)
 Main HEAD: `eda7bb4` (post-PR #17 one-shot cleanup)
 
@@ -88,6 +88,7 @@ Main HEAD: `eda7bb4` (post-PR #17 one-shot cleanup)
 | Acceptance criteria pending | 8 + 1 meta |
 
 ---
+| Phase 05 P01 | 16min | 4 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -122,12 +123,14 @@ Plan 02-01 (2026-05-17) execution decisions:
 - [x] Plan 02-05: svix install + Clerk webhook handler + middleware SF-M4 fold — **FULL completed 2026-05-17** (SUMMARY: `.planning/phases/02-data-layer/02-05-SUMMARY.md`). Commits `a9301b2` (svix@1.93.0 install + audit), `6ae44f5` (`app/api/webhooks/clerk/route.ts` — 264 lines: svix verify + req.text()-before-parse Pitfall 4 / clerk_events idempotency D-03b / 4 active events D-03 / 3 delete events log-only D-03c / asAppRole with `org:` prefix stripping / ADR-023 allow-list entry #1), `c39ea98` (middleware.ts SF-M4 fold — 2 try blocks / 2 catch blocks / admin-gate fail-closed to 404 / chokepoint fail-closed to /sign-in redirect). 309 lines / 1 new file + 3 modified. `pnpm tsc --noEmit` exits 0. SF-M4 FULLY CLOSED (both halves landed). 2 Rule-3 deviations (pre-existing esbuild audit from drizzle-kit transitive; plan verify regex window cosmetically tight). End-to-end Clerk webhook smoke deferred to Plan 02-06 operator human-verify.
 - [x] Plan 02-06: ts-morph + L-05 check-db-imports + L-06 check-rls + D-08 check-schema + verify:phase-2 wiring — **FULL completed 2026-05-18** (SUMMARY: `.planning/phases/02-data-layer/02-06-SUMMARY.md`). Commits `e160728` (ts-morph + env example), `c31d1c8` (check-db-imports.ts L-05), `a156dc5` (check-rls.ts L-06), `ff82746` (check-schema.ts D-08), `9888cf5` (orchestrator + artifacts + verify:phase-2). `pnpm verify:phase-2` exits 0 with 7/7 OK against live TEST DB (runtime ~22s); all 214 check-artifacts assertions pass. Task 6 (operator human-verify) APPROVED 2026-05-18 — `pnpm verify:phase-2` re-run by operator showed clean 7/7 OK after a transient pooler password-lookup lag on the first run cleared on retry. **End-to-end Clerk webhook live-smoke explicitly deferred to Phase 3** by operator decision (rationale: Phase 3 ships the `<CreateOrganization />` UI; live smoke is higher-fidelity then). Phase 2 ALL 6 PLANS COMPLETE.
 - [x] Plan 02-07: Code-review hotfix — CR-01 + HI-01 — **FULL completed 2026-05-18** (SUMMARY: `.planning/phases/02-data-layer/02-07-SUMMARY.md`). Commits `5bdcbf9` (CR-01: webhook handler mirrors `users.role` into Clerk `publicMetadata.role` via `clerkClient().users.updateUserMetadata` for the 3 role-affecting events — `user.created` writes default `employee`, `organizationMembership.created` writes narrowed `roleStr`, `organizationMembership.updated` writes narrowed `roleStr`; wrapped in best-effort try/catch so a Backend-API blip doesn't crash dispatch — D-04 dual-write now satisfied end-to-end) and `13a9a30` (HI-01: `middleware.ts:66` narrowing tightened from `{ role?: string }` to `{ role?: unknown }` + `typeof === 'string'` guard, matching the stricter contract in `lib/auth/context.ts:42` — both auth-read sites now share one shape). `pnpm tsc --noEmit` exits 0; `pnpm verify:phase-2` exits 0 with 7/7 OK. No deviations, no new packages, no `any` types introduced. Closes CR-01 + HI-01 from `.planning/phases/02-data-layer/02-REVIEW.md`.
+- [~] Plan 05-01: Schema migrations + check-schema.ts extension — **CODE-COMPLETE + DEV DB APPLIED 2026-05-23T23:30Z** (SUMMARY: `.planning/phases/05-employee-portal/05-01-schema-migrations-SUMMARY.md`). Tasks 1+2+4 commits `0552341` (schema.ts: 2 UNIQUE adds on acknowledgments + policy_assignments per D-06+D-15, brand-new qaCitationGrants pgTable export per D-29), `b54ff02` (drizzle/0010_phase5_uniques.sql + 0011_qa_citation_grants.sql + meta/0010+0011_snapshot.json + _journal.json — operator-approval headers cite Q-22(a)+Q-23(a) for 0010 and T-2(4c) for 0011; 0011 RLS uses post-0008 wrapped (SELECT auth.jwt()->>'org_id') form per RESEARCH gap-1; two-step Drizzle generation pattern collapsed adjective_noun intermediates into descriptive Phase-suffix journal tags), `298cb59` (check-schema.ts: 'qa_citation_grants' added to TENANT_TABLES + 3-UNIQUE assertion block + 5-column shape assertion + wrapped-RLS predicate assertion + 2-index assertion). DEV migration applied successfully — direct postgres-js probe confirms 12 migrations recorded + qa_citation_grants table + all 3 new constraints present. **Task 3 step 2 (TEST DB) + Task 4 live-verification BLOCKED on TEST DB 28P01 pooler auth failure**: scripts/wait-pooler-auth.ts ran 10 consecutive probes over 8min, all returned 28P01 — diagnostic confirms genuine stale credential (NOT propagation lag); REST endpoint returns 401 confirming TEST project is alive. **CREDENTIAL LEAK**: Diagnostic Read of .env.local.test exposed TEST DB password in chat transcript — rotate during refresh. 1 Rule-3 deviation: populated `.env.local.test` from `.env.local`'s `_TEST` vars via one-shot .tmp/ script (file gitignored at .gitignore:5; values never echoed). Staging+prod migration follow-up per CLAUDE.md Database Migration Discipline tracked in SUMMARY § User Setup Required.
 
 ### Blockers
 
 - **SF-DB-1 (CLOSED 2026-05-18)**: Operator populated `DATABASE_URL_TEST` + `DIRECT_URL_TEST` in `.env.local` before Plan 02-06 execution. Plan 02-06 orchestrator step 2 (`drizzle-kit migrate against TEST DB`) and steps 4-5 (`check-rls.ts` + `check-schema.ts`) all pass against the live TEST DB. The `.env.local.test` file was left as comments-only (placeholder workaround from Plan 02-03 SF-DB-1 deferral); the orchestrator's `checkMigrateTest` overrides `DATABASE_URL` + `DIRECT_URL` from the `_TEST` env vars via spawnSync's `env` field rather than relying on a second env file.
 - **SF-DB-2 (RESOLVED 2026-05-17)**: `DIRECT_URL` in `.env.local` updated from legacy IPv6-only `db.kdoahaxhmaftxaiwbtdw.supabase.co:5432` to Session-pooler form `aws-1-us-east-1.pooler.supabase.com:5432` (same hostname as DATABASE_URL, port 5432 instead of 6543, user pattern `postgres.<project_ref>`). `pnpm db:migrate` ran clean; live dev DB has all 12 tables + 10 RLS policies + 40 GRANTs + D-03a CHECK. Verification artifact at `.tmp/verify-dev-db.ts` (gitignored).
 - **SF-WHSEC-1**: The Clerk webhook signing secret (`whsec_...`) was pasted into the chat transcript during Plan 02-02 checkpoint resolution. Recommend rotating it via Svix Dashboard before Plan 02-05 testing reaches a real dev tunnel. One-click rotation; no code change required. Closed once rotation done.
+- TEST DB pooler auth gate (28P01) — Plan 05-01 Task 3 step 2 + Task 4 live verification blocked. Operator must rotate TEST DB credential (project qwtbbbjbxffioeeazxrw) and update .env.local. CREDENTIAL LEAK ALERT: TEST DB password was exposed in chat transcript during diagnostic Read of .env.local.test — rotate during the refresh. See 05-01-SUMMARY.md Issues Encountered for full triage.
 
 ### Phase 2 follow-ups (deferred — opportunistic cleanup)
 
