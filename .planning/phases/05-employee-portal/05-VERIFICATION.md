@@ -1,11 +1,16 @@
 ---
 phase: 05-employee-portal
 verified: 2026-05-24T07:00:00Z
-status: gaps_found
-score: 5/6 must-haves verified (5 SPEC SCs + ADR + REQ traceability all green; verify:phase-5 chain BLOCKED on Phase 3 test regression introduced by inline fast-follow fix)
+re_verified: 2026-05-24T07:05:00Z (gap closed by commit 4ce0cc9 — transitions test updated to assert post-DUP-VN-2 behavior; pnpm verify:phase-5 exits 0 end-to-end)
+status: passed
+score: 6/6 must-haves verified (6 SPEC SCs + ADR + REQ traceability all green; verify:phase-5 chain GREEN at HEAD)
 overrides_applied: 0
-gaps:
+gaps_resolved:
   - truth: "pnpm verify:phase-5 exits 0 end-to-end (CLAUDE.md ALWAYS rule #1 + ROADMAP Phase 5 ship gate)"
+    status: resolved
+    resolution: "Commit 4ce0cc9 `test(03-G3-followup): update transitions test for DUP-VN-2 fix (afb7693)` rewrote test at lib/policies/transitions.test.ts:194-218 to assert post-fix behavior (pvCreateMock NOT called, txUpdateMock still called). Re-ran: pnpm exec vitest run lib/policies/transitions.test.ts → 20/20 pass; pnpm verify:phase-5 → exits 0 end-to-end (chain green); pnpm tsc --noEmit → exits 0."
+gaps:
+  - truth: "(historical — superseded by re_verification at 2026-05-24T07:05Z; kept for audit)"
     status: failed
     reason: "verify:phase-5 chain step `pnpm verify:phase-4` → cascades through `pnpm test` → vitest reports 1 failed test in lib/policies/transitions.test.ts (test file: 1 failed / 27 passed; tests: 1 failed / 228 passed). Failing test: `editPublished (REQ-policy-lifecycle SC#3) > snapshots prior published content + resets status + bumps version` at lib/policies/transitions.test.ts:206. Root cause: the inline fast-follow fix `afb7693` (removing duplicate PolicyVersions.create from editPublished) updated production code in lib/policies/transitions.ts but did NOT update the corresponding test assertion. Verified by checkout of afb7693~1 -- lib/policies/transitions.ts and re-running vitest: 20/20 tests pass with pre-fix code (the editPublished test expected pvCreateMock.toHaveBeenCalledWith(...) which now correctly receives 0 calls because the snapshot moved into publish() exclusively). The Plan 05-10 SUMMARY's claim 'verify:phase-5 exits 0 in 92s' and 'AUTO-19 PASS' is FALSIFIED by current evidence — that claim was true at commit 81fa1ff (before the fast-follow fixes landed) but is no longer true at HEAD (commit 7c1c148)."
     artifacts:
