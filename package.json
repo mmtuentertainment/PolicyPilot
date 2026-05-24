@@ -45,7 +45,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verify:phase-3": "pnpm typecheck && pnpm check:db-imports && pnpm check:rls && pnpm check:auth-context && pnpm check:policies-list-filters && pnpm check:admin-routes && pnpm check:error-discipline && pnpm check:policy-id-brand && pnpm check:artifacts && pnpm test && node -e \"require('fs').rmSync('.tmp/svix-url.json', { force: true })\"",
-    "verify:phase-4": "pnpm verify:phase-3 && pnpm check:ai-prompts && pnpm check:ai-layer"
+    "verify:phase-4": "pnpm verify:phase-3 && pnpm check:ai-prompts && pnpm check:ai-layer",
+    "verify:phase-5": "pnpm verify:phase-4 && pnpm check:acknowledgment-immutability && pnpm check:acknowledgment-immutability:self-test && pnpm check:employee-portal"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.97.1",
