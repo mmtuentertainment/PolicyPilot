@@ -126,14 +126,12 @@ Added the verify:phase-5 chain target per CONTEXT.md § Test Strategy D-23 (Q-20
 
 **Approval signal:** Operator approved via `/chrome` interactive walkthrough on 2026-05-24T06:30Z — selecting "Fix QA-PARSER-FENCE inline + approve UAT" from the UAT close-out option set.
 
-**Original Status (now superseded):** AWAITING OPERATOR — 19 numbered checks per PLAN `<how-to-verify>` must be executed by operator against live `pnpm dev` server + Clerk dev session before Phase 5 can be declared ready for `/gsd-verify-work` + PR squash to main.
+**Why Task 2 required operator approval (rationale, retained for the record):**
+1. CLAUDE.md Validation Gate convention named this an operator-binding human gate (acceptance criteria lifted into the validation checklist verbatim — operator approval was the contract).
+2. Executor prompt explicitly required: *"DO NOT skip the UAT checkpoint even if --auto flag is set — operator approval is intent-explicit per CLAUDE.md ALWAYS rule for human-verify"*.
+3. The UAT covered 5 user-visible behaviors (R-1 / R-2 / R-3 / R-4 / R-6) + 1 admin behavior (bulk-assign with empty-dept disabled-button UX per D-14) + 1 cross-org isolation behavior (D-10 advertise-nothing) — automation could not evaluate visual styling (D-27a italics), copy-string verbatim (D-04a + D-27 banners), or React 19 useActionState happy-path UX (RESEARCH Pitfall 5 inline state-no-page-reload).
 
-**Why not auto-approved under `--auto`:**
-1. CLAUDE.md Validation Gate convention names this an operator-binding human gate (acceptance criteria lifted into the validation checklist verbatim — operator approval is the contract).
-2. Executor prompt explicitly states: *"DO NOT skip the UAT checkpoint even if --auto flag is set — operator approval is intent-explicit per CLAUDE.md ALWAYS rule for human-verify"*.
-3. The UAT covers 5 user-visible behaviors (R-1 / R-2 / R-3 / R-4 / R-6) + 1 admin behavior (bulk-assign with empty-dept disabled-button UX per D-14) + 1 cross-org isolation behavior (D-10 advertise-nothing) — automation cannot evaluate visual styling (D-27a italics), copy-string verbatim (D-04a + D-27 banners), or React 19 useActionState happy-path UX (RESEARCH Pitfall 5 inline state-no-page-reload).
-
-**UAT checklist** (operator runs from a live browser; resume signal: type `approved`):
+**UAT checklist** (executed 2026-05-24T06:30Z via `/chrome` interactive walkthrough — verdicts captured in scoreboard above):
 
 | # | Surface | Check | Locked-string source |
 | --- | --- | --- | --- |
@@ -160,13 +158,13 @@ Added the verify:phase-5 chain target per CONTEXT.md § Test Strategy D-23 (Q-20
 | **AUTO-18 (R-5)** | shell | `pnpm tsc --noEmit` exits 0 (tests/types.ts D-07 @ts-expect-error invariants still pass — append-only type-system layer preserved) | R-5 SPEC.md acceptance |
 | **AUTO-19 (SPEC AC-13)** | shell | `pnpm verify:phase-5` exits 0 — covers the 13th SPEC acceptance + R-5 full | SPEC AC-13 + R-5 |
 
-**Resume signal:** Operator types `approved` (case-insensitive) — Phase 5 moves to `/gsd-verify-work` + PR squash to main. If any check fails, operator describes specific step + failure mode (e.g., "EMP-8: copy says 'No policies' instead of D-04a verbatim string"), executor fixes pre-checkpoint, re-prompts.
+**Closure (2026-05-24T06:30Z):** Operator approved via `/chrome` walkthrough; 2 latent bugs surfaced (DUP-VN-2 `afb7693` Phase 3 + QA-PARSER-FENCE `6ac3e4e` Phase 4) were fixed inline and re-verified live before approval. Final scoreboard above is the canonical UAT record.
 
-**Auto-19 ground truth available now:** Task 1 already proved AUTO-19 (`pnpm verify:phase-5` exits 0) — that check is effectively pre-validated; the operator can confirm by re-running locally if desired. Same for AUTO-18 (`pnpm tsc --noEmit` exits 0 — proven during Task 1 verification).
+**AUTO-18 / AUTO-19 ground truth:** Task 1 pre-validated both gates (`pnpm tsc --noEmit` + `pnpm verify:phase-5` both exit 0); re-confirmed live during UAT close-out after the two inline bug fixes.
 
 ## Deviations from Plan
 
-None — Task 1 executed exactly as written (D-23 chain composition verbatim; insertion point preserved Phase 1-4 entries; runtime within margin of 90s target). Task 2 is correctly suspended at the human-verify gate per CLAUDE.md Validation Gate convention and the executor-prompt's explicit no-auto-approve directive.
+None — Task 1 executed exactly as written (D-23 chain composition verbatim; insertion point preserved Phase 1-4 entries; runtime within margin of 90s target). Task 2 was held at the human-verify gate per CLAUDE.md Validation Gate convention and the executor-prompt's explicit no-auto-approve directive; operator approval landed 2026-05-24T06:30Z.
 
 The only minor friction worth flagging for the operator: end-to-end runtime was 92s vs the 90s VALIDATION.md target. The 2-second overage is dominated by Anthropic-mocked vitest CJS-build startup time (~3-4s per integration script) — outside the chain's control. No action needed; documenting for the record only.
 

@@ -142,11 +142,11 @@ Each task was committed atomically on `gsd/phase-5-employee-portal`:
 
 ## User Setup Required
 
-**Operator must complete the TEST DB credential rotation described in Issues Encountered above before:**
-- Plan 05-01 Task 3 step 2 (`pnpm db:migrate:test`) can succeed
-- Plan 05-01 Task 4 live-DB verification (`pnpm exec tsx --env-file=.env.local scripts/check-schema.ts`) can succeed
-- Plan 05-08 + Plan 05-09 (Wave 4) CI gates that depend on TEST DB connectivity can succeed
-- `pnpm verify:phase-4` (the phase baseline gate from this plan's `<verification>` block) can succeed — it chains through `check:rls` and `check:schema` which both query TEST DB
+**Completed (2026-05-24):** Operator rotated TEST DB credentials per `docs/runbooks/deploy-migrations.md` § Rotation. Post-rotation re-runs succeeded for:
+- Plan 05-01 Task 3 step 2 (`pnpm db:migrate:test`) — exit 0
+- Plan 05-01 Task 4 live-DB verification (`pnpm exec tsx --env-file=.env.local scripts/check-schema.ts`) — exit 0
+- Plan 05-08 + Plan 05-09 (Wave 4) CI gates against live TEST DB — exit 0 (proven by Plan 05-10 `verify:phase-5` chain run)
+- `pnpm verify:phase-4` baseline gate chain (`check:rls` + `check:schema`) — exit 0
 
 **Operator must also complete the staging + prod migration follow-up per CLAUDE.md Database Migration Discipline:**
 - `pnpm db:migrate:staging` (then `pnpm db:verify:staging` exits 0)
