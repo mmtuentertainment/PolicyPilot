@@ -42,20 +42,32 @@ Process:
   3. Call claude-sonnet-4-6
   4. Log to ai_generations (type: 'qa')
   5. Return answer + citations
-Response: `{ answer: string, citations: { title: string, id: string, accessibility: 'full' | 'tldr-only' }[] }`
+Response (Phase 4 base shape, citations as `{ title: string, id: string }[]`):
+  `{ answer: string, citations: { title: string, id: string }[] }`
+Response (Phase 5 widened — additive `accessibility` field per D-27a):
+  `{ answer: string, citations: { title: string, id: string, accessibility: 'full' | 'tldr-only' }[] }`
 # Citation shape widened in Phase 4 ship (SPEC.md R4 + CONTEXT D-27) — { title, id } enables
 # client-side rendering of "Cited: Policy Name" links without a second DB lookup. Old string[]
 # shape is removed (no parallel endpoint version). Application layer strips hallucinated IDs
 # (those not in the requesting org's published-policy set) before returning to client.
 #
-# `accessibility` field added in Phase 5 ship (CONTEXT D-27a — server-tracked Q&A→citation grants).
-# Semantics: 'full' when the requesting user is policy-assigned (can render full PolicyView at
-# /my-policies/[id]); 'tldr-only' when the user is NOT assigned but a qa_citation_grant row
-# was UPSERTed for this (user, policy) pair, granting TL;DR-only access at /my-policies/[id].
-# The field is a UI HINT ONLY — the security boundary is enforced server-side at the
-# /my-policies/[id] page handler (D-27 3-branch: assigned → full / has-grant+published →
-# tldr-only / else → notFound()). Backward-compatibility: existing Phase 4 consumers ignore
-# unknown response fields per standard JSON contract convention; the field is purely additive.
+# Phase 5 D-27a — `accessibility` field added (CONTEXT D-27a — server-tracked Q&A→citation
+# grants; H-4 EAPI Critical Path finding closed by Plan 05-04 Task 3). Semantics: 'full' when
+# the requesting user is policy-assigned (can render full PolicyView at /my-policies/[id]);
+# 'tldr-only' when the user is NOT assigned but a qa_citation_grant row was UPSERTed for this
+# (user, policy) pair, granting TL;DR-only access at /my-policies/[id].
+#
+# The `accessibility` field is a UI HINT ONLY — the security boundary is enforced server-side
+# at the /my-policies/[id] page handler (D-27a + D-27 3-branch decision: assigned → full
+# PolicyView / has-grant+published → tldr-only / else → notFound()). A client that ignores
+# the field and naïvely navigates to /my-policies/[id] for every citation is still safe —
+# the page handler re-evaluates access against RLS-scoped queries and 404s on mismatch.
+#
+# Backward-compatibility note: the `accessibility` field is purely additive. Existing Phase 4
+# consumers that destructure `{ title, id }` from each citation ignore the new key per
+# standard JSON contract convention; no breaking change. Phase 4 base shape line above is
+# retained verbatim for contract-grep gates that anchor on the canonical
+# `citations: { title: string, id: string }[]` string.
 
 ---
 

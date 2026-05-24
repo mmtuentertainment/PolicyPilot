@@ -28,11 +28,35 @@ vi.mock('@/lib/auth/context', () => ({
 // Mock the Policies repository: listPublishedForOrg is the per-org library source.
 // D-41 invariant: validIds in route.ts MUST be derived from THIS query's result
 // inside the same withOrgScope closure.
+//
+// Phase 5 Plan 05-04 Task 2 — lib/ai/qa.ts::askQuestion calls
+// Policies.listAssignedAndPublishedForUser per D-27a to annotate each
+// citation's `accessibility` flag (UI hint only; security boundary is at
+// /my-policies/[id] page handler). Default mock returns [] — citations
+// therefore default to 'tldr-only' in test fixtures; individual tests
+// override when 'full' accessibility is exercised.
 // ============================================================================
 const mockListPublishedForOrg = vi.fn();
+const mockListAssignedAndPublishedForUser = vi.fn();
 vi.mock('@/lib/db/repositories/policies', () => ({
   Policies: {
     listPublishedForOrg: (...args: unknown[]) => mockListPublishedForOrg(...args),
+    listAssignedAndPublishedForUser: (...args: unknown[]) =>
+      mockListAssignedAndPublishedForUser(...args),
+  },
+}));
+
+// ============================================================================
+// Phase 5 Plan 05-04 Task 2 — Mock the QaCitationGrants repository.
+// askQuestion calls QaCitationGrants.upsert(s, { userId, policyId }) per D-26
+// for each parsed citation (post-validIds-filter per RESEARCH gap-3). The
+// repository write fires inside the same withOrgScope tx as the answer
+// computation — mocking here avoids touching the test's stub scope.tx.
+// ============================================================================
+const mockQaCitationGrantsUpsert = vi.fn();
+vi.mock('@/lib/db/repositories/qa_citation_grants', () => ({
+  QaCitationGrants: {
+    upsert: (...args: unknown[]) => mockQaCitationGrantsUpsert(...args),
   },
 }));
 
@@ -95,11 +119,21 @@ describe('POST /api/ai/qa — Sonnet 4.6 Q&A (SPEC R4)', () => {
     mockCreate.mockReset();
     mockGetOrgContext.mockReset();
     mockListPublishedForOrg.mockReset();
+    mockListAssignedAndPublishedForUser.mockReset();
     mockInsertAiGen.mockReset();
+    mockQaCitationGrantsUpsert.mockReset();
     // Defaults: any-authenticated user, one published policy, insert resolves.
     mockGetOrgContext.mockResolvedValue(ANY_AUTH_CTX);
     mockListPublishedForOrg.mockResolvedValue([policyFixture('policy-a', 'PTO Policy')]);
     mockInsertAiGen.mockResolvedValue([{ id: 'aigen_1' }]);
+    // Phase 5 D-27a defaults: user is NOT assigned to anything (each citation
+    // gets accessibility: 'tldr-only'). Individual tests override to exercise
+    // the 'full' branch.
+    mockListAssignedAndPublishedForUser.mockResolvedValue([]);
+    // Phase 5 D-26 default: grant UPSERT resolves to the inserted-row array
+    // (length 1 on fresh grant; askQuestion does not branch on this — the
+    // for-loop just iterates and writes).
+    mockQaCitationGrantsUpsert.mockResolvedValue([{ id: 'grant_1' }]);
   });
 
   // ==========================================================================
@@ -213,7 +247,24 @@ describe('POST /api/ai/qa — Sonnet 4.6 Q&A (SPEC R4)', () => {
     const res = await POST(makeReq());
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.citations).toEqual([{ title: 'Real', id: 'real-id' }]);
+    // Phase 5 Plan 05-04 D-27a — citations carry the additive `accessibility`
+    // field. Default test fixture has the user assigned to NOTHING (mock
+    // returns []) so each citation gets 'tldr-only'. The hallucinated `fake-id`
+    // is still stripped at the validIds-filter step inside parseQaResponse
+    // BEFORE accessibility annotation, so the assertion shape now includes
+    // the field but the SP-1 invariant (1 citation, not 2) is unchanged.
+    expect(body.citations).toEqual([
+      { title: 'Real', id: 'real-id', accessibility: 'tldr-only' },
+    ]);
+
+    // Phase 5 D-26 — exactly one grant UPSERT call per validIds-filtered
+    // citation (hallucinated 'fake-id' was stripped at parseQaResponse, NOT
+    // here; if grant-UPSERT ever iterates over the raw fence again, this
+    // assertion fails AND a foreign-org garbage row would land per RESEARCH
+    // gap-3).
+    expect(mockQaCitationGrantsUpsert).toHaveBeenCalledTimes(1);
+    const grantArgs = mockQaCitationGrantsUpsert.mock.calls[0][1];
+    expect(grantArgs).toEqual({ userId: 'user_1', policyId: 'real-id' });
   });
 
   // ==========================================================================
