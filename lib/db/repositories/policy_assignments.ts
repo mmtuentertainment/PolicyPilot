@@ -31,7 +31,29 @@ export const PolicyAssignments = {
         ),
       ),
 
-  create: (_s: OrgScope, _input: PolicyAssignmentCreateInput) => {
-    throw new Error('Not yet implemented — Phase 5 (Employee Portal — bulk assign)');
+  /**
+   * Phase 5 D-15 — bulk-assignment writer with DB-enforced idempotency.
+   * Returns the inserted array — length 1 on a fresh assignment, length 0
+   * on duplicate (the UNIQUE fired + ON CONFLICT DO NOTHING swallowed the
+   * row). Caller Server Action (Plan 05-06 bulkAssignToDepartmentAction)
+   * treats `length === 0` as "already assigned" silent success.
+   *
+   * orgId comes from OrgScope (NEVER from input — defense against
+   * cross-org writes; the composite FK on users(org_id, department_id) →
+   * departments(org_id, id) already blocks cross-org dept assignment at
+   * the Postgres level).
+   */
+  create: async (s: OrgScope, input: PolicyAssignmentCreateInput) => {
+    const inserted = await s.tx
+      .insert(policyAssignments)
+      .values({ ...input, orgId: s.orgId })
+      // D-15 — UNIQUE(policy_id, assignee_type, assignee_id) from migration
+      // 0010 fires. UNIQUE permits BOTH (user, X) and (department, X) rows
+      // for same policy (different assignee_type); D-01 SELECT DISTINCT
+      // dedupes at query time when a user is targeted both individually
+      // and via their department.
+      .onConflictDoNothing()
+      .returning();
+    return inserted;
   },
 };

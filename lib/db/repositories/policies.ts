@@ -19,8 +19,15 @@
 // s.tx.update(policies) + PolicyVersions.create() inside withOrgScope.
 import 'server-only';
 import type { OrgScope } from '@/lib/db/scoped';
-import { policies } from '@/lib/db/schema';
+import {
+  acknowledgments,
+  policies,
+  policyAssignments,
+  policyVersions,
+  users,
+} from '@/lib/db/schema';
 import { and, desc, eq, ilike, or, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import type { PolicyStatus } from '@/lib/policies/state-machine';
 import type { PolicyId } from '@/lib/policies/types';
 
@@ -81,6 +88,122 @@ export const Policies = {
           eq(policies.status, 'published'),
         ),
       ),
+
+  /**
+   * Phase 5 D-01..D-04 — Employee dashboard list. Returns every published
+   * policy assigned to the requesting user (directly via `assignee_type='user'`
+   * OR transitively via their department `assignee_type='department'`).
+   * Each row carries a 3-state `ackState` enum + `ackedAt` timestamp for
+   * the current version, sufficient for the AckStatusBadge render branches
+   * shipped in Plan 05-07.
+   *
+   * - SELECT DISTINCT dedupes when an admin targets the same user both
+   *   individually AND via their department for the same policy (D-15
+   *   schema permits both rows; D-01 collapses them at query time).
+   * - Dept-id resolved via inline sub-select per D-03 — no OrgContext
+   *   extension. Standard SQL `IN (NULL-returning subquery)` semantics
+   *   give a dept-less user (`users.department_id IS NULL`) zero
+   *   dept-level rows per D-02.
+   * - Two LEFT JOIN acknowledgments aliases per D-04:
+   *     - current_ack on the policies.current_version row → ackState='current'
+   *     - prior_ack on any DIFFERENT version row → ackState='stale'
+   *   CASE column collapses to a 3-state enum that the UI exhaustively
+   *   switches over (PolicyStatusBadge precedent — TS catches missing
+   *   cases at compile time).
+   *
+   * Cross-org defense (T-05-03-02): the dept-id sub-select includes
+   * `users.orgId = s.orgId` predicate — a malicious userId parameter from
+   * a different org returns NULL → `IN NULL` → row excluded. The composite
+   * FK on `users(org_id, department_id) → departments(org_id, id)` is the
+   * Postgres-level backstop. RLS is the last line of defense (ADR-019).
+   *
+   * Index path (Pitfall 7): the migration-0010 UNIQUE on
+   * acknowledgments(user_id, policy_id, policy_version_id) auto-creates a
+   * composite btree usable by BOTH join predicates — prior_ack uses
+   * (user_id, policy_id) which is a PREFIX of the unique index. No new
+   * index needed for Phase 5; Phase 8 dashboard query may revisit.
+   *
+   * No LIMIT clause — employee lists are bounded by the org's assignment
+   * count; pagination deferred to Phase 8 reporting.
+   *
+   * @param s - org-scoped transaction handle (ADR-023)
+   * @param userId - the employee whose dashboard is being rendered
+   * @returns Promise of rows shaped { id, title, category, currentVersion,
+   *   tldrSummary, ackState: 'none' | 'current' | 'stale', ackedAt: Date | null }
+   */
+  listAssignedAndPublishedForUser: async (s: OrgScope, userId: string) => {
+    // D-03 — inline sub-select for the requesting user's departmentId.
+    // OrgContext stays minimal (no departmentId field added). The orgId
+    // predicate locks the lookup to the requesting tenant (T-05-03-02).
+    const userDeptSubquery = sql`(SELECT ${users.departmentId} FROM ${users} WHERE ${users.id} = ${userId} AND ${users.orgId} = ${s.orgId})`;
+    // D-04 — two aliased joins on the same acknowledgments table.
+    const currentAck = alias(acknowledgments, 'current_ack');
+    const priorAck = alias(acknowledgments, 'prior_ack');
+    return s.tx
+      .selectDistinct({
+        id: policies.id,
+        title: policies.title,
+        category: policies.category,
+        currentVersion: policies.currentVersion,
+        tldrSummary: policies.tldrSummary,
+        ackState: sql<'none' | 'current' | 'stale'>`
+          CASE
+            WHEN ${currentAck.id} IS NOT NULL THEN 'current'
+            WHEN ${priorAck.id}   IS NOT NULL THEN 'stale'
+            ELSE 'none'
+          END`.as('ack_state'),
+        ackedAt: currentAck.acknowledgedAt,
+      })
+      .from(policies)
+      .innerJoin(
+        policyAssignments,
+        and(
+          eq(policyAssignments.policyId, policies.id),
+          eq(policyAssignments.orgId, s.orgId),
+          or(
+            and(
+              eq(policyAssignments.assigneeType, 'user'),
+              eq(policyAssignments.assigneeId, userId),
+            ),
+            and(
+              eq(policyAssignments.assigneeType, 'department'),
+              sql`${policyAssignments.assigneeId} = ${userDeptSubquery}`,
+            ),
+          ),
+        ),
+      )
+      .innerJoin(
+        policyVersions,
+        and(
+          eq(policyVersions.policyId, policies.id),
+          eq(policyVersions.versionNumber, policies.currentVersion),
+          eq(policyVersions.orgId, s.orgId),
+        ),
+      )
+      .leftJoin(
+        currentAck,
+        and(
+          eq(currentAck.userId, userId),
+          eq(currentAck.policyId, policies.id),
+          eq(currentAck.policyVersionId, policyVersions.id),
+        ),
+      )
+      .leftJoin(
+        priorAck,
+        and(
+          eq(priorAck.userId, userId),
+          eq(priorAck.policyId, policies.id),
+          // distinct from current — any prior-version ack
+          sql`${priorAck.policyVersionId} <> ${policyVersions.id}`,
+        ),
+      )
+      .where(
+        and(
+          eq(policies.orgId, s.orgId),
+          eq(policies.status, 'published'),
+        ),
+      );
+  },
 
   findById: (s: OrgScope, id: PolicyId) =>
     s.tx
