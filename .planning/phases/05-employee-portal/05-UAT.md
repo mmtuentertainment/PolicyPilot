@@ -154,6 +154,7 @@ blocked: 0
     - "Either: widen EditPublishedSchema to accept optional title/category and have editPublished() apply them (plus pass to publish() so v3 row has the new title)"
     - "Or: disable title/category inputs in editPublishedMode so admin can't be misled into thinking they're being saved"
   tracking_id: "WR-02"
+  github_issue: "https://github.com/mmtuentertainment/PolicyPilot/issues/28"
 
 - truth: "publish() post-commit Anthropic TL;DR regeneration succeeds without 400"
   status: failed
@@ -168,6 +169,7 @@ blocked: 0
     - "Reproduce in isolation: publish a policy with empty TipTap content and capture the exact Anthropic 400 payload to confirm the empty-body hypothesis"
     - "Decide: should empty-body policies skip the summary call, or should publish() return a soft warning to admin?"
   tracking_id: "WR-03"
+  github_issue: "https://github.com/mmtuentertainment/PolicyPilot/issues/29"
 
 # Non-defect testing-tooling note (informational; not a gap to fix in product code):
 # WR-01 — Chrome MCP `computer.left_click` (ref-based and coordinate-based) does NOT
