@@ -135,7 +135,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 - [ ] 05-04-orchestrators-PLAN.md — Wave 2: lib/policies/acknowledgment.ts (D-10a atomic withOrgScope wrapping read+lookup+INSERT + D-07/D-08 typed errors) + lib/ai/qa.ts (D-25 extraction preserving D-41/D-33c/WARNING-4 + D-26 grant UPSERT per RESEARCH gap-3 + D-27a accessibility flag) + app/api/ai/qa/route.ts refactored to thin wrapper
 - [ ] 05-05-employee-routes-PLAN.md — Wave 3: app/(employee)/layout.tsx + my-policies/page.tsx (replaces 03-G3 T9 stub; D-04a empty-state) + my-policies/[id]/page.tsx (D-27 3-branch access logic; D-27 banner) + acknowledgePolicyAction (D-05 IP capture + D-07/D-08 typed catch) + my-policies/ask/page.tsx + askQuestionAction + components/employee/AcknowledgeButton.tsx + AskQuestionForm.tsx (React 19 useActionState)
 - [ ] 05-06-admin-bulk-assign-PLAN.md — Wave 3: app/(admin)/policies/[id]/actions.ts bulkAssignToDepartmentAction + page.tsx renders PolicyAssignmentsPanel at bottom (D-13) + new components/admin/PolicyAssignmentsPanel.tsx (D-14 empty-dept disabled + tooltip; D-16 no Un-assign) + lib/db/repositories/departments.ts listAll method
-- [ ] 05-07-ack-status-badge-PLAN.md — Wave 3: components/policy/AckStatusBadge.tsx (D-11 className override on shadcn Badge — NOT new CVA variant; exhaustive switch on D-04 enum)
+- [x] 05-07-ack-status-badge-PLAN.md — Wave 3 *(hoisted to Wave 1 by planner since component has zero deps)*: components/policy/AckStatusBadge.tsx (D-11 className override on shadcn Badge — NOT new CVA variant; exhaustive switch on D-04 enum) ✓ 2026-05-24T01:39Z (commit `a685d69`; 58 lines; Server Component; three branches none→null, stale→amber outline Badge, current→green ✓ inline span; components/ui/badge.tsx UNCHANGED — D-11 invariant satisfied; all 11 acceptance criteria pass; tsc clean)
 - [ ] 05-08-ci-gates-PLAN.md — Wave 4: NEW scripts/check-acknowledgment-immutability.ts ts-morph gate (D-18) + NEW tests/fixtures/ack-mutation-attempt.ts negative-control (D-20) + check-rls.ts TENANT_TABLES extension (RESEARCH gap-2) + check-policy-id-brand.ts brand-targets extension (RESEARCH gap-4) + check-error-discipline.ts widening to lib/policies/** (D-30) + check-artifacts.ts Phase 5 block
 - [ ] 05-09-integration-test-PLAN.md — Wave 4: NEW scripts/check-employee-portal.test.ts integration test (D-22 raw postgres-js + D-23a Anthropic mock; R-1+R-3+R-4+R-6+AC-10 coverage) + 6 co-located vitest unit test files per D-21
 - [ ] 05-10-verify-chain-uat-PLAN.md — Wave 5: package.json verify:phase-5 chain (D-23) + end-to-end pnpm verify:phase-5 + operator UAT checkpoint (19 numbered checks across admin/employee surfaces)
@@ -192,7 +192,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 | 2. Data Layer | 7/7 | Complete | 2026-05-18 |
 | 3. Admin UI | 15/15 | Complete | 2026-05-20 |
 | 4. AI Layer | 0/0 | Not started | - |
-| 5. Employee Portal | 0/10 | Planned (10 plans drafted 2026-05-23) | - |
+| 5. Employee Portal | 3/10 | Executing — Wave 1 COMPLETE (05-01 schema + 05-02 errors + 05-07 AckStatusBadge); Wave 2 next | - |
 | 6. Billing | 0/0 | Not started | - |
 | 7. Crons + Email | 0/0 | Not started | - |
 | 8. Validation | 0/0 | Not started | - |
