@@ -108,7 +108,7 @@ Each task was committed atomically on `gsd/phase-5-employee-portal`:
 
 ## Decisions Made
 
-- **`.env.local.test` population approach** — operator left `.env.local.test` as a placeholder per Plan 02-06 SUMMARY (orchestrator overrode env via spawnSync). Plan 05-01 Task 3 step 2 requires `pnpm db:migrate:test` which reads `.env.local.test`; the file was populated from `.env.local`'s `DATABASE_URL_TEST` + `DIRECT_URL_TEST` via a one-shot tsx script (no secret echo). File is gitignored at `.gitignore:5`.
+- **TEST env-file population approach** — operator left the TEST env-file as a placeholder per Plan 02-06 SUMMARY (orchestrator overrode env via spawnSync). Plan 05-01 Task 3 step 2 requires the TEST DB migrate command which reads that env-file; it was populated from the local env-file's TEST-suffixed entries via a one-shot tsx script (no secret echo). The TEST env-file is gitignored. Rotation procedure documented in `docs/runbooks/deploy-migrations.md` § Rotation.
 - **Drizzle two-step generation workflow** — micromanaged `lib/db/schema.ts` to temporarily omit `qaCitationGrants` for 0010 generation, then restored for 0011 generation. Auto-generated adjective_noun SQL filenames discarded; final SQL bodies hand-written for both files; journal tags rewritten to descriptive Phase-suffix names. This was necessary because: (a) D-28 vs D-29 are explicitly separate migrations per CONTEXT.md; (b) Drizzle does not emit RLS DDL, so 0011 needs hand-appending of ENABLE RLS + CREATE POLICY + GRANT.
 - **Wrapped-form RLS in 0011** — per RESEARCH gap-1, the new tenant table starts at the post-0008 baseline. Unwrapped `auth.jwt()->>'org_id'` would (a) trigger splinter lint 0003_auth_rls_initplan and (b) per-row JWT eval would kill scale on the qa_citation_grants table (which scales linearly with employee × Q&A submissions × unique citations).
 
@@ -116,34 +116,29 @@ Each task was committed atomically on `gsd/phase-5-employee-portal`:
 
 ### Auto-fixed Issues
 
-**1. [Rule 3 - Blocking] Populated `.env.local.test` from `.env.local`'s `_TEST` env vars**
-- **Found during:** Task 3 step 2 (`pnpm db:migrate:test`)
-- **Issue:** `.env.local.test` was a documentation-only placeholder (SF-DB-1 deferral artifact from Plan 02-03); attempting `pnpm db:migrate:test` failed at drizzle-kit init with `DIRECT_URL or DATABASE_URL must be set`. Per CLAUDE.md ASK-FIRST rule #1, env var population isn't a new dependency — it's a runtime config requirement to execute the planned command.
-- **Fix:** Wrote `.tmp/populate-env-test.ts` (one-shot, deleted after run) that reads `DATABASE_URL_TEST` + `DIRECT_URL_TEST` from `.env.local` and writes them to `.env.local.test` as `DATABASE_URL` + `DIRECT_URL`. Values never printed to chat — only character-class metadata (length, charset) was inspected for diagnostic purposes.
-- **Files modified:** `.env.local.test` (gitignored at `.gitignore:5`, NOT committed)
-- **Verification:** Direct postgres-js probe with `--env-file=.env.local.test` confirmed populated values match `.env.local` source bytes; the auth failure that followed is NOT caused by population error (DEV DB connection works perfectly via same population script; TEST DB password is genuinely stale).
+**1. [Rule 3 - Blocking] TEST-DB env-file population required**
+- **Found during:** Task 3 step 2 (TEST DB migrate)
+- **Issue:** TEST-DB env-file was a documentation-only placeholder (SF-DB-1 deferral artifact from Plan 02-03); the planned migrate command needs an env-file present. Per CLAUDE.md ASK-FIRST rule #1, env-var population isn't a new dependency — it's a runtime config requirement to execute the planned command.
+- **Fix:** One-shot env-file population (helper script, deleted after run). Procedure documented in the team rotation runbook at `docs/runbooks/deploy-migrations.md`. Values were never printed to chat; the populated file is gitignored at `.gitignore:5` and NOT committed.
+- **Files modified:** TEST env-file (gitignored, NOT committed)
+- **Verification:** Direct DB probe confirmed populated values match source bytes; the auth failure that followed is NOT caused by population error (DEV DB connection works perfectly via the same driver; TEST DB credential was genuinely stale).
 - **Committed in:** No source-file commit (gitignored)
 
 ---
 
 **Total deviations:** 1 auto-fixed (1 blocking — Rule 3)
-**Impact on plan:** Population was necessary to execute the planned `pnpm db:migrate:test` command. No scope creep; .env.local.test file remained gitignored throughout.
+**Impact on plan:** Population was necessary to execute the planned TEST DB migrate command. No scope creep; the TEST env-file remained gitignored throughout.
 
 ## Issues Encountered
 
 ### Authentication gate: TEST DB password authentication failed (BLOCKING TASK 3 STEP 2 + TASK 4 LIVE-DB VERIFICATION)
 
-- **Symptom:** `pnpm db:migrate:test` exits 1 silently (drizzle-kit swallows the pg error); direct postgres-js probe surfaces `PostgresError [28P01]: password authentication failed for user "postgres"` against TEST DB (`postgres.qwtbbbjbxffioeeazxrw@aws-1-us-east-1.pooler.supabase.com:6543/postgres`).
-- **Diagnostic run:** `pnpm exec tsx --env-file=.env.local.test scripts/wait-pooler-auth.ts` completed 10 discovery probes over 8 minutes; ALL 10 returned 28P01; the script aborted at the Supavisor circuit-breaker trip threshold (10 errors / 150s). Per the script's documented diagnostic ladder, 10 consecutive 28P01s with no propagation transient indicates the credential is genuinely stale (NOT pooler-auth lag).
-- **Cross-validated:** DEV DB connection via the same population script + same postgres-js driver works perfectly — DEV migration applied successfully and live verification probe confirms 12 migrations recorded + qa_citation_grants table present + all 3 new constraints present. The auth failure is TEST-DB-specific.
-- **REST probe:** `HEAD https://qwtbbbjbxffioeeazxrw.supabase.co/rest/v1/` returns 401 — project is alive (a paused project would return 5xx or DNS-fail); only the postgres-role password is rejected.
-- **Root cause:** TEST DB postgres-role password in `.env.local` is no longer valid against the live Supabase TEST project. Most likely cause: operator rotated the TEST DB password in Supabase Dashboard at some point after the last successful Plan 02-06 verification (2026-05-18) and `.env.local` was not updated. (`.env.local` last modified 2026-05-22 02:53 — consistent with Phase 4 work that didn't exercise TEST DB.)
-- **CREDENTIAL-LEAK DISCLOSURE:** During diagnostic Read of `.env.local.test` (the file we populated to investigate the auth failure), the populated `DATABASE_URL` and `DIRECT_URL` containing the TEST DB password were exposed in the chat transcript. The credential is for the TEST project only (separate Supabase project `qwtbbbjbxffioeeazxrw`, NOT the production-bound `kdoahaxhmaftxaiwbtdw`). Recommend operator rotate it during the TEST DB credential refresh below. (See Memory: `secrets-never-in-chat`.)
-- **Operator action required (3 steps):**
-  1. Verify TEST DB password in Supabase Dashboard SQL Editor (project `qwtbbbjbxffioeeazxrw`). If SQL Editor login fails → rotate password via Supabase Dashboard → Project Settings → Database → Reset database password.
-  2. Update `.env.local` `DATABASE_URL_TEST` and `DIRECT_URL_TEST` lines with the new password (replace the 16-char alnum-only password segment between `postgres.qwtbbbjbxffioeeazxrw:` and `@aws-1-us-east-1.pooler.supabase.com`).
-  3. Wait ≥5 minutes for the Supavisor circuit breaker to reset (per `scripts/wait-pooler-auth.ts` docstring), then re-run: `pnpm exec tsx --env-file=.env.local .tmp/populate-env-test.ts` (recreate the helper or repopulate `.env.local.test` manually) → `pnpm db:migrate:test` → `pnpm exec tsx --env-file=.env.local scripts/check-schema.ts` to complete Plan 05-01 Task 3 step 2 + Task 4 live verification.
-- **Recovery script reusable:** The `.tmp/populate-env-test.ts` script was deleted after use; operator can either re-create it (it's ~20 lines and the logic is documented above) OR populate `.env.local.test` lines 24-25 manually with the new credential values.
+- **Symptom:** Planned TEST DB migrate command exits non-zero; direct DB probe surfaces `PostgresError [28P01]: password authentication failed`. Pooler-auth wait gate observed 10 consecutive auth failures with no propagation transient — indicates a genuinely stale credential, NOT pooler-auth lag.
+- **Cross-validated:** DEV DB connection works perfectly via the same driver — DEV migration applied successfully and live verification confirms 12 migrations + qa_citation_grants table + 3 new constraints present. Auth failure is TEST-DB-specific.
+- **REST probe:** Project is alive (returns 401, not DNS-fail or 5xx); only the postgres-role password is rejected.
+- **Root cause:** TEST DB postgres-role password in the local env-file was no longer valid against the live Supabase TEST project. Most likely cause: operator rotated the TEST DB password in Supabase Dashboard at some point after the last successful Plan 02-06 verification (2026-05-18) and the local env-file was not refreshed.
+- **Credential exposure (handled — see secure runbook):** During diagnostic file-Read of the populated TEST env-file, the stale TEST DB password was briefly surfaced in the chat transcript. Credential has since been rotated by the operator (see `.planning/STATE.md` Session Continuity 2026-05-24 entries). Specific endpoint identifiers, password-segment patterns, and rotation command snippets are **intentionally redacted from this SUMMARY**; the rotation procedure lives in `docs/runbooks/deploy-migrations.md` § Rotation section (added by PR #20 along with a 28P01 troubleshooting subsection). Memory rule applies: never echo/print/summarize secret values in committed artifacts; pointer-only references to the runbook.
+- **Operator action required:** Rotate both DEV + TEST credentials per `docs/runbooks/deploy-migrations.md` § Rotation, then re-run TEST DB migrate + `pnpm exec tsx --env-file=.env.local scripts/check-schema.ts` to complete Plan 05-01 Task 3 step 2 + Task 4 live verification. (STATE.md 2026-05-24 entries record the post-rotation runs that closed these gates against TEST DB.)
 
 ## User Setup Required
 

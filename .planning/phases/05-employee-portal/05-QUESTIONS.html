@@ -1274,7 +1274,7 @@
       try {
         if (!fileHandle) {
           fileHandle = await window.showSaveFilePicker({
-            suggestedName: '04-QUESTIONS.json',
+            suggestedName: '05-QUESTIONS.json',
             types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
           });
         }
@@ -1295,7 +1295,7 @@
     }
     // Fallback: trigger a download.
     downloadJson();
-    status.textContent = 'Downloaded — replace 04-QUESTIONS.json with the downloaded file';
+    status.textContent = 'Downloaded — replace 05-QUESTIONS.json with the downloaded file';
     status.className = 'save-status saved';
   }
 
@@ -1306,7 +1306,7 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = '04-QUESTIONS.json';
+    a.download = '05-QUESTIONS.json';
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
