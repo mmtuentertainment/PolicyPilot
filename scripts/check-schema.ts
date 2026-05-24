@@ -236,12 +236,19 @@ async function main(): Promise<void> {
         check: 'D-29 org_isolation policy exists',
         detail: `${grantPolicy.length} policy row(s) (expected 1)`,
       });
-    } else if (!grantPolicy[0]!.qual?.includes('(SELECT auth.jwt(')) {
-      failures.push({
-        table: 'qa_citation_grants',
-        check: 'D-29 RLS wrapped (SELECT auth.jwt()) form per RESEARCH gap-1',
-        detail: `qual=${grantPolicy[0]!.qual ?? '(null)'} — unwrapped auth.jwt() will trigger splinter lint and per-row JWT eval`,
-      });
+    } else {
+      // PG normalizes `(SELECT auth.jwt()->>'org_id')` to `( SELECT (auth.jwt() ->> 'org_id'::text))`
+      // with whitespace between `(` and `SELECT` and inner parens around auth.jwt(). The wrapped
+      // form is identified by BOTH `SELECT` and `auth.jwt(` substrings — the unwrapped form has
+      // `auth.jwt(` but NO `SELECT` keyword in the qual.
+      const qual = grantPolicy[0]!.qual ?? '';
+      if (!qual.includes('SELECT') || !qual.includes('auth.jwt(')) {
+        failures.push({
+          table: 'qa_citation_grants',
+          check: 'D-29 RLS wrapped (SELECT auth.jwt()) form per RESEARCH gap-1',
+          detail: `qual=${qual || '(null)'} — unwrapped auth.jwt() will trigger splinter lint and per-row JWT eval`,
+        });
+      }
     }
 
     // Phase 5 D-29 — assert qa_citation_grants indexes exist (RLS-predicate
