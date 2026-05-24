@@ -37,6 +37,8 @@
     "check:admin-routes": "tsx scripts/check-admin-routes.ts",
     "check:error-discipline": "tsx scripts/check-error-discipline.ts",
     "check:policy-id-brand": "tsx scripts/check-policy-id-brand.ts",
+    "check:acknowledgment-immutability": "tsx scripts/check-acknowledgment-immutability.ts",
+    "check:acknowledgment-immutability:self-test": "tsx scripts/check-acknowledgment-immutability.ts --self-test",
     "check:ai-prompts": "tsx scripts/check-ai-prompts.ts",
     "check:ai-layer": "tsx --env-file=.env.local node_modules/vitest/vitest.mjs run scripts/check-ai-layer.test.ts --config scripts/check-ai-layer.vitest.config.ts",
     "test": "vitest run",
