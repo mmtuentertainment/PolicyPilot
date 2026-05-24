@@ -53,22 +53,24 @@ requirements-completed:
 
 # Metrics
 duration: 16min (code) + 8min (wait-pooler discovery for TEST DB diagnostic) = ~24min wall
-completed: 2026-05-23
+completed: 2026-05-24 (code 2026-05-23; TEST DB live verification closed 2026-05-24 after operator credential rotation)
+status: completed
 ---
 
 # Phase 5 Plan 01: Schema Migrations Summary
 
-**Phase 5 schema delta landed in DEV DB — 2 additive UNIQUE constraints + new qa_citation_grants table with wrapped-form RLS — and audit script extended; TEST DB blocked by pooler auth gate awaiting operator credential rotation.**
+**Phase 5 schema delta landed in DEV DB + TEST DB — 2 additive UNIQUE constraints + new qa_citation_grants table with wrapped-form RLS — and audit script extended. TEST DB pooler-auth gate closed 2026-05-24 after operator credential rotation; post-rotation migrate + check-schema runs exit 0.**
 
 ## Performance
 
 - **Duration:** ~16 min code execution + 8 min wait-pooler discovery for TEST DB diagnostic
 - **Started:** 2026-05-23T23:14Z (approximate — first commit landed within minutes of context load)
 - **Completed (code):** 2026-05-23T23:30:47Z
-- **Tasks:** 4 / 4 code-complete; Task 3 step 2 (TEST DB) + Task 4 live verification AWAIT operator TEST-DB credential rotation
+- **Completed (TEST DB closure):** 2026-05-24 (operator credential rotation + post-rotation re-runs)
+- **Tasks:** 4 / 4 complete (Task 3 step 2 + Task 4 live verification closed 2026-05-24 after operator credential rotation)
 - **Files modified:** 3 modified (lib/db/schema.ts, drizzle/meta/_journal.json, scripts/check-schema.ts) + 4 created (0010 + 0011 SQL + 0010 + 0011 snapshot JSONs)
 - **DEV DB:** Migrations applied successfully; all 3 new constraints + qa_citation_grants table verified live
-- **TEST DB:** 28P01 password authentication failed — operator action required
+- **TEST DB:** Closed 2026-05-24 — operator rotated credentials per runbook; post-rotation `pnpm db:migrate:test` + `pnpm exec tsx --env-file=.env.local scripts/check-schema.ts` both exit 0
 
 ## Accomplishments
 
@@ -87,10 +89,10 @@ Each task was committed atomically on `gsd/phase-5-employee-portal`:
 1. **Task 1: Extend lib/db/schema.ts** — `0552341` (feat) — 1 file changed, 62 insertions, 1 deletion
 2. **Task 2: Write 0010 + 0011 SQL + snapshot metadata + journal entries** — `b54ff02` (feat) — 5 files changed, 2837 insertions
 3. **Task 3 step 1: Apply migrations to DEV DB** — no source-file commit (runtime DB operation only); verified live via direct postgres-js probe showing 12 migrations recorded + all 3 constraints present + qa_citation_grants table present
-4. **Task 3 step 2: Apply migrations to TEST DB** — BLOCKED on operator action (see Issues Encountered)
-5. **Task 4: Extend scripts/check-schema.ts** — `298cb59` (feat) — 1 file changed, 111 insertions, 1 deletion (live-DB verification step deferred per Task 3 step 2 blocker)
+4. **Task 3 step 2: Apply migrations to TEST DB** — closed 2026-05-24 (operator rotated credentials; post-rotation `pnpm db:migrate:test` exit 0)
+5. **Task 4: Extend scripts/check-schema.ts** — `298cb59` (feat) — 1 file changed, 111 insertions, 1 deletion (live-DB verification closed 2026-05-24 against TEST DB after operator credential rotation)
 
-**Plan metadata:** _(this SUMMARY.md commit pending — final metadata commit will land after STATE.md + ROADMAP.md updates)_
+**Plan metadata:** _(SUMMARY committed alongside Plan 05-01 ship; subsequent CR review-cycle doc fixes in 4e171c5 + 3b2247b + this commit)_
 
 ## Files Created/Modified
 
@@ -161,20 +163,20 @@ These are operator-gated migrations OUT OF SCOPE for `/gsd-execute-phase` per CL
 - Schema delta committed and live in DEV DB → unblocks Plan 05-03 (`Acknowledgments.record` + `PolicyAssignments.create` + `QaCitationGrants.upsert` repository bodies use `$inferInsert` types resolved against the new exports)
 - `qaCitationGrants` Drizzle export available for Plan 05-04 (`askQuestion` orchestrator UPSERTs grant rows)
 - 3 UNIQUE constraints live in DEV → unblocks Plan 05-03 `ON CONFLICT DO NOTHING` semantics for all three idempotent writes
-- `scripts/check-schema.ts` extended → ready to fire positive once TEST DB unblocks
+- `scripts/check-schema.ts` extended → fires positive against live TEST DB after 2026-05-24 credential rotation (verified by `pnpm verify:phase-5` chain run in Plan 05-10)
 
 **Wave 1 parallel plans NOT BLOCKED by Plan 05-01:**
 - Plan 05-02 (`lib/policies/errors.ts`) — pure code, no DB dependency
 - Plan 05-07 (`components/policy/AckStatusBadge.tsx`) — pure UI, no DB dependency
-- Both can execute immediately after this SUMMARY commits
+- Both executed after this SUMMARY committed
 
-**Wave 2 readiness (blocked on Plan 05-01 TEST DB completion AND Plan 05-02 + 05-03 + 05-04 ship):**
+**Wave 2 readiness:** unblocked 2026-05-24 once TEST DB credentials rotated + verification gates closed; Plans 05-02 + 05-03 + 05-04 shipped as planned.
 - Plan 05-03 (repositories) — schema deltas in place; depends on Plan 05-02 errors for `PolicyArchivedError` import
 - Plan 05-04 (orchestrators) — depends on Plan 05-03 repository methods
 
 **Blockers:**
-- Operator TEST DB credential rotation (see Issues Encountered)
-- Operator staging + prod migration application (out of scope; tracked as follow-up)
+- ~~Operator TEST DB credential rotation~~ — closed 2026-05-24 (see Issues Encountered § Resolution)
+- Operator staging + prod migration application for 0010 + 0011 (out of scope for Plan 05-01; pending PR #27 squash-merge to main)
 
 ## Threat Flags
 
@@ -187,4 +189,4 @@ All 8 claimed files exist on disk. All 3 task commit hashes (0552341, b54ff02, 2
 ---
 
 *Phase: 05-employee-portal*
-*Completed: 2026-05-23 (code) — DB live verification pending operator TEST DB credential rotation*
+*Completed: 2026-05-24 — code shipped 2026-05-23; TEST DB live verification closed 2026-05-24 after operator credential rotation*
