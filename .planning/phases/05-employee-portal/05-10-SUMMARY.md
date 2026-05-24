@@ -34,9 +34,10 @@ decisions:
   - No additional gates beyond D-23 specification (per plan action "DO NOT add additional gates not specified in D-23")
   - Task 2 (UAT) deliberately blocks phase-closeout per CLAUDE.md Validation Gate convention — operator approval is intent-explicit even under `--auto`
 metrics:
-  duration: ~3min (Task 1 wire+verify; Task 2 pending operator UAT)
+  duration: ~3min (Task 1 wire+verify) + interactive /chrome UAT walkthrough; Task 2 operator-approved 2026-05-24T06:30Z
   completed: 2026-05-24T06:30Z (Task 1 + Task 2 + 2 inline bug fixes complete)
   verify_phase_5_runtime_seconds: 92
+  operator_approved: 2026-05-24T06:30Z
 ---
 
 # Phase 5 Plan 10: Verify Chain + Operator UAT Summary
