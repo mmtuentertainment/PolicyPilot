@@ -41,6 +41,7 @@
     "check:acknowledgment-immutability:self-test": "tsx scripts/check-acknowledgment-immutability.ts --self-test",
     "check:ai-prompts": "tsx scripts/check-ai-prompts.ts",
     "check:ai-layer": "tsx --env-file=.env.local node_modules/vitest/vitest.mjs run scripts/check-ai-layer.test.ts --config scripts/check-ai-layer.vitest.config.ts",
+    "check:employee-portal": "tsx --env-file=.env.local node_modules/vitest/vitest.mjs run scripts/check-employee-portal.test.ts --config scripts/check-employee-portal.vitest.config.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "verify:phase-3": "pnpm typecheck && pnpm check:db-imports && pnpm check:rls && pnpm check:auth-context && pnpm check:policies-list-filters && pnpm check:admin-routes && pnpm check:error-discipline && pnpm check:policy-id-brand && pnpm check:artifacts && pnpm test && node -e \"require('fs').rmSync('.tmp/svix-url.json', { force: true })\"",
