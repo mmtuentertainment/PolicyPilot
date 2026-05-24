@@ -1,0 +1,64 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-05-24T16:47:40.532Z",
+  "phase": "05",
+  "phase_name": "employee-portal",
+  "phase_dir": ".planning/phases/05-employee-portal",
+  "plan": 10,
+  "task": "post-ship-review-complete",
+  "total_tasks": 10,
+  "status": "paused-awaiting-operator-decisions",
+  "rehydrate_directive": "ULTRATHINK on resume. Read the Recommended Action queue in .planning/phases/05-employee-portal/.continue-here.md and reason deeply about ordering, bundling, and trade-offs BEFORE executing any step. Specifically: (a) migration-vs-merge ordering per CLAUDE.md Database Migration Discipline — staging+prod migrate may need to come BEFORE the squash-merge if main auto-deploys to Vercel; (b) bundling decisions for Fast-follow #1 (error-handling + schema.ts count fix); (c) parametrize-now vs defer-to-cleanup-cron for #5 (qa_citation_grants immutability gate). Don't execute mechanically. The review verdict is in .planning/reports/20260524-phase-5-ship-review-report.md.",
+  "branch": "gsd/phase-5-employee-portal",
+  "head_commit": "b5fc134da0c658f63f159b5a997a019de4e34f5f",
+  "pr": {
+    "number": 27,
+    "state": "OPEN",
+    "review_decision": "APPROVED",
+    "merge_state_status": "CLEAN",
+    "mergeable": "MERGEABLE",
+    "url": "https://github.com/mmtuentertainment/PolicyPilot/pull/27",
+    "cr_rounds_closed": 4,
+    "cr_rounds_commits": ["e997e70", "4e171c5", "3b2247b", "b5fc134"]
+  },
+  "completed_tasks": [
+    {"id": "phase-5-all-plans", "name": "Phase 5 Plans 05-01..05-10 all complete", "status": "done"},
+    {"id": "phase-5-verify", "name": "verify:phase-5 chain green (92s, 4/4)", "status": "done"},
+    {"id": "phase-5-uat", "name": "Operator UAT via /chrome: 18 PASS + 1 PASS-with-finding", "status": "done", "commit": "7c1c148"},
+    {"id": "uat-fast-follow-1", "name": "DUP-VN-2 fix (Phase 3 editPublished dup snapshot)", "status": "done", "commit": "afb7693"},
+    {"id": "uat-fast-follow-2", "name": "QA-PARSER-FENCE fix (Phase 4 parser whitespace tolerance)", "status": "done", "commit": "6ac3e4e"},
+    {"id": "pr-27-open", "name": "PR #27 opened + Phase 5 ship commit", "status": "done", "commit": "6bf720a"},
+    {"id": "cr-round-1", "name": "CR round-1 fixes (credential redaction + Task 2 contradiction + 04→05 filename)", "status": "done", "commit": "e997e70"},
+    {"id": "cr-round-2", "name": "CR round-2 closure (05-01 stale operator-action + 05-10 frontmatter)", "status": "done", "commit": "4e171c5"},
+    {"id": "cr-round-3", "name": "CR round-3 closure (residual waiting/pending language)", "status": "done", "commit": "3b2247b"},
+    {"id": "cr-round-4", "name": "CR round-4 sweep (05-01 status fields finalized to 2026-05-24)", "status": "done", "commit": "b5fc134"},
+    {"id": "multi-agent-review", "name": "4-agent human-level review (code + silent-failure + tests + comments)", "status": "done", "note": "Synthesis in .planning/reports/20260524-phase-5-ship-review-report.md"}
+  ],
+  "remaining_tasks": [
+    {"id": "ra-1", "name": "Squash-merge PR #27 to main", "status": "pending_operator_decision", "depends_on": "ULTRATHINK migration-vs-merge ordering"},
+    {"id": "ra-2", "name": "Apply 0010 + 0011 to staging then prod via runbook", "status": "pending_operator_action", "note": "Both additive — no ASK-FIRST needed"},
+    {"id": "ra-3", "name": "Fast-follow #1: hoist getOrgContext outside try in both employee Server Actions + add console.error breadcrumbs + Error fallthrough branch in ask action + fix lib/db/schema.ts:1 table count (13→14, 11→12)", "status": "queued", "size": "~15 lines, single commit"},
+    {"id": "ra-4", "name": "Fast-follow #2: comment metadata sweep (5 future-tense plan refs → past tense + 3 stale line refs)", "status": "queued", "size": "~6 file edits"},
+    {"id": "ra-5", "name": "Phase 7+ obligation: parametrize check-acknowledgment-immutability.ts to also gate qa_citation_grants OR document deferred decision in 05-CONTEXT.md", "status": "queued", "trade_off": "parametrize-now (small change, big safety) vs defer-to-cleanup-cron-landing"},
+    {"id": "ra-6", "name": "Test polish: toHaveBeenCalledTimes(N) on QaCitationGrants.upsert + PolicyAssignmentsPanelForm.test.tsx for D-14", "status": "queued", "size": "low urgency"}
+  ],
+  "blockers": [],
+  "human_actions_pending": [
+    {"action": "Decide migration-vs-merge ordering", "context": "Per CLAUDE.md Database Migration Discipline: deploy code AFTER schema verify exit 0. If main auto-deploys to Vercel, migrate prod first; if manual deploy, order is flexible. Operator knows the deploy topology.", "blocking": true},
+    {"action": "Run staging + prod migration sequence", "context": "Pattern 3 wrapper (PowerShell SecretStore). Operator-only — credentials never transit chat.", "blocking": true},
+    {"action": "Append audit log to STATE.md Session Continuity per docs/runbooks/deploy-migrations.md § Audit log template", "context": "Required by Database Migration Discipline; one-line entry per env", "blocking": false},
+    {"action": "Squash-merge gh pr merge 27 --squash --delete-branch", "context": "Phase 5 ship — single squash commit per CLAUDE.md Git Workflow", "blocking": false},
+    {"action": "Decide bundling for Fast-follow #1: include schema.ts count fix? Y (same correctness sweep). Include any test polish? N (different concern).", "context": "ra-3 + ra-4 + ra-6 could collide if poorly scoped; ultrathink scope discipline", "blocking": false},
+    {"action": "Decide parametrize-now vs defer for ra-5 (qa_citation_grants immutability gate)", "context": "Small change, significant safety benefit — but adds scope to a maintenance area that may not need it yet", "blocking": false}
+  ],
+  "decisions": [
+    {"decision": "Multi-agent human-level review on top of CR APPROVAL", "rationale": "Operator-requested deeper second pass after CR's 4 rounds of doc-polish; surfaced 3 Important + ~10 Suggestions that CR did not flag — particularly the BootstrapError mapping gap (I-2) and the qa_citation_grants gate gap (I-3) which are architecturally substantive", "phase": "05"},
+    {"decision": "Review verdict: ZERO blocking; PR #27 ready to squash-merge as-is", "rationale": "All Phase 5 invariants (D-27 BOLA, R-6 cross-org grants, ADR-018 3-layer enforcement) verified intact; all 4 agents converged on no Critical findings; UAT 18/19 + verify:phase-5 green", "phase": "05"},
+    {"decision": "All findings deferred to post-merge fast-follows", "rationale": "Findings are quality improvements (error-handling consistency, comment metadata drift, test regression-locks, schema-level gate extension) — none gate ship; bundling discipline preserves PR scope hygiene per Phase 3 PR #5 precedent", "phase": "05"}
+  ],
+  "uncommitted_files": [
+    {"path": "Designprototypes/", "type": "untracked_directory", "note": "Single HTML file (operator design exploration); pre-existing across recent sessions; non-GSD, leave alone"}
+  ],
+  "next_action": "On resume: ULTRATHINK the Recommended Action queue at .planning/phases/05-employee-portal/.continue-here.md. The 6-item list embeds trade-offs that need deep reasoning before execution. Specifically: migration ordering, fast-follow bundling, and the parametrize-now decision for #5.",
+  "context_notes": "This session ran the full 4-agent pr-review-toolkit review pattern (code-reviewer + silent-failure-hunter + pr-test-analyzer + comment-analyzer) on PR #27 head b5fc134 AFTER CodeRabbit approved across 4 rounds. The agents converged on zero blocking issues but surfaced 3 Important + ~10 Suggestions worth of architectural polish. Mental model going into the next session: 'PR #27 is mergeable as-is; the review is forward-looking for the next polish cycle, not a gate'. Architecture verified intact: D-27 BOLA boundary atomic, R-6 cross-org grant safety via same-closure validIds, ADR-018 3-layer defense (type + ts-morph w/ raw-SQL Sub-pass 2 + future REVOKE)."
+}
