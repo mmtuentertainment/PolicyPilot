@@ -74,12 +74,23 @@ vi.mock('@/lib/db/repositories/policies', () => ({
   Policies: { updateDraft: (...args: unknown[]) => updateDraftMock(...args) },
 }));
 
+// Phase 5 Plan 05-06: PolicyAssignments.create — called by
+// bulkAssignToDepartmentAction. Default impl returns [] (matches the
+// repository's ON CONFLICT DO NOTHING empty-RETURNING shape per D-15).
+const policyAssignmentsCreateMock = vi.fn();
+vi.mock('@/lib/db/repositories/policy_assignments', () => ({
+  PolicyAssignments: {
+    create: (...args: unknown[]) => policyAssignmentsCreateMock(...args),
+  },
+}));
+
 import { IllegalTransitionError } from '@/lib/policies/state-machine';
 import {
   publishAction,
   editPublishedAction,
   submitForReviewAction,
   updateDraftAction,
+  bulkAssignToDepartmentAction,
 } from './actions';
 
 beforeEach(() => {
@@ -88,6 +99,11 @@ beforeEach(() => {
   submitForReviewMock.mockReset();
   updateDraftMock.mockReset();
   updateDraftMock.mockImplementation(async () => []);
+  policyAssignmentsCreateMock.mockReset();
+  // Default: empty RETURNING (matches PolicyAssignments.create's ON CONFLICT
+  // DO NOTHING silent-success shape per Plan 05-03 D-15). Per-test cases
+  // can override via .mockResolvedValueOnce / .mockRejectedValueOnce.
+  policyAssignmentsCreateMock.mockResolvedValue([]);
   revalidateMock.mockClear();
 });
 
@@ -324,5 +340,131 @@ describe('updateDraftAction empty-patch rejection', () => {
     ];
     expect(calledPolicyId).toBe(POLICY_ID);
     expect(calledPatch).toEqual({ title: 'New Title' });
+  });
+});
+
+// ─── Phase 5 Plan 05-06 — bulkAssignToDepartmentAction ─────────────────
+// Closes the gsd-validate-phase 5 PARTIAL gap (2026-05-24): the Server
+// Action wrapper for PolicyAssignments.create was previously untested at
+// the unit layer. The repository itself + the integration test in
+// scripts/check-employee-portal.test.ts (R-4 block) cover behavioral
+// correctness; these tests pin the wrapper's Zod boundary, scope
+// stamping, revalidate fan-out, and unexpected-error envelope.
+//
+// Coverage:
+//   - Missing policyId/departmentId → INVALID_PAYLOAD (no create, no revalidate)
+//   - Non-UUID policyId → INVALID_PAYLOAD
+//   - Non-UUID departmentId → INVALID_PAYLOAD
+//   - Happy path: PolicyAssignments.create called with full args + 2 revalidates
+//     (proves D-15 fan-out: /policies/[id] AND /my-policies, NOT Phase 3's
+//     /policies + /dashboard set — distinct because bulk-assign isn't a
+//     state-machine path)
+//   - assignedBy stamped from scope.userId (asserted in happy path)
+//   - Idempotent success: PolicyAssignments.create returns [] (ON CONFLICT
+//     DO NOTHING empty RETURNING) — wrapper still returns { ok: true } per
+//     D-15 admin-double-click-safe semantics
+//   - Unexpected repository throw → { ok: false, error: 'Failed to assign...' }
+//     (proves NO handleTransitionError invocation — bulk-assign doesn't
+//     flow through state-machine so IllegalTransitionError is not an
+//     expected error class per Plan 05-06 D-15)
+describe('bulkAssignToDepartmentAction (Phase 5 Plan 05-06 D-13..D-15)', () => {
+  const POLICY_ID = '00000000-0000-4000-8000-000000000001';
+  const DEPT_ID = '00000000-0000-4000-8000-0000000000ab';
+
+  it('returns INVALID_PAYLOAD when policyId is missing', async () => {
+    const result = await bulkAssignToDepartmentAction(
+      undefined,
+      fd({ departmentId: DEPT_ID }),
+    );
+    expect(result).toEqual({ ok: false, error: 'Invalid action payload.' });
+    expect(policyAssignmentsCreateMock).not.toHaveBeenCalled();
+    expect(revalidateMock).not.toHaveBeenCalled();
+  });
+
+  it('returns INVALID_PAYLOAD on non-UUID policyId', async () => {
+    const result = await bulkAssignToDepartmentAction(
+      undefined,
+      fd({ policyId: 'not-a-uuid', departmentId: DEPT_ID }),
+    );
+    expect(result).toEqual({ ok: false, error: 'Invalid action payload.' });
+    expect(policyAssignmentsCreateMock).not.toHaveBeenCalled();
+    expect(revalidateMock).not.toHaveBeenCalled();
+  });
+
+  it('returns INVALID_PAYLOAD on non-UUID departmentId', async () => {
+    const result = await bulkAssignToDepartmentAction(
+      undefined,
+      fd({ policyId: POLICY_ID, departmentId: 'd1' }),
+    );
+    expect(result).toEqual({ ok: false, error: 'Invalid action payload.' });
+    expect(policyAssignmentsCreateMock).not.toHaveBeenCalled();
+    expect(revalidateMock).not.toHaveBeenCalled();
+  });
+
+  it('happy path: calls PolicyAssignments.create with assigneeType=department + assignedBy=scope.userId, then revalidates /policies/[id] + /my-policies', async () => {
+    const result = await bulkAssignToDepartmentAction(
+      undefined,
+      fd({ policyId: POLICY_ID, departmentId: DEPT_ID }),
+    );
+    expect(result).toEqual({ ok: true });
+
+    expect(policyAssignmentsCreateMock).toHaveBeenCalledTimes(1);
+    // Args: (scope, { policyId, assigneeType, assigneeId, assignedBy })
+    const [scope, payload] = policyAssignmentsCreateMock.mock.calls[0] as [
+      { userId: string; orgId: string },
+      { policyId: string; assigneeType: string; assigneeId: string; assignedBy: string },
+    ];
+    expect(scope.userId).toBe('user_1');
+    expect(scope.orgId).toBe('org_1');
+    expect(payload).toEqual({
+      policyId: POLICY_ID,
+      assigneeType: 'department',
+      assigneeId: DEPT_ID,
+      assignedBy: 'user_1', // stamped from scope, not from FormData
+    });
+
+    // D-15 revalidate set is distinct from Phase 3's revalidateAfter helper:
+    // /policies/[id] (panel re-render) + /my-policies (assignee dashboard).
+    expect(revalidateMock).toHaveBeenCalledWith(`/policies/${POLICY_ID}`);
+    expect(revalidateMock).toHaveBeenCalledWith('/my-policies');
+    expect(revalidateMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('idempotent success: empty RETURNING from ON CONFLICT DO NOTHING still returns { ok: true } per D-15 admin-double-click-safe', async () => {
+    // Default mock already returns [] — explicit here for documentation
+    // purposes (matches PolicyAssignments.create's silent-success shape
+    // when the UNIQUE (policy_id, assignee_type, assignee_id) constraint
+    // from migration 0010 fires on duplicate).
+    policyAssignmentsCreateMock.mockResolvedValueOnce([]);
+    const result = await bulkAssignToDepartmentAction(
+      undefined,
+      fd({ policyId: POLICY_ID, departmentId: DEPT_ID }),
+    );
+    expect(result).toEqual({ ok: true });
+    // Revalidate STILL fires on idempotent success — UI may still need a
+    // refresh even though no new row landed (e.g., dept membership
+    // changed since last load).
+    expect(revalidateMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns { ok: false, error: "Failed to assign..." } on unexpected repository error (no handleTransitionError path)', async () => {
+    // Plan 05-06 D-15 explicitly diverges from Phase 3: this action does
+    // NOT route errors through handleTransitionError because the state-
+    // machine isn't in play here. IllegalTransitionError is not a
+    // possible error class. Any throw is unexpected — wrapper logs
+    // server-side + returns generic ok:false envelope.
+    policyAssignmentsCreateMock.mockRejectedValueOnce(
+      new Error('FK violation: department not found'),
+    );
+    const result = await bulkAssignToDepartmentAction(
+      undefined,
+      fd({ policyId: POLICY_ID, departmentId: DEPT_ID }),
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: 'Failed to assign policy. Please try again.',
+    });
+    // No revalidatePath on error — assignment didn't land.
+    expect(revalidateMock).not.toHaveBeenCalled();
   });
 });

@@ -35,7 +35,12 @@ export async function POST(req: Request): Promise<Response> {
       orgId: ctx.orgId,
       error:
         err instanceof Anthropic.APIError
-          ? { name: err.name, status: err.status, code: err.error?.type }
+          ? // WR-01 (Phase 5 code-review): use APIError's typed `.type` field
+            // directly instead of `.error?.type`. APIError declares
+            // `type: ErrorType | null` (see @anthropic-ai/sdk/core/error.d.ts),
+            // while `.error` is the generic TError default (Object | undefined)
+            // and `.error?.type` propagates `any`. Same fix as transitions.ts:207.
+            { name: err.name, status: err.status, code: err.type }
           : err instanceof Error
             ? { name: err.name, message: err.message.slice(0, 120) }
             : err,
