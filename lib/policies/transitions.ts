@@ -290,16 +290,18 @@ export async function editPublished(
     if (policy.status !== 'published') {
       throw new IllegalTransitionError(policy.status, 'draft');
     }
-    // Snapshot the prior published version BEFORE overwriting (D-04 + L-05).
-    // ADR-028: pass branded `policyId` (orchestrator input) instead of
-    // `policy.id` (DB-row field typed as raw string).
-    await PolicyVersions.create(s, {
-      policyId,
-      versionNumber: policy.currentVersion,
-      contentJson: policy.contentJson,
-      createdBy: s.userId,
-      changeSummary,
-    });
+    // No snapshot needed here: publish() (line 156-176) ALREADY wrote a
+    // policy_versions row for `versionNumber = policy.currentVersion` when
+    // this policy was originally published. Re-writing the same
+    // (policy_id, version_number) pair would violate the 03-G3 T2 UNIQUE
+    // constraint added to policy_versions and 23505 the editPublished flow.
+    // We just bump currentVersion + reset to draft; the next publish() will
+    // write the new vN+1 row from policies.currentVersion as the snapshot.
+    // changeSummary is carried into the next publish via a different path
+    // (operator can re-enter it before re-publishing) — Phase 3 originally
+    // expected the snapshot here; the publish-side snapshot was added later
+    // (03-G3 era) and the duplicate path was missed at the time.
+    void changeSummary;
     await s.tx
       .update(policies)
       .set({
