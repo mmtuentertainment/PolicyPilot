@@ -13,16 +13,18 @@
 // typed allow-lists in app/(admin)/dashboard/page.tsx and
 // app/(auth)/post-sign-in/page.tsx.
 //
-// SCOPE: lib/auth/ ONLY. A stray `throw new Error('No active
-// organization')` in lib/db/scoped.ts or a repository is NOT caught by
-// this gate — and would no longer be caught by the dashboard's
-// race-recovery (which now narrows by class, not message). Other layers
-// (Stripe webhook in Phase 6, Claude API integration in Phase 4,
-// repository invariants — which already use IllegalTransitionError) may
-// adopt the typed-error pattern with their own ADRs when their surface
-// complexity warrants it. Broad project-wide enforcement would create
-// dead-letter clauses for layers that haven't earned their typed-error
-// decision yet.
+// SCOPE: lib/auth/ + lib/stripe/ (Phase 4 D-16 extension) + lib/policies/
+// (Phase 5 D-30 extension — typed PolicyDomainError hierarchy in
+// lib/policies/errors.ts mirrors ADR-026 BootstrapError shape).
+// A stray `throw new Error('No active organization')` in lib/db/scoped.ts
+// or a repository is NOT caught by this gate — and would no longer be
+// caught by the dashboard's race-recovery (which now narrows by class,
+// not message). Other layers (Claude API integration leaf modules,
+// repository invariants — which already use IllegalTransitionError /
+// PolicyDomainError subclasses) may adopt the typed-error pattern with
+// their own ADRs when their surface complexity warrants it. Broad
+// project-wide enforcement would create dead-letter clauses for layers
+// that haven't earned their typed-error decision yet.
 //
 // ENFORCEMENT LIMITS: this gate is a syntactic AST scan, not a
 // type-resolved check. It catches:
@@ -108,6 +110,22 @@ project.addSourceFilesAtPaths([
   '!lib/stripe/**/*.d.ts',
   '!lib/stripe/**/__mocks__/**',
   '!lib/stripe/**/__tests__/**',
+  // Phase 5 D-30: extend scan scope to lib/policies/ — PolicyDomainError
+  // hierarchy lives in lib/policies/errors.ts (excluded below as the
+  // typed-error definition site; the rule applies to consumers).
+  // lib/policies/transitions.ts had `throw new Error('Policy not found')`
+  // until Plan 05-08 migrated it to `throw new PolicyNotFoundError(policyId)`
+  // as part of this widening (Rule-1 deviation documented in SUMMARY).
+  'lib/policies/**/*.ts',
+  'lib/policies/**/*.tsx',
+  '!lib/policies/errors.ts',
+  '!lib/policies/**/*.test.ts',
+  '!lib/policies/**/*.test.tsx',
+  '!lib/policies/**/*.spec.ts',
+  '!lib/policies/**/*.spec.tsx',
+  '!lib/policies/**/*.d.ts',
+  '!lib/policies/**/__mocks__/**',
+  '!lib/policies/**/__tests__/**',
 ]);
 
 interface Violation {
@@ -174,7 +192,7 @@ if (violations.length > 0) {
 
 const checkedCount = project.getSourceFiles().length;
 console.log(
-  `OK — ADR-026 + Phase 4 D-16: ${checkedCount} file(s) scanned in lib/auth/ + lib/stripe/; ` +
+  `OK — ADR-026 + Phase 4 D-16 + Phase 5 D-30: ${checkedCount} file(s) scanned in lib/auth/ + lib/stripe/ + lib/policies/; ` +
     `no direct built-in Error throws (new or no-new form, ${BANNED_BUILTIN_ERRORS.size} banned constructors).`,
 );
 process.exit(0);

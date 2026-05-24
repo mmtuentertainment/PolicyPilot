@@ -45,6 +45,7 @@ import {
   IllegalTransitionError,
   type PolicyStatus,
 } from './state-machine';
+import { PolicyNotFoundError } from './errors';
 import type { PolicyId } from './types';
 
 // Narrowed row shape returned by Policies.findById. The drizzle column
@@ -61,7 +62,9 @@ type PolicyRow = {
 /**
  * Common "load + validate transition" sequence. Runs inside an already-
  * opened OrgScope; returns the loaded policy on success. Throws:
- *  - Error('Policy not found') when the WHERE org_id + id miss
+ *  - PolicyNotFoundError when the WHERE org_id + id miss (D-30 typed
+ *    error per Plan 05-02; was `Error('Policy not found')` until Plan
+ *    05-08 widened check-error-discipline.ts to scan lib/policies/**)
  *  - IllegalTransitionError when canTransition(from, to) is false
  *
  * Both throws abort the surrounding withOrgScope transaction, rolling
@@ -74,7 +77,7 @@ async function loadAndAssertTransition(
 ): Promise<PolicyRow> {
   const rows = await Policies.findById(s, policyId);
   const row = rows[0];
-  if (!row) throw new Error('Policy not found');
+  if (!row) throw new PolicyNotFoundError(policyId);
   const policy: PolicyRow = {
     id: row.id,
     status: row.status as PolicyStatus,

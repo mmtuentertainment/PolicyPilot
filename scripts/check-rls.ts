@@ -29,9 +29,9 @@ const TEST_URL: string = (() => {
   return v;
 })();
 
-// 11 tenant-scoped tables (10 from drizzle/0001_rls_policies.sql + 1 added in Phase 4
-// per drizzle/0006_rls_batch_jobs.sql). `organizations` uses `id` for RLS predicate;
-// others use `org_id`.
+// 12 tenant-scoped tables (10 from drizzle/0001_rls_policies.sql + 1 added in Phase 4
+// per drizzle/0006_rls_batch_jobs.sql + 1 added in Phase 5 per drizzle/0011_qa_citation_grants.sql).
+// `organizations` uses `id` for RLS predicate; others use `org_id`.
 const TENANT_TABLES = [
   'organizations',
   'users',
@@ -44,6 +44,7 @@ const TENANT_TABLES = [
   'notifications',
   'workflow_stages',
   'batch_jobs', // Phase 4 D-29 / AC-24 — new tenant table for Consistency Check batch state.
+  'qa_citation_grants', // Phase 5 D-29 — new tenant table for Q&A citation-referral grants per T-2(4c). RESEARCH gap-2 closure.
 ] as const;
 
 /**
@@ -89,6 +90,7 @@ async function main(): Promise<void> {
     // runs. clerk_events + stripe_events also truncated to keep the DB tidy.
     await sql.begin(async (tx) => {
       const TRUNC = [
+        'qa_citation_grants', // Phase 5 D-29 — truncate before seed (child of org/user/policy via FKs); ON DELETE CASCADE from 0011 handles either order but explicit ordering preserves child→parent readability.
         'acknowledgments',
         'workflow_stages',
         'policy_assignments',
@@ -186,7 +188,7 @@ async function main(): Promise<void> {
     // seed lives in a separate sql.begin block — TRUNCATE here to keep
     // the test DB clean for the next run).
     await sql.begin(async (tx) => {
-      for (const t of ['acknowledgments', 'workflow_stages', 'policy_assignments', 'notifications', 'ai_generations', 'batch_jobs', 'policy_versions', 'policies', 'departments', 'users', 'organizations']) {
+      for (const t of ['qa_citation_grants', 'acknowledgments', 'workflow_stages', 'policy_assignments', 'notifications', 'ai_generations', 'batch_jobs', 'policy_versions', 'policies', 'departments', 'users', 'organizations']) {
         await tx.unsafe(`TRUNCATE TABLE "${t}" CASCADE`);
       }
     });

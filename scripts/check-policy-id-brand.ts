@@ -58,6 +58,13 @@ const REPO_TARGETS: Record<string, string[]> = {
   'lib/db/repositories/policy_versions.ts': ['listForPolicy', 'findByVersionNumber'],
   'lib/db/repositories/policy_assignments.ts': ['listForPolicy'],
   'lib/db/repositories/workflow_stages.ts': ['recordSubmission', 'listForPolicy'],
+  // Phase 5 RESEARCH gap-4 closure: qa_citation_grants.hasGrant takes
+  // (s, userId, policyId: PolicyId) per D-27 access predicate at
+  // /my-policies/[id]. `upsert(s, input)` takes a schema-inferred input
+  // object — NOT in scope per ADR-028 + lib/policies/types.ts:23-31
+  // ("schema-inferred insert inputs are intentionally out of brand scope").
+  // The FK + RLS catch any cross-org policyId at insert time regardless.
+  'lib/db/repositories/qa_citation_grants.ts': ['hasGrant'],
 };
 
 /**
@@ -78,6 +85,10 @@ const ORCH_TARGETS: Record<string, string[]> = {
     'editPublished',
     'loadAndAssertTransition',
   ],
+  // Phase 5 RESEARCH gap-4 closure: recordAcknowledgment(ctx, policyId: PolicyId, ipAddress)
+  // per D-10a. Takes the branded PolicyId at the trust boundary (Server Action
+  // validates via PolicyIdSchema per D-10b in Plan 05-05).
+  'lib/policies/acknowledgment.ts': ['recordAcknowledgment'],
 };
 
 /**
