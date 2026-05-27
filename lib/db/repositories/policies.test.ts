@@ -73,8 +73,10 @@ const fromMock = vi.fn(
 );
 const selectDistinctMock = vi.fn(() => ({ from: fromMock }));
 const selectFromWhereMock = vi.fn(
-  (): Promise<Array<{ id: string; title: string; contentJson: unknown }>> =>
-    Promise.resolve([{ id: 'p1', title: 'P1', contentJson: {} }]),
+  (): Promise<
+    Array<{ id: string; title: string; tldrSummary: string | null; contentJson: unknown }>
+  > =>
+    Promise.resolve([{ id: 'p1', title: 'P1', tldrSummary: null, contentJson: {} }]),
 );
 const selectFromMock = vi.fn(() => ({ where: selectFromWhereMock }));
 const selectMock = vi.fn(() => ({ from: selectFromMock }));
@@ -136,7 +138,7 @@ describe('Policies.listAssignedAndPublishedForUser (Phase 5 D-01..D-04 contract)
 });
 
 describe('Policies.listPublishedForOrg (Phase 4 D-12 regression smoke)', () => {
-  it('returns the published-policies library shape (id, title, contentJson)', async () => {
+  it('returns the published-policies library shape (id, title, tldrSummary, contentJson)', async () => {
     const result = await Policies.listPublishedForOrg(SCOPE);
     expect(Array.isArray(result)).toBe(true);
     expect(result.length).toBeGreaterThan(0);
@@ -144,6 +146,7 @@ describe('Policies.listPublishedForOrg (Phase 4 D-12 regression smoke)', () => {
     expect(row).toBeDefined();
     expect(typeof row?.id).toBe('string');
     expect(typeof row?.title).toBe('string');
+    expect(row).toHaveProperty('tldrSummary');
     expect(row?.contentJson).toBeDefined();
   });
 

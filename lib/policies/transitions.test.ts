@@ -59,14 +59,9 @@ vi.mock('@/lib/db/scoped', () => ({
     }),
 }));
 
+const mockGetOrgContext = vi.fn();
 vi.mock('@/lib/auth/context', () => ({
-  getOrgContext: async () => ({
-    orgId: 'org_1',
-    userId: 'user_1',
-    clerkOrgId: 'clerk_test_org',
-    clerkUserId: 'clerk_test_user',
-    role: 'admin' as const,
-  }),
+  getOrgContext: (...args: unknown[]) => mockGetOrgContext(...args),
 }));
 
 const findByIdMock = vi.fn();
@@ -130,6 +125,14 @@ import type { PolicyId } from './types';
 const POLICY_ID_FIXTURE = 'p1' as unknown as PolicyId;
 
 beforeEach(() => {
+  mockGetOrgContext.mockReset();
+  mockGetOrgContext.mockResolvedValue({
+    orgId: 'org_1',
+    userId: 'user_1',
+    clerkOrgId: 'clerk_test_org',
+    clerkUserId: 'clerk_test_user',
+    role: 'admin' as const,
+  });
   findByIdMock.mockReset();
   updateDraftMock.mockReset();
   pvCreateMock.mockReset();
@@ -141,6 +144,23 @@ beforeEach(() => {
   generateSummaryForPolicyMock.mockResolvedValue(undefined);
   txUpdateMock.mockClear();
   txSetMock.mockClear();
+});
+
+describe('admin role gate', () => {
+  it('rejects before transition reads or writes when caller is not admin', async () => {
+    mockGetOrgContext.mockResolvedValueOnce({
+      orgId: 'org_1',
+      userId: 'user_1',
+      clerkOrgId: 'clerk_test_org',
+      clerkUserId: 'clerk_test_user',
+      role: 'employee' as const,
+    });
+
+    await expect(publish(POLICY_ID_FIXTURE)).rejects.toThrow('admin role required');
+    expect(findByIdMock).not.toHaveBeenCalled();
+    expect(pvCreateMock).not.toHaveBeenCalled();
+    expect(txUpdateMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('publish (REQ-policy-lifecycle SC#2)', () => {

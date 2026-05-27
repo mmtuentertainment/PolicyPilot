@@ -11,7 +11,7 @@
 import 'server-only';
 import type { OrgScope } from '@/lib/db/scoped';
 import { departments } from '@/lib/db/schema';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 
 type DepartmentCreateInput = Omit<
   typeof departments.$inferInsert,
@@ -25,6 +25,13 @@ export const Departments = {
       .from(departments)
       .where(eq(departments.orgId, s.orgId))
       .orderBy(asc(departments.name)),
+
+  findById: (s: OrgScope, id: string) =>
+    s.tx
+      .select()
+      .from(departments)
+      .where(and(eq(departments.orgId, s.orgId), eq(departments.id, id)))
+      .limit(1),
 
   create: (_s: OrgScope, _input: DepartmentCreateInput) => {
     void _s;

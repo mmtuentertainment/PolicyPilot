@@ -51,7 +51,8 @@
 export type PolicyDomainErrorCode =
   | 'POLICY_NOT_FOUND'
   | 'POLICY_ARCHIVED'
-  | 'POLICY_NOT_ASSIGNED';
+  | 'POLICY_NOT_ASSIGNED'
+  | 'ACKNOWLEDGMENT_NOT_RECORDED';
 
 /**
  * Marker abstract base for errors that lib/policies/ throws during
@@ -112,5 +113,13 @@ export class PolicyNotAssignedError extends PolicyDomainError {
   constructor(public readonly policyId: string) {
     super(`Policy not assigned to user: ${policyId}`);
     this.name = 'PolicyNotAssignedError';
+  }
+}
+
+export class AcknowledgmentNotRecordedError extends PolicyDomainError {
+  readonly code = 'ACKNOWLEDGMENT_NOT_RECORDED';
+  constructor(public readonly policyId: string) {
+    super(`Acknowledgment not recorded: ${policyId}`);
+    this.name = 'AcknowledgmentNotRecordedError';
   }
 }

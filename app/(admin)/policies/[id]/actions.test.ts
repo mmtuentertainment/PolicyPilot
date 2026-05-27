@@ -37,14 +37,9 @@ vi.mock('next/cache', () => ({
   revalidatePath: (p: string) => revalidateMock(p),
 }));
 
+const mockGetOrgContext = vi.fn();
 vi.mock('@/lib/auth/context', () => ({
-  getOrgContext: vi.fn(async () => ({
-    orgId: 'org_1',
-    userId: 'user_1',
-    clerkOrgId: 'clerk_test_org',
-    clerkUserId: 'clerk_test_user',
-    role: 'admin' as const,
-  })),
+  getOrgContext: (...args: unknown[]) => mockGetOrgContext(...args),
 }));
 
 vi.mock('@/lib/db/scoped', () => ({
@@ -70,8 +65,19 @@ vi.mock('@/lib/db/scoped', () => ({
 }));
 
 const updateDraftMock = vi.fn();
+const findPolicyByIdMock = vi.fn();
 vi.mock('@/lib/db/repositories/policies', () => ({
-  Policies: { updateDraft: (...args: unknown[]) => updateDraftMock(...args) },
+  Policies: {
+    updateDraft: (...args: unknown[]) => updateDraftMock(...args),
+    findById: (...args: unknown[]) => findPolicyByIdMock(...args),
+  },
+}));
+
+const findDepartmentByIdMock = vi.fn();
+vi.mock('@/lib/db/repositories/departments', () => ({
+  Departments: {
+    findById: (...args: unknown[]) => findDepartmentByIdMock(...args),
+  },
 }));
 
 // Phase 5 Plan 05-06: PolicyAssignments.create — called by
@@ -94,11 +100,23 @@ import {
 } from './actions';
 
 beforeEach(() => {
+  mockGetOrgContext.mockReset();
+  mockGetOrgContext.mockResolvedValue({
+    orgId: 'org_1',
+    userId: 'user_1',
+    clerkOrgId: 'clerk_test_org',
+    clerkUserId: 'clerk_test_user',
+    role: 'admin' as const,
+  });
   publishMock.mockReset();
   editPublishedMock.mockReset();
   submitForReviewMock.mockReset();
   updateDraftMock.mockReset();
   updateDraftMock.mockImplementation(async () => []);
+  findPolicyByIdMock.mockReset();
+  findPolicyByIdMock.mockResolvedValue([{ id: 'policy' }]);
+  findDepartmentByIdMock.mockReset();
+  findDepartmentByIdMock.mockResolvedValue([{ id: 'department' }]);
   policyAssignmentsCreateMock.mockReset();
   // Default: empty RETURNING (matches PolicyAssignments.create's ON CONFLICT
   // DO NOTHING silent-success shape per Plan 05-03 D-15). Per-test cases
@@ -341,6 +359,22 @@ describe('updateDraftAction empty-patch rejection', () => {
     expect(calledPolicyId).toBe(POLICY_ID);
     expect(calledPatch).toEqual({ title: 'New Title' });
   });
+
+  it('throws before repository writes when caller is not admin', async () => {
+    mockGetOrgContext.mockResolvedValueOnce({
+      orgId: 'org_1',
+      userId: 'user_1',
+      clerkOrgId: 'clerk_test_org',
+      clerkUserId: 'clerk_test_user',
+      role: 'employee' as const,
+    });
+
+    await expect(
+      updateDraftAction(undefined, fd({ policyId: POLICY_ID, title: 'New Title' })),
+    ).rejects.toThrow('admin role required');
+    expect(updateDraftMock).not.toHaveBeenCalled();
+    expect(revalidateMock).not.toHaveBeenCalled();
+  });
 });
 
 // ─── Phase 5 Plan 05-06 — bulkAssignToDepartmentAction ─────────────────
@@ -428,6 +462,40 @@ describe('bulkAssignToDepartmentAction (Phase 5 Plan 05-06 D-13..D-15)', () => {
     expect(revalidateMock).toHaveBeenCalledWith(`/policies/${POLICY_ID}`);
     expect(revalidateMock).toHaveBeenCalledWith('/my-policies');
     expect(revalidateMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects valid UUIDs that do not resolve to a policy or department in the current org', async () => {
+    findDepartmentByIdMock.mockResolvedValueOnce([]);
+    const result = await bulkAssignToDepartmentAction(
+      undefined,
+      fd({ policyId: POLICY_ID, departmentId: DEPT_ID }),
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'Failed to assign policy. Please try again.',
+    });
+    expect(policyAssignmentsCreateMock).not.toHaveBeenCalled();
+    expect(revalidateMock).not.toHaveBeenCalled();
+  });
+
+  it('throws before repository writes when caller is not admin', async () => {
+    mockGetOrgContext.mockResolvedValueOnce({
+      orgId: 'org_1',
+      userId: 'user_1',
+      clerkOrgId: 'clerk_test_org',
+      clerkUserId: 'clerk_test_user',
+      role: 'employee' as const,
+    });
+
+    await expect(
+      bulkAssignToDepartmentAction(
+        undefined,
+        fd({ policyId: POLICY_ID, departmentId: DEPT_ID }),
+      ),
+    ).rejects.toThrow('admin role required');
+    expect(policyAssignmentsCreateMock).not.toHaveBeenCalled();
+    expect(revalidateMock).not.toHaveBeenCalled();
   });
 
   it('idempotent success: empty RETURNING from ON CONFLICT DO NOTHING still returns { ok: true } per D-15 admin-double-click-safe', async () => {

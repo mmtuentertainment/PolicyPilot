@@ -90,14 +90,15 @@ const ANY_AUTH_CTX = {
 
 // Reusable minimal policy fixture (just the 3 columns listPublishedForOrg returns).
 // contentJson is a minimal ProseMirror doc so policyToPromptText doesn't throw.
-function policyFixture(id: string, title: string) {
+function policyFixture(id: string, title: string, bodyText = `Content of ${title}`) {
   return {
     id,
     title,
+    tldrSummary: `Summary of ${title}`,
     contentJson: {
       type: 'doc',
       content: [
-        { type: 'paragraph', content: [{ type: 'text', text: `Content of ${title}` }] },
+        { type: 'paragraph', content: [{ type: 'text', text: bodyText }] },
       ],
     },
   };
@@ -265,6 +266,39 @@ describe('POST /api/ai/qa — Sonnet 4.6 Q&A (SPEC R4)', () => {
     expect(mockQaCitationGrantsUpsert).toHaveBeenCalledTimes(1);
     const grantArgs = mockQaCitationGrantsUpsert.mock.calls[0][1];
     expect(grantArgs).toEqual({ userId: 'user_1', policyId: 'real-id' });
+  });
+
+  it('builds the Q&A prompt with full text only for assigned policies and TL;DR for unassigned policies', async () => {
+    mockListPublishedForOrg.mockResolvedValueOnce([
+      policyFixture('assigned-id', 'Assigned Policy', 'ASSIGNED_FULL_BODY_SENTINEL'),
+      policyFixture('unassigned-id', 'Unassigned Policy', 'UNASSIGNED_FULL_BODY_SENTINEL'),
+    ]);
+    mockListAssignedAndPublishedForUser.mockResolvedValueOnce([
+      { id: 'assigned-id' },
+    ]);
+    mockCreate.mockResolvedValueOnce(
+      mockTextResponse(
+        'Answer body.\n\n--- CITATIONS ---\n[{"title":"Assigned","id":"assigned-id"},{"title":"Unassigned","id":"unassigned-id"}]\n--- END CITATIONS ---',
+      ),
+    );
+
+    const { POST } = await import('@/app/api/ai/qa/route');
+    const res = await POST(makeReq());
+    expect(res.status).toBe(200);
+
+    const createArg = mockCreate.mock.calls[0]?.[0] as {
+      system: { text: string }[];
+    };
+    const libraryXml = createArg.system[0]?.text ?? '';
+    expect(libraryXml).toContain('ASSIGNED_FULL_BODY_SENTINEL');
+    expect(libraryXml).toContain('Summary of Unassigned Policy');
+    expect(libraryXml).not.toContain('UNASSIGNED_FULL_BODY_SENTINEL');
+
+    expect(mockQaCitationGrantsUpsert).toHaveBeenCalledTimes(1);
+    expect(mockQaCitationGrantsUpsert.mock.calls[0]?.[1]).toEqual({
+      userId: 'user_1',
+      policyId: 'unassigned-id',
+    });
   });
 
   // ==========================================================================

@@ -60,11 +60,11 @@ export const Policies = {
    * Phase 4 D-12 — published-policies library source for Q&A endpoint + the
    * Consistency Check batch payload composition.
    *
-   * SELECT id, title, contentJson FROM policies WHERE org_id = scope.orgId
-   *   AND status = 'published'.
+   * SELECT id, title, tldrSummary, contentJson FROM policies WHERE org_id =
+   * scope.orgId AND status = 'published'.
    *
-   * Returns ONLY id + title + contentJson — no admin metadata leak via the
-   * Q&A path. Cross-org isolation: application-layer eq(orgId, s.orgId) +
+   * Returns ONLY id + title + tldrSummary + contentJson — no admin metadata
+   * leak via the Q&A path. Cross-org isolation: application-layer eq(orgId, s.orgId) +
    * RLS reinforces. Caller (Plan 04-09 Q&A endpoint) builds the validIds
    * Set + libraryXml block from the SAME query result inside the SAME
    * withOrgScope closure (per D-41) — never from a hoisted variable,
@@ -79,6 +79,7 @@ export const Policies = {
       .select({
         id: policies.id,
         title: policies.title,
+        tldrSummary: policies.tldrSummary,
         contentJson: policies.contentJson,
       })
       .from(policies)
@@ -183,6 +184,7 @@ export const Policies = {
       .leftJoin(
         currentAck,
         and(
+          eq(currentAck.orgId, s.orgId),
           eq(currentAck.userId, userId),
           eq(currentAck.policyId, policies.id),
           eq(currentAck.policyVersionId, policyVersions.id),
@@ -191,6 +193,7 @@ export const Policies = {
       .leftJoin(
         priorAck,
         and(
+          eq(priorAck.orgId, s.orgId),
           eq(priorAck.userId, userId),
           eq(priorAck.policyId, policies.id),
           // distinct from current — any prior-version ack

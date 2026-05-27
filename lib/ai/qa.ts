@@ -94,14 +94,23 @@ export async function askQuestion(
     // Claude hallucinates outside the org's published-policy set — closing
     // SP-1 cross-org citation leak at the only barrier between model
     // output and the client.
+    const assignedRows = await Policies.listAssignedAndPublishedForUser(
+      s,
+      s.userId,
+    );
+    const assignedIds = new Set(assignedRows.map((r) => r.id));
     const orgPolicies = await Policies.listPublishedForOrg(s);
     const validIds = new Set(orgPolicies.map((p) => p.id)); // ← D-41 SAME closure
 
     const libraryXml = orgPolicies
-      .map(
-        (p) =>
-          `<policy id="${p.id}" title="${xmlEscape(p.title)}"><content>${policyToPromptText(p)}</content></policy>`,
-      )
+      .map((p) => {
+        const isAssigned = assignedIds.has(p.id);
+        const access = isAssigned ? 'full' : 'tldr-only';
+        const promptText = isAssigned
+          ? policyToPromptText(p)
+          : xmlEscape(p.tldrSummary ?? 'TL;DR summary unavailable.');
+        return `<policy id="${p.id}" title="${xmlEscape(p.title)}" access="${access}"><content>${promptText}</content></policy>`;
+      })
       .join('\n');
 
     // D-33c ordering — LONG_CACHE first (per-org library, 1h TTL),
@@ -163,27 +172,19 @@ export async function askQuestion(
     // below MUST use this (NOT the raw fence) per RESEARCH gap-3.
     const parsed = parseQaResponse(rawText, validIds);
 
-    // D-26 (T-2(4c)) — for each cited policy, ensure a qa_citation_grants
-    // row exists. CRITICAL per RESEARCH gap-3: iterate parsed.citations
-    // (validIds-filtered), NOT the raw Anthropic fence. A hallucinated
-    // foreign-org policy UUID was already stripped by qa-parser.ts
-    // (`.filter(c => validIds.has(c.id))`). QaCitationGrants.upsert is
-    // idempotent via UNIQUE(org_id, user_id, policy_id) on migration 0011 —
-    // duplicate citations across questions don't create duplicate rows.
+    // D-26 (T-2(4c)) — grant only cited policies that the user is not
+    // assigned to. Assigned policies already have full access; granting
+    // them would preserve TL;DR access after later unassignment.
     for (const cit of parsed.citations) {
-      await QaCitationGrants.upsert(s, { userId: s.userId, policyId: cit.id });
+      if (!assignedIds.has(cit.id)) {
+        await QaCitationGrants.upsert(s, { userId: s.userId, policyId: cit.id });
+      }
     }
 
     // D-27a — annotate accessibility flag for UI hint. Security boundary
     // is at the /my-policies/[id] page handler (Plan 05-05), NOT this
-    // annotation. Use a single cheap query of assigned-and-published
-    // policy IDs to avoid a per-citation hasAssignment round-trip; for
-    // MVP scale (< 100 assignments) this is one query for the whole answer.
-    const assignedRows = await Policies.listAssignedAndPublishedForUser(
-      s,
-      s.userId,
-    );
-    const assignedIds = new Set(assignedRows.map((r) => r.id));
+    // annotation. The same assignedIds Set above also keeps unassigned
+    // prompt material to TL;DR-only summaries.
     const annotated = parsed.citations.map((cit) => ({
       title: cit.title,
       id: cit.id,

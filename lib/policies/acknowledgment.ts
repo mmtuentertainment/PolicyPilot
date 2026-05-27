@@ -60,6 +60,7 @@ import { PolicyVersions } from '@/lib/db/repositories/policy_versions';
 import { PolicyAssignments } from '@/lib/db/repositories/policy_assignments';
 import { Acknowledgments } from '@/lib/db/repositories/acknowledgments';
 import {
+  AcknowledgmentNotRecordedError,
   PolicyArchivedError,
   PolicyNotAssignedError,
   PolicyNotFoundError,
@@ -128,6 +129,16 @@ export async function recordAcknowledgment(
     );
     if (!matched) throw new PolicyNotAssignedError(policyId);
 
+    // Re-check status immediately before resolving the version/write target.
+    // A policy archived between the initial read and this point must not get
+    // a fresh employee acknowledgment.
+    const latestRows = await Policies.findById(s, policyId);
+    const latestPolicy = latestRows[0];
+    if (!latestPolicy) throw new PolicyNotFoundError(policyId);
+    if (latestPolicy.status !== 'published') {
+      throw new PolicyArchivedError(policyId);
+    }
+
     // Step 3 — Resolve target policyVersionId from policies.current_version
     // (D-10a). The 03-G3 T2/T3 UNIQUE on policy_versions(policy_id,
     // version_number) makes the lookup deterministic; an editPublished
@@ -135,7 +146,7 @@ export async function recordAcknowledgment(
     const pvRows = await PolicyVersions.findByVersionNumber(
       s,
       policyId,
-      policy.currentVersion,
+      latestPolicy.currentVersion,
     );
     const pv = pvRows[0];
     // Race: pv missing → treat as 404 not 500. Should not happen given the
@@ -170,7 +181,8 @@ export async function recordAcknowledgment(
           ),
         )
         .limit(1);
-      const ackedAt = existing[0]?.acknowledgedAt ?? new Date();
+      const ackedAt = existing[0]?.acknowledgedAt;
+      if (!ackedAt) throw new AcknowledgmentNotRecordedError(policyId);
       return { ackedAt: ackedAt.toISOString() };
     }
 

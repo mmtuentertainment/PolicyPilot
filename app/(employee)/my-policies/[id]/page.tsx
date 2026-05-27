@@ -91,7 +91,9 @@ export default async function MyPolicyDetailPage({
       // Return 404 not 500 if the full row vanishes between queries.
       const fullRows = await Policies.findById(s, idParsed.data);
       const fullPolicy = fullRows[0];
-      if (!fullPolicy) return { branch: "notfound" as const };
+      if (!fullPolicy || fullPolicy.status !== "published") {
+        return { branch: "notfound" as const };
+      }
       return {
         branch: "full" as const,
         policy: {

@@ -141,10 +141,15 @@ vi.mock('@/lib/db/repositories/policies', () => ({
   Policies: {
     // R-6 — published-policies library source for askQuestion's libraryXml + validIds Set.
     listPublishedForOrg: async (s: { orgId: string; tx: postgres.TransactionSql }) => {
-      const rows = await s.tx<{ id: string; title: string; content_json: unknown }[]>`
-        SELECT id, title, content_json FROM policies
+      const rows = await s.tx<{ id: string; title: string; tldr_summary: string | null; content_json: unknown }[]>`
+        SELECT id, title, tldr_summary, content_json FROM policies
         WHERE org_id = ${s.orgId} AND status = 'published'`;
-      return rows.map((r) => ({ id: r.id, title: r.title, contentJson: r.content_json }));
+      return rows.map((r) => ({
+        id: r.id,
+        title: r.title,
+        tldrSummary: r.tldr_summary,
+        contentJson: r.content_json,
+      }));
     },
     // R-2 — orchestrator step 1 (load + assert status='published' per D-07).
     findById: async (s: { orgId: string; tx: postgres.TransactionSql }, id: string) => {

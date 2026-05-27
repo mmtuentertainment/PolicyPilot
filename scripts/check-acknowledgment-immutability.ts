@@ -6,7 +6,7 @@
 //   1. TYPE SYSTEM — tests/types.ts D-07 @ts-expect-error invariants prove
 //      Acknowledgments repository exports NO update/delete keys at compile
 //      time (Phase 2 lock).
-//   2. CI GATE — THIS FILE — ts-morph AST scan of lib/**/*.ts for
+//   2. CI GATE — THIS FILE — ts-morph AST scan of lib/**/*.ts + app/**/*.ts(x) for
 //      .update(table) / .delete(table) call expressions
 //      (handles aliased imports like `import { acknowledgments as ack }`).
 //      Sub-pass 2 regex scan catches raw-SQL bypass per EAPI advisor H-1:
@@ -18,7 +18,7 @@
 //      (ASK-FIRST per CLAUDE.md, documented in Plan 05-08 <deferred>).
 //
 // Two modes:
-//   - DEFAULT — scans lib/**/*.ts excluding tests/fixtures/**, exits 0 if no
+//   - DEFAULT — scans lib/**/*.ts + app/**/*.ts(x), exits 0 if no
 //     violations.
 //   - --self-test — scans ONLY tests/fixtures/ack-mutation-attempt.ts,
 //     exits 0 if >= 2 violations found WITH BOTH hasDrizzle && hasRawSql
@@ -55,7 +55,7 @@ const IMMUTABLE_SYMBOL_NAMES: Set<string> = new Set(
 // inverted-polarity invariants in tests/types.ts are the type-system layer
 // of the same lock.
 const VIOLATION_METHODS = new Set(['update', 'delete']);
-const PROD_GLOB = 'lib/**/*.ts';
+const PROD_GLOBS = ['lib/**/*.ts', 'app/**/*.ts', 'app/**/*.tsx'];
 const FIXTURE_FILE = 'tests/fixtures/ack-mutation-attempt.ts';
 
 // Sub-pass 2 regex: catches raw-SQL bypass via tagged-template literals.
@@ -104,10 +104,10 @@ function main(): void {
     project.addSourceFilesAtPaths(FIXTURE_FILE);
     scanPaths.add(FIXTURE_FILE);
   } else {
-    // Production mode: scan lib/**/*.ts.
-    project.addSourceFilesAtPaths(PROD_GLOB);
+    // Production mode: scan lib/**/*.ts plus app mutation surfaces.
+    project.addSourceFilesAtPaths(PROD_GLOBS);
     // EXCLUDE tests/fixtures/** so the negative-control fixture doesn't
-    // trigger the production gate per D-19. The PROD_GLOB lib/**/*.ts
+    // trigger the production gate per D-19. The PROD_GLOBS list
     // already excludes tests/ by path, but defense-in-depth removeSourceFile
     // covers the case where a future fixture lands under lib/__fixtures__/.
     const fixtureFile = project.getSourceFile(FIXTURE_FILE);
@@ -298,7 +298,7 @@ function main(): void {
     const tableList = IMMUTABLE_TABLES.map((table) => table.sqlName).join(', ');
     console.log(
       `OK — ADR-018 append-only: 0 update/delete calls on ${tableList} ` +
-        `(Drizzle-API or raw-SQL) in lib/** (${filesScanned} files scanned).`,
+        `(Drizzle-API or raw-SQL) in lib/** + app/** (${filesScanned} files scanned).`,
     );
     process.exit(0);
   }

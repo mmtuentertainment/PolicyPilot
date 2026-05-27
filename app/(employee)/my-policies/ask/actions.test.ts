@@ -102,6 +102,28 @@ describe('askQuestionAction input validation (Zod min(1).max(2000))', () => {
     expect(askQuestionMock).not.toHaveBeenCalled();
   });
 
+  it('returns INVALID_PAYLOAD on whitespace-only question', async () => {
+    const result = await askQuestionAction(undefined, fd({ question: '   ' }));
+    expect(result).toEqual({ ok: false, error: 'Invalid action payload.' });
+    expect(askQuestionMock).not.toHaveBeenCalled();
+  });
+
+  it('trims surrounding whitespace before calling askQuestion', async () => {
+    askQuestionMock.mockResolvedValueOnce({
+      answer: 'ok',
+      citations: [],
+    });
+    const result = await askQuestionAction(
+      undefined,
+      fd({ question: '  what is the limit?  ' }),
+    );
+    expect(result.ok).toBe(true);
+    expect(askQuestionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ orgId: 'org_1', userId: 'user_1' }),
+      'what is the limit?',
+    );
+  });
+
   it('returns INVALID_PAYLOAD on oversized question (>2000 chars)', async () => {
     const oversized = 'x'.repeat(2001);
     const result = await askQuestionAction(undefined, fd({ question: oversized }));

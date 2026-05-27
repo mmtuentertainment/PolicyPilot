@@ -1203,7 +1203,7 @@
     if (radio.value === 'd') {
       // Custom — read from sibling input
       const customInput = radio.parentElement.querySelector('.q-custom-input');
-      q.answer = customInput && customInput.value ? customInput.value : 'd';
+      q.answer = customInput && customInput.value.trim() ? customInput.value : '';
     } else {
       q.answer = radio.value;
     }
@@ -1215,14 +1215,14 @@
     const q = findQuestion(qId);
     if (!q) return;
     q.answer = input.value;
-    q.status = input.value ? 'answered' : 'unanswered';
+    q.status = input.value.trim() ? 'answered' : 'unanswered';
     // No re-render here — typing in the input would lose focus.
     recomputeStats();
     updateStatsUI();
     // Update the section header progress + the card's answered class.
     const card = document.querySelector(`[data-q="${qId}"]`);
     if (card) {
-      card.classList.toggle('answered', input.value !== '');
+      card.classList.toggle('answered', input.value.trim() !== '');
       updateSectionProgressUI(card);
     }
   }

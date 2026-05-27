@@ -5,14 +5,15 @@
 // change. Plan 03-07's Server Actions are thin wrappers; the real
 // transactional business logic lives here. Each orchestrator:
 //   1. Resolves OrgContext via getOrgContext (Clerk session)
-//   2. Opens withOrgScope (one Drizzle transaction + SET LOCAL ROLE
+//   2. Requires admin role before any DB/AI side effect.
+//   3. Opens withOrgScope (one Drizzle transaction + SET LOCAL ROLE
 //      authenticated + set_config('request.jwt.claims', ..., true) so
 //      Supabase RLS evaluates against the actual ctx.orgId — ADR-025).
-//   3. Loads the policy via Policies.findById (which already filters by
+//   4. Loads the policy via Policies.findById (which already filters by
 //      scope.orgId — defense in depth alongside RLS).
-//   4. Validates the requested transition via canTransition; throws
+//   5. Validates the requested transition via canTransition; throws
 //      IllegalTransitionError on illegal moves.
-//   5. Performs any side-effects (PolicyVersions.create snapshot for
+//   6. Performs any side-effects (PolicyVersions.create snapshot for
 //      publish/editPublished/approve; WorkflowStages.recordSubmission for
 //      submitForReview) AND the policies row update inside the SAME
 //      transaction — so a partial write is impossible (T-03-06-02).
@@ -35,6 +36,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { and, eq, sql } from 'drizzle-orm';
 import { withOrgScope, type OrgScope } from '@/lib/db/scoped';
 import { getOrgContext } from '@/lib/auth/context';
+import { requireAdminFromCtx } from '@/lib/auth/require-admin';
 import { Policies } from '@/lib/db/repositories/policies';
 import { PolicyVersions } from '@/lib/db/repositories/policy_versions';
 import { WorkflowStages } from '@/lib/db/repositories/workflow_stages';
@@ -58,6 +60,12 @@ type PolicyRow = {
   currentVersion: number;
   contentJson: unknown;
 };
+
+async function getAdminOrgContext() {
+  const ctx = await getOrgContext();
+  requireAdminFromCtx(ctx);
+  return ctx;
+}
 
 /**
  * Common "load + validate transition" sequence. Runs inside an already-
@@ -99,7 +107,7 @@ export async function submitForReview(
   policyId: PolicyId,
   reviewerId: string | null,
 ): Promise<void> {
-  const ctx = await getOrgContext();
+  const ctx = await getAdminOrgContext();
   await withOrgScope(ctx, async (s) => {
     await loadAndAssertTransition(s, policyId, 'under_review');
     // ADR-028: use the branded `policyId` (already in scope) rather than
@@ -133,7 +141,7 @@ export async function approve(policyId: PolicyId): Promise<void> {
 export async function reject(policyId: PolicyId, _reason?: string): Promise<void> {
   void _reason;
 
-  const ctx = await getOrgContext();
+  const ctx = await getAdminOrgContext();
   await withOrgScope(ctx, async (s) => {
     await loadAndAssertTransition(s, policyId, 'draft');
     await s.tx
@@ -156,7 +164,7 @@ export async function reject(policyId: PolicyId, _reason?: string): Promise<void
  * Both steps inside one withOrgScope tx — partial state impossible.
  */
 export async function publish(policyId: PolicyId): Promise<void> {
-  const ctx = await getOrgContext();
+  const ctx = await getAdminOrgContext();
   await withOrgScope(ctx, async (s) => {
     const policy = await loadAndAssertTransition(s, policyId, 'published');
     // D-04: create policy_versions row capturing the about-to-be-published
@@ -226,7 +234,7 @@ export async function publish(policyId: PolicyId): Promise<void> {
  * publish() call that landed it).
  */
 export async function archive(policyId: PolicyId): Promise<void> {
-  const ctx = await getOrgContext();
+  const ctx = await getAdminOrgContext();
   await withOrgScope(ctx, async (s) => {
     await loadAndAssertTransition(s, policyId, 'archived');
     await s.tx
@@ -250,7 +258,7 @@ export async function archive(policyId: PolicyId): Promise<void> {
  * restore→republish is a NEW version event (auditors expect a new vN row).
  */
 export async function restore(policyId: PolicyId): Promise<void> {
-  const ctx = await getOrgContext();
+  const ctx = await getAdminOrgContext();
   await withOrgScope(ctx, async (s) => {
     const policy = await loadAndAssertTransition(s, policyId, 'draft');
     await s.tx
@@ -286,7 +294,7 @@ export async function editPublished(
   newContent: unknown,
   changeSummary?: string,
 ): Promise<void> {
-  const ctx = await getOrgContext();
+  const ctx = await getAdminOrgContext();
   await withOrgScope(ctx, async (s) => {
     const policy = await loadAndAssertTransition(s, policyId, 'draft');
     if (policy.status !== 'published') {

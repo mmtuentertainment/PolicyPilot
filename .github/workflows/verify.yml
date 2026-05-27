@@ -8,7 +8,7 @@ on:
       - 'gsd/**'
   workflow_dispatch:
   schedule:
-    # Nightly safety net for browser smoke drift.
+    # Nightly safety net for verification drift.
     - cron: '17 9 * * *'
 
 concurrency:
@@ -16,6 +16,115 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  full-verification:
+    name: Verify full gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: policy_pilot
+          POSTGRES_PASSWORD: policy_pilot
+          POSTGRES_DB: policypilot_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U policy_pilot -d policypilot_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with:
+          version: 9.15.9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps
+
+      - name: Write full verification CI environment
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat > .env.local <<'EOF'
+          NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY=ci-anon-placeholder
+          SUPABASE_SERVICE_ROLE_KEY=ci-service-role-placeholder
+          DATABASE_URL=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci
+          DIRECT_URL=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci
+          DATABASE_URL_TEST=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci_test
+          DIRECT_URL_TEST=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci_test
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuaW5zcGlyZWQucHVtYS03NC5sY2wuZGV2JA
+          CLERK_SECRET_KEY=sk_test_policy_pilot_ci_dummy
+          CLERK_WEBHOOK_SECRET=whsec_policy_pilot_ci_dummy
+          NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/post-sign-in
+          NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=/post-sign-in
+          POLICYPILOT_E2E_AUTH_BYPASS=1
+          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_policy_pilot_ci_dummy
+          STRIPE_SECRET_KEY=sk_test_policy_pilot_ci_dummy
+          STRIPE_WEBHOOK_SECRET=whsec_policy_pilot_ci_dummy
+          STRIPE_PRICE_STARTER_MONTHLY=price_starter_monthly_ci
+          STRIPE_PRICE_STARTER_ANNUAL=price_starter_annual_ci
+          STRIPE_PRICE_GROWTH_MONTHLY=price_growth_monthly_ci
+          STRIPE_PRICE_GROWTH_ANNUAL=price_growth_annual_ci
+          STRIPE_PRICE_BUSINESS_MONTHLY=price_business_monthly_ci
+          STRIPE_PRICE_BUSINESS_ANNUAL=price_business_annual_ci
+          ANTHROPIC_API_KEY=sk-ant-ci-placeholder
+          RESEND_API_KEY=re_ci_placeholder
+          RESEND_FROM_EMAIL=noreply@policypilot.com
+          NEXT_PUBLIC_APP_URL=http://localhost:3000
+          CRON_SECRET=cron_ci_placeholder
+          NEXT_PUBLIC_POSTHOG_KEY=phc_ci_placeholder
+          NEXT_PUBLIC_POSTHOG_HOST=https://app.posthog.com
+          SENTRY_DSN=
+          EOF
+
+          sed -i 's/^          //' .env.local
+          cp .env.local .env.local.test
+
+      - name: Prepare CI databases
+        shell: bash
+        run: |
+          set -euo pipefail
+          PGPASSWORD=policy_pilot psql -h 127.0.0.1 -U policy_pilot -d policypilot_ci -tc "SELECT 1 FROM pg_database WHERE datname = 'policypilot_ci_test'" | grep -q 1 || \
+            PGPASSWORD=policy_pilot createdb -h 127.0.0.1 -U policy_pilot policypilot_ci_test
+          pnpm db:migrate
+          pnpm db:migrate:test
+
+      - name: Run full verification sweep
+        run: pnpm verify:full
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: full-verification-playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
   browser-smoke:
     name: Browser e2e smoke
     runs-on: ubuntu-latest
@@ -162,7 +271,11 @@ jobs:
           done
 
           if [ "${#missing[@]}" -ne 0 ]; then
-            printf '::notice::Skipping live full verification; missing repository secrets: %s\n' "${missing[*]}"
+            if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+              printf '::error::Cannot run manual live full verification; missing repository secrets: %s\n' "${missing[*]}"
+              exit 1
+            fi
+            printf '::notice::Skipping scheduled live full verification; missing repository secrets: %s\n' "${missing[*]}"
             echo "ready=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi

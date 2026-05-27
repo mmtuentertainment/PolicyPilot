@@ -82,6 +82,7 @@ vi.mock('@/lib/db/schema', () => ({
 
 import { recordAcknowledgment } from './acknowledgment';
 import {
+  AcknowledgmentNotRecordedError,
   PolicyArchivedError,
   PolicyNotAssignedError,
   PolicyNotFoundError,
@@ -100,6 +101,9 @@ const CTX: OrgContext = {
 
 beforeEach(() => {
   findByIdMock.mockReset();
+  findByIdMock.mockResolvedValue([
+    { id: POLICY_ID, status: 'published', currentVersion: 1 },
+  ]);
   findByVersionNumberMock.mockReset();
   listForPolicyMock.mockReset();
   recordMock.mockReset();
@@ -125,7 +129,7 @@ describe('recordAcknowledgment happy path (Plan 05-04 D-10a)', () => {
 
     const result = await recordAcknowledgment(CTX, POLICY_ID, '1.2.3.4');
     expect(result.ackedAt).toBe(ackedAt.toISOString());
-    expect(findByIdMock).toHaveBeenCalledTimes(1);
+    expect(findByIdMock).toHaveBeenCalledTimes(2);
     expect(listForPolicyMock).toHaveBeenCalledTimes(1);
     expect(findByVersionNumberMock).toHaveBeenCalledTimes(1);
     expect(recordMock).toHaveBeenCalledTimes(1);
@@ -209,6 +213,26 @@ describe('recordAcknowledgment error paths (D-07 + D-08 + D-30)', () => {
     );
   });
 
+  it('throws PolicyArchivedError when policy is archived before the audit row write', async () => {
+    findByIdMock
+      .mockResolvedValueOnce([
+        { id: POLICY_ID, status: 'published', currentVersion: 1 },
+      ])
+      .mockResolvedValueOnce([
+        { id: POLICY_ID, status: 'archived', currentVersion: 1 },
+      ]);
+    txSelectLimitMock.mockResolvedValueOnce([{ deptId: null }]);
+    listForPolicyMock.mockResolvedValueOnce([
+      { assigneeType: 'user', assigneeId: 'user_1' },
+    ]);
+
+    await expect(recordAcknowledgment(CTX, POLICY_ID, null)).rejects.toBeInstanceOf(
+      PolicyArchivedError,
+    );
+    expect(findByVersionNumberMock).not.toHaveBeenCalled();
+    expect(recordMock).not.toHaveBeenCalled();
+  });
+
   it('throws PolicyNotFoundError when pv lookup returns [] (defensive race guard)', async () => {
     findByIdMock.mockResolvedValueOnce([
       { id: POLICY_ID, status: 'published', currentVersion: 1 },
@@ -263,10 +287,9 @@ describe('recordAcknowledgment D-10 silent success (RESEARCH Pitfall 8)', () => 
     expect(result.ackedAt).toBe(existingAckedAt.toISOString());
   });
 
-  it('returns new Date timestamp when record returns [] AND existing-row lookup also returns []', async () => {
-    // Defensive: even if the existing-row lookup misses (which should not happen given
-    // the UNIQUE just fired), the orchestrator falls back to new Date() so the UI still
-    // renders a "Acknowledged ✓" without a crash.
+  it('throws when record returns [] AND existing-row lookup also returns []', async () => {
+    // Empty RETURNING is only safe if the duplicate row can be proven to
+    // exist. Otherwise the UI would report success without an audit record.
     findByIdMock.mockResolvedValueOnce([
       { id: POLICY_ID, status: 'published', currentVersion: 1 },
     ]);
@@ -278,11 +301,8 @@ describe('recordAcknowledgment D-10 silent success (RESEARCH Pitfall 8)', () => 
     recordMock.mockResolvedValueOnce([]);
     txSelectLimitMock.mockResolvedValueOnce([]); // no existing row
 
-    const before = Date.now();
-    const result = await recordAcknowledgment(CTX, POLICY_ID, null);
-    const after = Date.now();
-    const returnedMs = new Date(result.ackedAt).getTime();
-    expect(returnedMs).toBeGreaterThanOrEqual(before);
-    expect(returnedMs).toBeLessThanOrEqual(after);
+    await expect(recordAcknowledgment(CTX, POLICY_ID, null)).rejects.toBeInstanceOf(
+      AcknowledgmentNotRecordedError,
+    );
   });
 });

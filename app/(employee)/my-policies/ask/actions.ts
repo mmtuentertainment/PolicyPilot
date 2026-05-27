@@ -42,7 +42,7 @@ export type AskActionState =
 
 // Length cap per Phase 4 D-42 .strict() convention; 2000 chars is generous
 // for any reasonable Q&A. T-05-05-07 attack-surface limit.
-const Schema = z.object({ question: z.string().min(1).max(2000) });
+const Schema = z.object({ question: z.string().trim().min(1).max(2000) });
 const INVALID_PAYLOAD: AskActionState = {
   ok: false,
   error: "Invalid action payload.",

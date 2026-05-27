@@ -13,8 +13,9 @@
 //   - Forged status field cannot reach the policies row: updateDraftAction
 //     accepts ONLY title/category/contentJson; status changes go through
 //     transition actions → orchestrators → state-machine.
-//   - Cross-org policyId: orchestrators run inside withOrgScope, so
-//     Policies.findById filters by orgId AND Postgres RLS enforces.
+//   - Cross-org policyId: orchestrators and direct writes run behind
+//     requireAdminFromCtx + withOrgScope, so repository orgId predicates
+//     and Postgres RLS both enforce.
 //   - Error disclosure: IllegalTransitionError surfaces a typed
 //     `{ ok: false, error: <message> }`; unexpected errors are logged
 //     server-side and bubble to Next.js' framework boundary.
@@ -23,8 +24,10 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getOrgContext } from '@/lib/auth/context';
+import { requireAdminFromCtx } from '@/lib/auth/require-admin';
 import { withOrgScope } from '@/lib/db/scoped';
 import { Policies } from '@/lib/db/repositories/policies';
+import { Departments } from '@/lib/db/repositories/departments';
 import { PolicyAssignments } from '@/lib/db/repositories/policy_assignments';
 import {
   submitForReview,
@@ -360,8 +363,9 @@ export async function updateDraftAction(
   if (Object.keys(patch).length === 0) {
     return { ok: false, error: 'No changes to save.' };
   }
+  const ctx = await getOrgContext();
+  requireAdminFromCtx(ctx);
   try {
-    const ctx = await getOrgContext();
     await withOrgScope(ctx, async (s) => {
       await Policies.updateDraft(s, policyId, patch);
     });
@@ -384,12 +388,8 @@ export async function updateDraftAction(
 //
 // Threat-model wiring (T-05-06-01..05 from Plan 05-06):
 //   - Tampering: double-click idempotency via DB UNIQUE + ON CONFLICT DO
-//     NOTHING (T-05-06-01); forged departmentId blocked by RLS on
-//     departments.listAll (the `<select>` is server-built from the
-//     RLS-scoped list — admin cannot pick a foreign deptId via UI; a
-//     direct POST with a forged UUID would either FK-fail on the
-//     composite users(org_id, department_id) constraint or RLS-deny the
-//     INSERT) (T-05-06-02).
+//     NOTHING (T-05-06-01); forged policyId/departmentId blocked by
+//     same-scope existence checks before the assignment insert (T-05-06-02).
 //   - Information Disclosure: orgId comes from OrgScope, never input
 //     (defense per repo header) (T-05-06-03).
 //   - Synchronization: revalidatePath('/my-policies') propagates the new
@@ -433,9 +433,18 @@ export async function bulkAssignToDepartmentAction(
   });
   if (!parsed.success) return INVALID_PAYLOAD;
 
+  const ctx = await getOrgContext();
+  requireAdminFromCtx(ctx);
   try {
-    const ctx = await getOrgContext();
     await withOrgScope(ctx, async (s) => {
+      const policyRows = await Policies.findById(s, parsed.data.policyId);
+      const departmentRows = await Departments.findById(
+        s,
+        parsed.data.departmentId,
+      );
+      if (policyRows.length === 0 || departmentRows.length === 0) {
+        throw new Error('Policy or department not found');
+      }
       await PolicyAssignments.create(s, {
         policyId: parsed.data.policyId,
         assigneeType: 'department',
