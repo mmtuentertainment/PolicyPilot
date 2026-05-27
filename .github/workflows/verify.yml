@@ -102,6 +102,10 @@ jobs:
 
           sed -i 's/^          //' .env.local
           cp .env.local .env.local.test
+          sed -i \
+            -e 's#^DATABASE_URL=.*#DATABASE_URL=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci_test#' \
+            -e 's#^DIRECT_URL=.*#DIRECT_URL=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci_test#' \
+            .env.local.test
 
       - name: Prepare CI databases
         shell: bash
@@ -220,6 +224,10 @@ jobs:
 
           sed -i 's/^          //' .env.local
           cp .env.local .env.local.test
+          sed -i \
+            -e 's#^DATABASE_URL=.*#DATABASE_URL=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci_test#' \
+            -e 's#^DIRECT_URL=.*#DIRECT_URL=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci_test#' \
+            .env.local.test
 
       - name: Run Playwright e2e suite
         run: pnpm test:e2e
