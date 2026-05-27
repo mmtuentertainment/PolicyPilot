@@ -786,7 +786,7 @@ export async function editPublishedAction(
 
 **bulkAssignToDepartmentAction shape per D-13+D-14+D-15:**
 - Zod schema: `z.object({ policyId: PolicyIdSchema, departmentId: z.string().uuid() })`
-- Body inside try: 
+- Body inside try:
   ```typescript
   const ctx = await getOrgContext();
   await withOrgScope(ctx, async (s) => {
@@ -1578,7 +1578,7 @@ describe('policyId UUID validation (CR-PR3-#23)', () => {
   import 'server-only';
   import { acknowledgments } from '@/lib/db/schema';
   // ... mock OrgScope type ...
-  
+
   // Intentional ADR-018 violation — this file exists ONLY to prove the D-18 gate
   // detects .update(acknowledgments) calls. The --self-test mode of
   // scripts/check-acknowledgment-immutability.ts scans THIS FILE and exits 0
@@ -1758,10 +1758,10 @@ await sql.begin(async (tx) => {
   await tx.unsafe(`SET LOCAL ROLE authenticated`);  // ← Must come BEFORE set_config
   const claims = JSON.stringify({ sub: userAId, org_id: orgAId, role: 'admin' });
   await tx`SELECT set_config('request.jwt.claims', ${claims}, true)`;  // ← is_local=true
-  
+
   // POSITIVE CONTROL — assert orgA can see its own data (proves channel is live)
   // NEGATIVE — assert orgA cannot see orgB's data
-  
+
   throw new Error('__intentional_rollback__');  // ← Scope SET LOCAL effects to this tx
 }).catch((e) => {
   if (!(e instanceof Error) || !e.message.includes('__intentional_rollback__')) throw e;

@@ -151,7 +151,7 @@ DO NOT add additional gates not specified in D-23. DO NOT short-circuit any step
     - Re-acknowledgment indicator after admin republishes (amber badge "Requires re-acknowledgment")
     - Admin bulk-assign-to-department UI on existing `/policies/[id]` page
     - R-6 Q&A surface at `/my-policies/ask` with cited answers + tldr-only fallback access via grants
-    
+
     All backed by 3-layer append-only invariant defense (type-test + ts-morph gate + DB GRANT-asymmetry-documented), 3 additive schema migrations (0010 + 0011), and verify:phase-5 chain (just-shipped Task 1).
   </what-built>
   <how-to-verify>
@@ -159,7 +159,7 @@ DO NOT add additional gates not specified in D-23. DO NOT short-circuit any step
     1. Confirm dev environment is running: `pnpm dev` (Next.js dev server on http://localhost:3000)
     2. Confirm at least 1 admin user + 1 employee user provisioned in Clerk dev org (Plan 02-02 D-09 manual config)
     3. Sign in via http://localhost:3000/sign-in
-    
+
     **For ADMIN-side test (use admin user — has `publicMetadata.role === 'admin'`):**
     1. Navigate to http://localhost:3000/policies — confirm Phase 3 admin list visible
     2. Click into an existing published policy (or create + publish one if none exist via Phase 3 flow)
@@ -167,7 +167,7 @@ DO NOT add additional gates not specified in D-23. DO NOT short-circuit any step
     4. If 0 departments exist in the org: confirm dept-selector + Assign button are DISABLED with "Create a department first" tooltip text visible (D-14 empty-state UX)
     5. If departments exist: select a dept, click "Assign to department" — confirm "✓ Assigned" appears
     6. Refresh the page — confirm the assignment shows in the read-only list at top of the panel
-    
+
     **For EMPLOYEE-side test (sign out, sign in as employee — `publicMetadata.role === 'employee'`):**
     7. Trampoline routes to http://localhost:3000/my-policies — confirm landing page
     8. **R-1 / SPEC AC-1 + AC-2 + D-04a check:**
@@ -194,11 +194,11 @@ DO NOT add additional gates not specified in D-23. DO NOT short-circuit any step
         - Only the TL;DR summary (NOT the full PolicyView render)
         - NO Acknowledge button
     17. **Cross-org isolation check:** Manually navigate to `/my-policies/00000000-0000-4000-8000-000000000000` (random UUID NOT in DB) → confirm 404 NextNotFound page (D-10 advertise-nothing per CR-PR3-#23)
-    
+
     **For administrative type-system invariant check:**
     18. Run `pnpm tsc --noEmit` → confirm exit 0 (tests/types.ts D-07 @ts-expect-error invariants still passing — R-5 acceptance partially)
     19. Run `pnpm verify:phase-5` end-to-end → confirm exit 0 (13th SPEC acceptance criterion + R-5 full)
-    
+
     **Resume signal:** Type `approved` (case-insensitive) to confirm all 19 checks pass + Phase 5 ready for `/gsd-verify-work` and PR squash to main. If any check fails, describe the specific check + failure mode (e.g., "step 8 — empty-state copy says 'No policies' instead of the verbatim D-04a string") and Claude will fix before re-checkpointing.
   </how-to-verify>
   <verify>
