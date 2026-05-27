@@ -1221,7 +1221,25 @@
     updateStatsUI();
     // Update the section header progress + the card's answered class.
     const card = document.querySelector(`[data-q="${qId}"]`);
-    if (card) card.classList.toggle('answered', input.value !== '');
+    if (card) {
+      card.classList.toggle('answered', input.value !== '');
+      updateSectionProgressUI(card);
+    }
+  }
+
+  function updateSectionProgressUI(card) {
+    const sectionEl = card.closest('[data-sec]');
+    if (!sectionEl) return;
+    const sec = state.sections.find(s => s.id === sectionEl.dataset.sec);
+    if (!sec) return;
+
+    const answered = sec.questions.filter(q => q.answer != null && q.answer !== '').length;
+    const total = sec.questions.length;
+    const progress = sectionEl.querySelector('.section-progress');
+    if (!progress) return;
+
+    progress.textContent = `${answered} / ${total}`;
+    progress.classList.toggle('complete', answered === total);
   }
 
   function onChatMore(qId, textarea) {

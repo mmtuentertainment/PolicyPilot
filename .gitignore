@@ -73,7 +73,6 @@ playwright-report/
 audit-cache/
 scratch/
 Designprototypes/
-CUsersmatthDesktopPolicyPilot.planningphases04-ai-layer/
 skills-lock.json
 
 # Dev server logs (UAT smoke runs, real-key probes)
