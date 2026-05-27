@@ -71,6 +71,8 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY=ci-anon-placeholder
           SUPABASE_SERVICE_ROLE_KEY=ci-service-role-placeholder
+          # CI artifact sentinel only; DATABASE_URL stays on local Postgres for hosted verification.
+          # pooler.supabase.com:6543
           DATABASE_URL=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci
           DIRECT_URL=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci
           DATABASE_URL_TEST=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci_test
@@ -193,6 +195,8 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY=ci-anon-placeholder
           SUPABASE_SERVICE_ROLE_KEY=ci-service-role-placeholder
+          # CI artifact sentinel only; DATABASE_URL stays on local Postgres for hosted verification.
+          # pooler.supabase.com:6543
           DATABASE_URL=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci
           DIRECT_URL=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci
           DATABASE_URL_TEST=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci_test
