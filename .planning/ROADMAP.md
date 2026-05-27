@@ -11,8 +11,8 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 - [x] **Phase 1: Foundation** — Next.js 15 + Clerk + Supabase wired up, `localhost:3000` loads clean. ✓ 2026-05-16 (operator-approved; VERIFICATION.md PASS)
 - [x] **Phase 2: Data Layer** — Drizzle schema + RLS + Clerk webhooks; `org_id` invariant established. ✓ 2026-05-18 (operator-approved; `pnpm verify:phase-2` 7/7 OK; webhook live-smoke deferred to Phase 3)
 - [x] **Phase 3: Admin UI** — Policy library, TipTap editor, full lifecycle (Draft → Published → Archived). ✓ 2026-05-20 (12 main plans 03-00..03-11 + 3 gap-closure plans 03-G1/G2/G3 = 15 total; 6/6 HUMAN-UAT PASS; verify:phase-2 8/8 OK; verify:phase-3 8 gates + 270/270 artifacts + 53/53 vitest)
-- [ ] **Phase 4: AI Layer** — Draft generation, TL;DR summaries, Employee Q&A, Consistency Check (Growth+).
-- [ ] **Phase 5: Employee Portal** — Assigned-policies dashboard + append-only acknowledgment flow.
+- [x] **Phase 4: AI Layer** — Draft generation, TL;DR summaries, Employee Q&A, Consistency Check (Growth+). ✓ 2026-05-22
+- [ ] **Phase 5: Employee Portal** — Assigned-policies dashboard + append-only acknowledgment flow. Code/UAT complete; current audit remediation hardening in progress.
 - [ ] **Phase 6: Billing** — Stripe Checkout + 5-event webhook + tier gating via `TIER_LIMITS`.
 - [ ] **Phase 7: Crons + Email** — Railway worker + Resend templates + idempotent reminders.
 - [ ] **Phase 8: Validation** — Compliance dashboard + CSV export + all 8 acceptance criteria green.
@@ -191,8 +191,8 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 | 1. Foundation | 5/5 | Complete | 2026-05-16 |
 | 2. Data Layer | 7/7 | Complete | 2026-05-18 |
 | 3. Admin UI | 15/15 | Complete | 2026-05-20 |
-| 4. AI Layer | 0/0 | Not started | - |
-| 5. Employee Portal | 10/10 | Executing — All 5 waves complete; Plan 05-10 UAT operator-approved 2026-05-24T06:30Z; 2 Phase 3 + Phase 4 fast-follow fixes shipped inline; ready for gsd-verifier + phase.complete | - |
+| 4. AI Layer | 14/14 | Complete | 2026-05-22 |
+| 5. Employee Portal | 10/10 | Hardening - code/UAT complete; 2026-05-27 audit remediation is closing build/test/deploy-schema/planning drift before phase ship | - |
 | 6. Billing | 0/0 | Not started | - |
 | 7. Crons + Email | 0/0 | Not started | - |
 | 8. Validation | 0/0 | Not started | - |

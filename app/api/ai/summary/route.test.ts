@@ -2,7 +2,6 @@
 // SPEC R3 idempotence: 2nd call returns cached tldrSummary WITHOUT Anthropic call.
 // SP-2: 503 envelope on Anthropic throw + no ai_generations row.
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { mockTextResponse } from '@/tests/ai-mocks';
 
 // D-05 mock shape — wrap the lib/ai/client wrapper, not the SDK.
 const mockCreate = vi.fn();

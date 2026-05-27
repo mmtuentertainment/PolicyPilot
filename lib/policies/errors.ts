@@ -33,7 +33,7 @@
 // D-10 "advertise nothing" RLS-denial-or-truly-missing union — caller
 // cannot distinguish.
 //
-// Plan 05-08 will widen scripts/check-error-discipline.ts to scan
+// Plan 05-08 widened scripts/check-error-discipline.ts to scan
 // lib/policies/** — the ts-morph gate forbids built-in Error subclasses
 // (Error, TypeError, RangeError, etc.) in this subtree exactly like
 // Phase 3 PR #5 did for lib/auth/** and Phase 4 widened to lib/stripe/**.

@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: ready_to_plan
-last_updated: "2026-05-24T07:24:59.736Z"
+status: audit_remediation
+last_updated: "2026-05-27T05:30:00.000-04:00"
 progress:
   total_phases: 8
-  completed_phases: 5
-  total_plans: 50
+  completed_phases: 4
+  total_plans: 51
   completed_plans: 51
-  percent: 100
+  percent: 50
 ---
 
 # STATE — PolicyPilot
@@ -24,29 +24,30 @@ GSD session state. Updated each time a phase or plan transitions. Source of trut
 - **Operator**: Matthew (MMTU Entertainment LLC) — `mmtuentertainment@gmail.com`
 - **Core value**: Replaces Google Drive / SharePoint for SMB policy management with AI drafting, append-only acknowledgment tracking, and audit-ready compliance trails — at a price an SMB can afford.
 - **Beat-manual gate**: Product must be demonstrably faster and more reliable than a Google Drive folder.
-- **Current focus**: ASSEMBLY Phase 2 — Data Layer (Drizzle schema + RLS + Clerk webhooks). Phase 1 complete and operator-approved 2026-05-16.
+- **Current focus**: Phase 5 Employee Portal release-hardening after the 2026-05-27 current-state audit. Phase 5 code/UAT is complete, but the phase is not ship-clean until audit remediation gates are green.
 - **Granularity**: standard (8 phases)
 
 ---
 
 ## Current Position
 
-Phase: 6 of 05 (billing)
-Plan: Not started
-Branch: `gsd/phase-5-employee-portal` @ 8d27d8a (25 ahead of `main` after Plan 05-10's 1 task commit + pending final metadata commit)
+Phase: 5 of 8 (Employee Portal hardening)
+Plan: 2026-05-27 audit remediation
+Branch: `gsd/phase-5-employee-portal` (local branch includes a pause-work handoff commit ahead of origin; do not blindly ship handoff artifacts)
 Main HEAD: `c50b317`
 
 - **Phase 1** — Foundation **complete** (2026-05-16; 5/5 plans; PR #1 merged)
 - **Phase 2** — Data Layer **complete** (2026-05-18; 7/7 plans = 6 main + 02-07 hotfix; verify:phase-2 8/8 OK; PR #2 squash-merged to `main` @ `130b8ab` on 2026-05-19)
 - **Phase 3** — Admin UI **SHIPPED** (2026-05-20; 15/15 plans; PR #3 squash-merged to `main` @ `edebab7`; 3 fast-follows shipped PR #5/#7/#13; 3-audit cascade complete PR #8/#10/#11; closure test PR #9; state bookkeeping PR #12)
 - **Phase 4** — AI Layer **SHIPPED** (2026-05-22; 14/14 plans; PR #15 squash-merged to `main` @ `f8207f4`; post-merge cleanup PR #17 @ `eda7bb4`; 60/60 STRIDE threats CLOSED; UAT 5/5 PASS with real-key Anthropic smoke verifying SPEC R4 cache mechanics)
-- **Progress**: 4 / 8 phases complete (50%); deploy-prep PR in flight
+- **Phase 5** — Employee Portal code/UAT complete; release-hardening in progress from `.planning/audits/2026-05-27-current-state-audit/`.
+- **Progress**: 4 / 8 phases shipped (50%); Phase 5 hardening in progress; Phases 6-8 not complete.
 
 ```text
 [████░░░░] 4/8 phases shipped  —  Foundation ✓  ·  Data Layer ✓  ·  Admin UI ✓  ·  AI Layer ✓  ·  Employee Portal ▶
 ```
 
-**Next action**: Operator applies Phase 4 migrations (drizzle/0005..0007) to staging + prod via the new deploy-prep tooling (after this PR squash-merges). Then `/gsd-spec-phase 5` (Employee Portal — Wave-1 parallel candidate per ADR-029) or `/gsd-discuss-phase 5`.
+**Next action**: Continue 2026-05-27 audit remediation: keep build/lint/test/deploy-schema gates green, reconcile remaining local artifacts (`AGENTS.md`, `.codex/`, `Designprototypes/`, malformed `CUsers...` directory), then decide whether Phase 5 is ready for verify/ship. Do not start Phase 6 work until Phase 5 hardening is intentionally closed or explicitly paused.
 
 **Fast-follow PR backlog** (3 sequential PRs, originally scoped from PR #3 carry-forward):
 
@@ -71,7 +72,7 @@ Main HEAD: `c50b317`
 
 | Metric | Value |
 |--------|-------|
-| Phases complete | 3 / 8 |
+| Phases complete | 4 / 8 |
 | Phase 1 plans drafted | 5 / 5 |
 | Phase 1 plans executed | 5 / 5 |
 | Phase 2 context | drafted 2026-05-17 |

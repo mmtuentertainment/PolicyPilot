@@ -40,6 +40,13 @@ export default defineConfig({
     // Phase 5 Plan 05-09 — same pattern for scripts/check-employee-portal.test.ts. It has its
     // own dedicated config (scripts/check-employee-portal.vitest.config.ts), requires DB env
     // vars, and fires via `pnpm check:employee-portal` (wired into verify:phase-5 by Plan 05-10).
-    exclude: ['node_modules', '.next', 'tests/types.ts', 'scripts/check-ai-layer.test.ts', 'scripts/check-employee-portal.test.ts'],
+    exclude: [
+      'node_modules',
+      '.next',
+      'tests/types.ts',
+      'tests/e2e/**',
+      'scripts/check-ai-layer.test.ts',
+      'scripts/check-employee-portal.test.ts',
+    ],
   },
 });

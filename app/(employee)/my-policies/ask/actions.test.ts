@@ -7,7 +7,7 @@
 //   - Happy path: valid question → askQuestion called → returns { ok: true, answer, citations }
 //   - Invalid input: missing / empty / oversized (>2000 chars) → { ok: false, error: 'Invalid action payload.' }
 //   - Anthropic.APIError → 503 semantic envelope ('AI service temporarily unavailable.')
-//   - Non-Anthropic Error: rethrow (test asserts the throw propagates)
+//   - Non-Anthropic Error: 503-equivalent fallback (test asserts generic envelope)
 //   - Citations preserved with accessibility flag (D-27a shape lock)
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Anthropic from '@anthropic-ai/sdk';
@@ -140,10 +140,12 @@ describe('askQuestionAction error mapping', () => {
     });
   });
 
-  it('rethrows non-Anthropic Error (framework error boundary handles them)', async () => {
+  it('returns 503-equivalent envelope on non-Anthropic Error', async () => {
     askQuestionMock.mockRejectedValueOnce(new Error('DB connection lost'));
-    await expect(
-      askQuestionAction(undefined, fd({ question: 'test' })),
-    ).rejects.toThrow('DB connection lost');
+    const result = await askQuestionAction(undefined, fd({ question: 'test' }));
+    expect(result).toEqual({
+      ok: false,
+      error: 'AI service temporarily unavailable. Please try again.',
+    });
   });
 });

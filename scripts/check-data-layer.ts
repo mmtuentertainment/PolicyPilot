@@ -29,6 +29,10 @@ const NODE_BIN = process.execPath;
 const TSC_ENTRY = resolvePath(process.cwd(), 'node_modules/typescript/bin/tsc');
 const TSX_ENTRY = resolvePath(process.cwd(), 'node_modules/tsx/dist/cli.mjs');
 const DRIZZLE_KIT_ENTRY = resolvePath(process.cwd(), 'node_modules/drizzle-kit/bin.cjs');
+const REACT_SERVER_CHECK_ENTRY = resolvePath(
+  process.cwd(),
+  'scripts/run-react-server-check.mjs',
+);
 
 type Result = { ok: boolean; label: string; detail?: string };
 
@@ -160,7 +164,7 @@ function checkAuthContext(): Result {
   // — fixed here as a sub-task of 03-G3 T4 since verify:phase-2 needs to
   // be green for the Phase 3 PR.
   return runChild(
-    [TSX_ENTRY, '--conditions=react-server', 'scripts/check-auth-context.ts'],
+    [REACT_SERVER_CHECK_ENTRY, 'scripts/check-auth-context.ts'],
     '03-G1 — auth-context Clerk-text → UUID translation (TEST DB)',
   );
 }

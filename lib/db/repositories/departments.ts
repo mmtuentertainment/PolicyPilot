@@ -27,6 +27,8 @@ export const Departments = {
       .orderBy(asc(departments.name)),
 
   create: (_s: OrgScope, _input: DepartmentCreateInput) => {
+    void _s;
+    void _input;
     throw new Error('Not yet implemented — Phase 3+ (admin department management)');
   },
 };

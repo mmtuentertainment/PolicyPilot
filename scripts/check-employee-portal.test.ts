@@ -113,6 +113,7 @@ vi.mock('@/lib/ai/client', () => ({
 // --------------------------------------------------------------------------------------------
 
 const scopedRef: { tx: postgres.TransactionSql | undefined } = { tx: undefined };
+const qaCitationGrantsUpsertMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/db/scoped', () => ({
   withOrgScope: async <T>(_ctx: unknown, fn: (s: unknown) => Promise<T>): Promise<T> => {
@@ -310,6 +311,7 @@ vi.mock('@/lib/db/repositories/qa_citation_grants', () => ({
       s: { orgId: string; userId: string; tx: postgres.TransactionSql },
       input: { userId: string; policyId: string },
     ) => {
+      qaCitationGrantsUpsertMock(input);
       await s.tx`INSERT INTO qa_citation_grants (org_id, user_id, policy_id)
                   VALUES (${s.orgId}, ${input.userId}, ${input.policyId})
                   ON CONFLICT (org_id, user_id, policy_id) DO NOTHING`;
@@ -431,6 +433,7 @@ async function withRollback(
   try {
     await sql.begin(async (tx) => {
       await truncateTenantTables(tx);
+      qaCitationGrantsUpsertMock.mockClear();
       scopedRef.tx = tx;
       try {
         await body(tx);
@@ -819,6 +822,16 @@ describe('R-6 Q&A surface + grant UPSERT', () => {
       const { askQuestion } = await import('@/lib/ai/qa');
       const result = await askQuestion(ctxState.current, 'what is the expense policy?');
 
+      expect(qaCitationGrantsUpsertMock).toHaveBeenCalledTimes(2);
+      expect(qaCitationGrantsUpsertMock).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ userId: u6, policyId: p1 }),
+      );
+      expect(qaCitationGrantsUpsertMock).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ userId: u6, policyId: p2 }),
+      );
+
       // Assertion (a): 2 citations returned + all carry accessibility='tldr-only'
       // (U6 has zero assignments per seed).
       expect(result.citations.length).toBe(2);
@@ -838,6 +851,7 @@ describe('R-6 Q&A surface + grant UPSERT', () => {
       // Assertion (c): grant UPSERT is idempotent on repeat — second call with same
       // citations does NOT create duplicate rows (UNIQUE(org_id, user_id, policy_id) fires).
       await askQuestion(ctxState.current, 'same question again');
+      expect(qaCitationGrantsUpsertMock).toHaveBeenCalledTimes(4);
       const grantCountRows2 = await tx<{ c: number }[]>`
         SELECT cast(count(*) as int) AS c FROM qa_citation_grants
         WHERE org_id = ${orgA} AND user_id = ${u6} AND policy_id IN (${p1}, ${p2})`;
@@ -890,6 +904,14 @@ describe('R-6 Q&A surface + grant UPSERT', () => {
       };
       const { askQuestion } = await import('@/lib/ai/qa');
       const result = await askQuestion(ctxState.current, 'tell me about that hallucinated policy');
+
+      expect(qaCitationGrantsUpsertMock).toHaveBeenCalledTimes(1);
+      expect(qaCitationGrantsUpsertMock).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: u6, policyId: p1 }),
+      );
+      expect(qaCitationGrantsUpsertMock).not.toHaveBeenCalledWith(
+        expect.objectContaining({ policyId: hallucinatedId }),
+      );
 
       // Assertion (a): result.citations contains p1 but NOT the hallucinated UUID
       // (parseQaResponse stripped it via validIds.has(c.id) at lib/ai/qa-parser.ts:54).
@@ -971,6 +993,14 @@ describe('R-6 Q&A surface + grant UPSERT', () => {
       };
       const { askQuestion } = await import('@/lib/ai/qa');
       const result = await askQuestion(ctxState.current, 'tell me about the foreign policy');
+
+      expect(qaCitationGrantsUpsertMock).toHaveBeenCalledTimes(1);
+      expect(qaCitationGrantsUpsertMock).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: u6, policyId: pAReal }),
+      );
+      expect(qaCitationGrantsUpsertMock).not.toHaveBeenCalledWith(
+        expect.objectContaining({ policyId: pBReal }),
+      );
 
       // Assertion (a): result.citations does NOT contain the foreign-org real UUID
       // (validIds Set was built from Policies.listPublishedForOrg(s) inside withOrgScope

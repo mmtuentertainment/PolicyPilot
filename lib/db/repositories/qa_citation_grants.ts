@@ -107,9 +107,8 @@ export const QaCitationGrants = {
    * Returns Promise<boolean>. Drizzle returns count as string in some
    * drivers; Number(...) coerces safely for the boolean comparison.
    *
-   * ADR-028: takes PolicyId branded type (not raw string). This method
-   * WILL be added to scripts/check-policy-id-brand.ts REPO_TARGETS in
-   * Plan 05-08.
+   * ADR-028: takes PolicyId branded type (not raw string). Plan 05-08
+   * added this method to scripts/check-policy-id-brand.ts REPO_TARGETS.
    */
   hasGrant: async (
     s: OrgScope,

@@ -57,6 +57,8 @@ function buildLibraryPayload(
 }
 
 export async function POST(_req: Request): Promise<Response> {
+  void _req;
+
   // D-37 — auth gates OUTSIDE try. Typed errors (BootstrapError + ForbiddenError) propagate
   // to Next.js error boundary, NOT into the 503 fallback. Keeps auth/AI failure metrics distinct.
   const ctx = await getOrgContext();

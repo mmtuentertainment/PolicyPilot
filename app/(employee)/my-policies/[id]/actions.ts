@@ -70,9 +70,9 @@ export async function acknowledgePolicyAction(
   const ipAddress =
     (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
 
+  const ctx = await getOrgContext();
   let result: { ackedAt: string };
   try {
-    const ctx = await getOrgContext();
     result = await recordAcknowledgment(ctx, parsed.data.policyId, ipAddress);
   } catch (err) {
     if (err instanceof PolicyArchivedError) {
@@ -95,6 +95,18 @@ export async function acknowledgePolicyAction(
         error: "Policy not found.",
         code: "POLICY_NOT_FOUND",
       };
+    }
+    if (err instanceof Error) {
+      console.error("[acknowledgePolicyAction] unexpected error", {
+        orgId: ctx.orgId,
+        policyId: parsed.data.policyId,
+        error: { name: err.name, message: err.message.slice(0, 120) },
+      });
+    } else {
+      console.error("[acknowledgePolicyAction] unexpected non-error throw", {
+        orgId: ctx.orgId,
+        policyId: parsed.data.policyId,
+      });
     }
     throw err; // bubble unknown errors to Next.js error boundary
   }

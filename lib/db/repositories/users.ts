@@ -38,6 +38,8 @@ export const Users = {
   // webhook handler is allow-listed per ADR-023). User creation from
   // app code (admin invites another user, etc.) goes through here.
   create: (_s: OrgScope, _input: UserCreateInput) => {
+    void _s;
+    void _input;
     throw new Error('Not yet implemented — Phase 3+ (admin user management)');
   },
 };

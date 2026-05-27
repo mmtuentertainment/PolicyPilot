@@ -76,7 +76,7 @@ import { acknowledgments, users } from '@/lib/db/schema';
  *
  * @param ctx - org-scoped Clerk auth context (resolved by caller per D-09)
  * @param policyId - branded PolicyId per ADR-028 (Server Action validates at
- *   trust boundary via PolicyIdSchema per D-10b; Plan 05-08 widens
+ *   trust boundary via PolicyIdSchema per D-10b; Plan 05-08 widened
  *   scripts/check-policy-id-brand.ts ORCH_TARGETS to add this orchestrator)
  * @param ipAddress - x-forwarded-for first hop trimmed per D-05; null on
  *   local dev (where Vercel edge stripping does not apply)

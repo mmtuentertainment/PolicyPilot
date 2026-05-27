@@ -131,6 +131,8 @@ export async function approve(policyId: PolicyId): Promise<void> {
  * policy_versions — versions only track the published lineage (D-04).
  */
 export async function reject(policyId: PolicyId, _reason?: string): Promise<void> {
+  void _reason;
+
   const ctx = await getOrgContext();
   await withOrgScope(ctx, async (s) => {
     await loadAndAssertTransition(s, policyId, 'draft');
@@ -290,7 +292,7 @@ export async function editPublished(
     if (policy.status !== 'published') {
       throw new IllegalTransitionError(policy.status, 'draft');
     }
-    // No snapshot needed here: publish() (line 156-176) ALREADY wrote a
+    // No snapshot needed here: publish() already wrote a
     // policy_versions row for `versionNumber = policy.currentVersion` when
     // this policy was originally published. Re-writing the same
     // (policy_id, version_number) pair would violate the 03-G3 T2 UNIQUE

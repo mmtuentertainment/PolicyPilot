@@ -1,4 +1,4 @@
-// Drizzle schema — 13 tables: 11 tenant-scoped + 2 service-role aux (stripe_events, clerk_events).
+// Drizzle schema — 14 tables: 12 tenant-scoped + 2 service-role aux (stripe_events, clerk_events).
 //
 // Phase 2 schema amendments on top of reference/SCHEMA.md frozen contract:
 //   - D-02: org_id denormalized onto policy_versions, policy_assignments,

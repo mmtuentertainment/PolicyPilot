@@ -2,7 +2,7 @@
 // CRITICAL: translateProcessingStatus(SDK enum → SPEC enum) + AC-30 DB-cache stale-window
 // + WARNING-5 token aggregation across batch results stream.
 // 4 translator fixtures + 2 stale-window cases + 1 completed-path case + 1 WARNING-5 token-sum.
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { mockBatch } from '@/tests/ai-mocks';
 
 // ============================================================================

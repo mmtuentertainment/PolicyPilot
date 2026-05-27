@@ -15,10 +15,10 @@
 // against this file with "Cannot find module '@/lib/db/repositories/...'"
 // — that is the INTENDED state. Plan 02-06's `pnpm verify:phase-2` runs
 // the final tsc check after the repositories ship.
-/* eslint-disable @typescript-eslint/no-unused-expressions */
 import { Acknowledgments } from '@/lib/db/repositories/acknowledgments';
 import { Policies } from '@/lib/db/repositories/policies';
 import { PolicyVersions } from '@/lib/db/repositories/policy_versions';
+import { QaCitationGrants } from '@/lib/db/repositories/qa_citation_grants';
 
 // Extract the OrgScope shape from Policies.create's first parameter so we
 // can supply a typed placeholder without reaching for `as any`. The third
@@ -48,6 +48,16 @@ void Policies.create(ORG_SCOPE_STUB, { tldrSummary: 'x' });
 void PolicyVersions.update;
 // @ts-expect-error — PolicyVersions must not expose `delete` (L-05 / ADR-018-spirit)
 void PolicyVersions.delete;
+
+// ---- Phase 5 D-29 grant immutability invariant ----
+// Q&A citation grants are write-once/non-expiring for MVP. Cleanup, if
+// needed, belongs to an explicit future cron path rather than ad hoc
+// repository update/delete methods.
+
+// @ts-expect-error — QaCitationGrants must not expose `update` (D-29 write-once grants)
+void QaCitationGrants.update;
+// @ts-expect-error — QaCitationGrants must not expose `delete` (D-29 write-once grants)
+void QaCitationGrants.delete;
 
 // ---- ADR-028 PolicyId brand invariant ----
 // The branded `PolicyId` nominal type (from `lib/policies/types.ts`) MUST

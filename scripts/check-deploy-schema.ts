@@ -1,9 +1,9 @@
 // scripts/check-deploy-schema.ts
 //
-// Phase 4 deploy-prep (Issue #16 carry, 2026-05-22). Env-agnostic schema
+// Phase 5 deploy-prep (Issue #16 carry + Phase 5 hardening, 2026-05-27). Env-agnostic schema
 // verifier for deploy-time validation: asserts the target database has all
 // expected migrations applied AND the resulting schema matches the journal +
-// RLS + Phase 4 column shape + partial-unique index.
+// RLS + Phase 4/5 column shapes + required unique indexes/constraints.
 //
 // Usage:
 //   tsx --env-file=.env.local              scripts/check-deploy-schema.ts   # dev
@@ -30,8 +30,8 @@ if (!DB_URL) {
 }
 
 // Tenant-scoped tables — RLS + org_isolation policy + 4 GRANTs to authenticated.
-// Phase 4 added batch_jobs (drizzle/0006_rls_batch_jobs.sql) — mirrors check-rls.ts
-// and the Phase 4.5 addition to scripts/check-schema.ts.
+// Phase 4 added batch_jobs; Phase 5 added qa_citation_grants. Keep this in
+// lockstep with scripts/check-schema.ts and scripts/check-rls.ts.
 const TENANT_TABLES = [
   'organizations',
   'users',
@@ -44,6 +44,7 @@ const TENANT_TABLES = [
   'notifications',
   'workflow_stages',
   'batch_jobs',
+  'qa_citation_grants',
 ] as const;
 
 // Service-role tables — webhook idempotency state, no RLS.
@@ -64,6 +65,25 @@ const AI_GENERATIONS_PHASE_4_COLUMNS = [
 
 // Phase 4 D-32 hand-written partial-unique index for Idempotency-Key dedup.
 const AI_GENERATIONS_IDEMPOTENCY_INDEX = 'ai_generations_org_idempotency_key';
+
+const PHASE_5_UNIQUE_CONSTRAINTS = [
+  'acknowledgments_user_id_policy_id_policy_version_id_unique',
+  'policy_assignments_policy_id_assignee_type_assignee_id_unique',
+  'qa_citation_grants_org_user_policy_unique',
+] as const;
+
+const QA_CITATION_GRANTS_COLUMNS = [
+  { column_name: 'id', data_type: 'uuid', is_nullable: 'NO' },
+  { column_name: 'org_id', data_type: 'uuid', is_nullable: 'NO' },
+  { column_name: 'user_id', data_type: 'uuid', is_nullable: 'NO' },
+  { column_name: 'policy_id', data_type: 'uuid', is_nullable: 'NO' },
+  { column_name: 'granted_at', data_type: 'timestamp without time zone', is_nullable: 'NO' },
+] as const;
+
+const QA_CITATION_GRANTS_INDEXES = [
+  'qa_citation_grants_org_id_idx',
+  'qa_citation_grants_user_policy_idx',
+] as const;
 
 interface JournalEntry {
   idx: number;
@@ -162,7 +182,7 @@ async function main(): Promise<void> {
     // looking for tenant tables that haven't been created.
     if (!dbIsEmpty) {
 
-    // 2. All 11 tenant tables exist
+    // 2. All tenant tables exist
     for (const table of TENANT_TABLES) {
       const rows = await sql`
         SELECT 1 FROM pg_catalog.pg_tables
@@ -285,6 +305,92 @@ async function main(): Promise<void> {
         detail: 'missing — drizzle/0005_initial_batch_jobs.sql not applied?',
       });
     }
+
+    // 9. Phase 5 D-28 + D-29: idempotency UNIQUE constraints.
+    const phase5ConstraintRows = await sql<{ conname: string }[]>`
+      SELECT conname FROM pg_catalog.pg_constraint
+      WHERE conname IN ${sql([...PHASE_5_UNIQUE_CONSTRAINTS])}
+        AND contype = 'u'
+    `;
+    if (phase5ConstraintRows.length !== PHASE_5_UNIQUE_CONSTRAINTS.length) {
+      failures.push({
+        check: 'Phase 5 UNIQUE constraints',
+        detail:
+          `${phase5ConstraintRows.length} of ${PHASE_5_UNIQUE_CONSTRAINTS.length} expected ` +
+          `(got: ${phase5ConstraintRows.map((r) => r.conname).join(', ') || '(none)'})`,
+      });
+    }
+
+    // 10. Phase 5 D-29: qa_citation_grants exact column shape.
+    const grantCols = await sql<{
+      column_name: string;
+      data_type: string;
+      is_nullable: string;
+    }[]>`
+      SELECT column_name, data_type, is_nullable
+      FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'qa_citation_grants'
+      ORDER BY ordinal_position
+    `;
+    if (grantCols.length !== QA_CITATION_GRANTS_COLUMNS.length) {
+      failures.push({
+        check: 'qa_citation_grants column count',
+        detail:
+          `${grantCols.length} columns (expected ${QA_CITATION_GRANTS_COLUMNS.length}: ` +
+          `${QA_CITATION_GRANTS_COLUMNS.map((c) => c.column_name).join(', ')})`,
+      });
+    } else {
+      for (let i = 0; i < QA_CITATION_GRANTS_COLUMNS.length; i++) {
+        const got = grantCols[i]!;
+        const want = QA_CITATION_GRANTS_COLUMNS[i]!;
+        if (
+          got.column_name !== want.column_name ||
+          got.data_type !== want.data_type ||
+          got.is_nullable !== want.is_nullable
+        ) {
+          failures.push({
+            check: `qa_citation_grants column ${i} shape`,
+            detail: `got ${JSON.stringify(got)}, expected ${JSON.stringify(want)}`,
+          });
+        }
+      }
+    }
+
+    // 11. Phase 5 D-29: qa_citation_grants RLS policy uses wrapped JWT form.
+    const grantPolicy = await sql<{ qual: string | null }[]>`
+      SELECT qual FROM pg_policies
+      WHERE tablename = 'qa_citation_grants' AND policyname = 'org_isolation'
+    `;
+    if (grantPolicy.length !== 1) {
+      failures.push({
+        check: 'qa_citation_grants org_isolation policy exists',
+        detail: `${grantPolicy.length} policy row(s) (expected 1)`,
+      });
+    } else {
+      const qual = grantPolicy[0]!.qual ?? '';
+      if (!qual.includes('SELECT') || !qual.includes('auth.jwt(')) {
+        failures.push({
+          check: 'qa_citation_grants wrapped RLS policy',
+          detail: `qual=${qual || '(null)'} — expected wrapped (SELECT auth.jwt()) form`,
+        });
+      }
+    }
+
+    // 12. Phase 5 D-29: qa_citation_grants indexes exist.
+    const grantIdx = await sql<{ indexname: string }[]>`
+      SELECT indexname FROM pg_indexes
+      WHERE schemaname = 'public'
+        AND tablename = 'qa_citation_grants'
+        AND indexname IN ${sql([...QA_CITATION_GRANTS_INDEXES])}
+    `;
+    if (grantIdx.length !== QA_CITATION_GRANTS_INDEXES.length) {
+      failures.push({
+        check: 'qa_citation_grants indexes',
+        detail:
+          `${grantIdx.length} of ${QA_CITATION_GRANTS_INDEXES.length} expected ` +
+          `(got: ${grantIdx.map((r) => r.indexname).join(', ') || '(none)'})`,
+      });
+    }
     } // end if (!dbIsEmpty)
   } finally {
     await sql.end();
@@ -296,7 +402,8 @@ async function main(): Promise<void> {
         `${TENANT_TABLES.length} tenant-scoped tables (RLS + policy + ${REQUIRED_PRIVS.length} GRANTs each), ` +
         `${SERVICE_ROLE_TABLES.length} service-role tables (no RLS), ` +
         `Phase 4 column shape + partial-unique index present, ` +
-        `Phase 3 G3 + Phase 4 unique constraints present.`,
+        `Phase 3 G3 + Phase 4/5 unique constraints present, ` +
+        `qa_citation_grants columns + wrapped RLS + indexes present.`,
     );
     process.exit(0);
   }
@@ -309,7 +416,7 @@ async function main(): Promise<void> {
   console.error('Remediation:');
   console.error('  - For "no migrations applied" / "X applied (expected Y)": run pnpm db:migrate against this DB.');
   console.error('  - For missing tables/columns/indexes: a migration ran partially; investigate before re-running.');
-  console.error('  - For RLS / GRANT failures: re-apply drizzle/0001_rls_policies.sql + drizzle/0006_rls_batch_jobs.sql.');
+  console.error('  - For RLS / GRANT failures: re-apply the relevant RLS migration(s), including 0006/0011.');
   console.error('  - See docs/runbooks/deploy-migrations.md for the full procedure.\n');
   process.exit(1);
 }

@@ -126,10 +126,73 @@ function checkPackageJsonShape(): Check[] {
   );
   assert(
     out,
-    /"check:db"\s*:\s*"tsx [^"]*--env-file=\.env\.local[^"]*"/.test(pkg),
+    /"check:db"\s*:\s*"tsx [^"]*--env-file=\.env\.local[^"]*"/.test(pkg) ||
+      /"check:db"\s*:\s*"node scripts\/run-react-server-check\.mjs scripts\/check-db\.ts"/.test(
+        pkg,
+      ),
     "check:db wires --env-file=.env.local (Plan 01-04 acceptance)",
-    "tsx --env-file flag missing from check:db script",
+    "check:db must run through tsx --env-file=.env.local or the react-server check runner",
   );
+
+  if (
+    /"check:db"\s*:\s*"node scripts\/run-react-server-check\.mjs scripts\/check-db\.ts"/.test(
+      pkg,
+    )
+  ) {
+    assert(
+      out,
+      exists("scripts/run-react-server-check.mjs"),
+      "react-server check runner exists for check:db",
+      "scripts/run-react-server-check.mjs missing",
+    );
+
+    const runner = exists("scripts/run-react-server-check.mjs")
+      ? read("scripts/run-react-server-check.mjs")
+      : "";
+
+    assert(
+      out,
+      runner.includes("'--env-file=.env.local'") ||
+        runner.includes('"--env-file=.env.local"'),
+      "react-server check runner wires --env-file=.env.local",
+      "--env-file=.env.local missing from scripts/run-react-server-check.mjs",
+    );
+    assert(
+      out,
+      runner.includes("'--conditions=react-server'") ||
+        runner.includes('"--conditions=react-server"'),
+      "react-server check runner uses react-server condition",
+      "--conditions=react-server missing from scripts/run-react-server-check.mjs",
+    );
+    assert(
+      out,
+      runner.includes("server-only") && runner.includes("NODE_PATH"),
+      "react-server check runner resolves server-only for standalone scripts",
+      "server-only NODE_PATH resolution missing from scripts/run-react-server-check.mjs",
+    );
+
+    const foundation = exists("scripts/check-foundation.ts")
+      ? read("scripts/check-foundation.ts")
+      : "";
+    assert(
+      out,
+      foundation.includes("scripts/run-react-server-check.mjs") &&
+        foundation.includes('"scripts/check-db.ts"'),
+      "check-foundation uses react-server runner for DB smoke check",
+      "scripts/check-foundation.ts must route check-db.ts through scripts/run-react-server-check.mjs",
+    );
+
+    const dataLayer = exists("scripts/check-data-layer.ts")
+      ? read("scripts/check-data-layer.ts")
+      : "";
+    assert(
+      out,
+      dataLayer.includes("scripts/run-react-server-check.mjs") &&
+        dataLayer.includes("'scripts/check-auth-context.ts'"),
+      "check-data-layer uses react-server runner for auth-context check",
+      "scripts/check-data-layer.ts must route check-auth-context.ts through scripts/run-react-server-check.mjs",
+    );
+  }
 
   return out;
 }
@@ -708,7 +771,7 @@ function checkServerOnlyBoundary(): Check[] {
   // server-side consumers as they land.
   const out: Check[] = [];
   const result = spawnSync(
-    "node",
+    process.execPath,
     [
       "-e",
       // Cross-platform grep replacement using Node fs walker.
@@ -1637,7 +1700,7 @@ function checkPhase4Scaffold(): Check[] {
   // match) across lib/ + app/ + components/ should return ZERO matches — the ONLY
   // declaration is `export const POLICY_CATEGORIES` in lib/policies/categories.ts.
   const blockerResult = spawnSync(
-    'node',
+    process.execPath,
     [
       '-e',
       `const fs = require('node:fs'); const path = require('node:path');
@@ -2134,6 +2197,12 @@ function checkPhase5Scaffold(): Check[] {
         `${method} method missing`,
       );
     }
+    assert(
+      out,
+      !/\bupdate\s*:/.test(grants) && !/\bdelete\s*:/.test(grants),
+      'lib/db/repositories/qa_citation_grants.ts: does NOT export update: / delete: keys (D-29 write-once grants)',
+      'write-once grant invariant violated — QaCitationGrants exports update or delete',
+    );
   }
 
   // ── 6. Orchestrators (Plan 05-04) ───────────────────────────────────────
@@ -2297,6 +2366,19 @@ function checkPhase5Scaffold(): Check[] {
   }
 
   // ── 11. package.json — Plan 05-08 script entries ────────────────────────
+  // Phase 5 hardening: qa_citation_grants is write-once like acknowledgments,
+  // so the mutation gate must track both the Drizzle symbol and SQL table name.
+  if (exists('scripts/check-acknowledgment-immutability.ts')) {
+    const immutabilityGate = read('scripts/check-acknowledgment-immutability.ts');
+    assert(
+      out,
+      immutabilityGate.includes('qaCitationGrants') &&
+        immutabilityGate.includes('qa_citation_grants'),
+      'scripts/check-acknowledgment-immutability.ts covers qa_citation_grants write-once grants',
+      'qa_citation_grants is missing from the append-only/static mutation gate',
+    );
+  }
+
   if (exists('package.json')) {
     let pkgJson: { scripts?: Record<string, string> } | null = null;
     try {

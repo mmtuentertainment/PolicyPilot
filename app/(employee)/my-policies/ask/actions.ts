@@ -54,8 +54,9 @@ export async function askQuestionAction(
 ): Promise<AskActionState> {
   const parsed = Schema.safeParse({ question: formData.get("question") });
   if (!parsed.success) return INVALID_PAYLOAD;
+
+  const ctx = await getOrgContext();
   try {
-    const ctx = await getOrgContext();
     const result = await askQuestion(ctx, parsed.data.question);
     return {
       ok: true,
@@ -64,6 +65,10 @@ export async function askQuestionAction(
     };
   } catch (err) {
     if (err instanceof Anthropic.APIError) {
+      console.error("[askQuestionAction] anthropic failed", {
+        orgId: ctx.orgId,
+        error: { name: err.name, status: err.status, code: err.type },
+      });
       // Match the HTTP route's 503 envelope semantically (UI-level).
       // HTTP route returns { error: 'ai_service_unavailable', retryAfter: 30 }
       // with status 503 + Retry-After header; the Server Action surface is
@@ -73,6 +78,19 @@ export async function askQuestionAction(
         error: "AI service temporarily unavailable. Please try again.",
       };
     }
+    if (err instanceof Error) {
+      console.error("[askQuestionAction] unexpected error", {
+        orgId: ctx.orgId,
+        error: { name: err.name, message: err.message.slice(0, 120) },
+      });
+      return {
+        ok: false,
+        error: "AI service temporarily unavailable. Please try again.",
+      };
+    }
+    console.error("[askQuestionAction] unexpected non-error throw", {
+      orgId: ctx.orgId,
+    });
     throw err; // bubble unknown errors to Next.js error boundary
   }
 }

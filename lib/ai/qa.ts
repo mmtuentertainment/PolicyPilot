@@ -1,5 +1,5 @@
 // lib/ai/qa.ts — Plan 05-04 Task 2 (D-25 / T-3=A).
-// Extracts inline Q&A logic from app/api/ai/qa/route.ts:41-115 into a pure
+// Extracts inline Q&A logic from app/api/ai/qa/route.ts into a pure
 // orchestrator. Server Action (Plan 05-05 askQuestionAction) and the
 // legacy HTTP route handler both wrap this.
 //
@@ -22,7 +22,7 @@
 // Phase 5 additions (orthogonal to Phase 4 invariants):
 //   - D-26 — grant-UPSERT loop iterates over PARSED.CITATIONS (post-validIds-
 //     filter per RESEARCH gap-3), NOT raw fence JSON. The validIds Set
-//     already excluded hallucinated IDs at lib/ai/qa-parser.ts:54
+//     already excluded hallucinated IDs at lib/ai/qa-parser.ts
 //     (`.filter(c => validIds.has(c.id))`). Iterating raw fence would
 //     pollute qa_citation_grants with hallucinated-UUID rows that would
 //     RLS-404 at the page handler but accumulate as garbage.
@@ -166,7 +166,7 @@ export async function askQuestion(
     // D-26 (T-2(4c)) — for each cited policy, ensure a qa_citation_grants
     // row exists. CRITICAL per RESEARCH gap-3: iterate parsed.citations
     // (validIds-filtered), NOT the raw Anthropic fence. A hallucinated
-    // foreign-org policy UUID was already stripped at qa-parser.ts:54
+    // foreign-org policy UUID was already stripped by qa-parser.ts
     // (`.filter(c => validIds.has(c.id))`). QaCitationGrants.upsert is
     // idempotent via UNIQUE(org_id, user_id, policy_id) on migration 0011 —
     // duplicate citations across questions don't create duplicate rows.

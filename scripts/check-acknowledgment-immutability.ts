@@ -1,14 +1,16 @@
 // scripts/check-acknowledgment-immutability.ts — Plan 05-08 Task 1a (D-18..D-20).
 //
-// ADR-018 append-only enforcement at CI time. Three-layer defense:
+// ADR-018 append-only enforcement at CI time. Extended in the Phase 5
+// hardening pass to cover both write-once capability tables:
+// acknowledgments and qa_citation_grants. Three-layer defense:
 //   1. TYPE SYSTEM — tests/types.ts D-07 @ts-expect-error invariants prove
 //      Acknowledgments repository exports NO update/delete keys at compile
 //      time (Phase 2 lock).
 //   2. CI GATE — THIS FILE — ts-morph AST scan of lib/**/*.ts for
-//      .update(acknowledgments) / .delete(acknowledgments) call expressions
+//      .update(table) / .delete(table) call expressions
 //      (handles aliased imports like `import { acknowledgments as ack }`).
 //      Sub-pass 2 regex scan catches raw-SQL bypass per EAPI advisor H-1:
-//      `db.execute(sql`UPDATE/DELETE acknowledgments...`)` template literals.
+//      `db.execute(sql`UPDATE/DELETE <immutable table>...`)` template literals.
 //   3. DB GRANT-asymmetry-documented — drizzle/0001_rls_policies.sql:67-73 —
 //      DB GRANTs UPDATE + DELETE for authenticated role (mandatory for RLS
 //      symmetry); the lock is at the app layer (ADR-018), not DB. The
@@ -40,11 +42,18 @@
 import { Project, SyntaxKind } from 'ts-morph';
 import { resolve } from 'node:path';
 
-const ACK_SYMBOL_FILE = 'lib/db/schema.ts';
-const ACK_SYMBOL_NAME = 'acknowledgments';
-// Banned method names when called on the acknowledgments schema symbol.
-// Mirrors Acknowledgments repository keys excluded per ADR-018 (tests/types.ts
-// D-07 @ts-expect-error invariants are the type-system layer of the same lock).
+const SCHEMA_SYMBOL_FILE = 'lib/db/schema.ts';
+const IMMUTABLE_TABLES = [
+  { symbolName: 'acknowledgments', sqlName: 'acknowledgments' },
+  { symbolName: 'qaCitationGrants', sqlName: 'qa_citation_grants' },
+] as const;
+const IMMUTABLE_SYMBOL_NAMES: Set<string> = new Set(
+  IMMUTABLE_TABLES.map((table) => table.symbolName),
+);
+// Banned method names when called on immutable schema symbols.
+// Mirrors repository keys excluded per ADR-018 spirit. The compile-time
+// inverted-polarity invariants in tests/types.ts are the type-system layer
+// of the same lock.
 const VIOLATION_METHODS = new Set(['update', 'delete']);
 const PROD_GLOB = 'lib/**/*.ts';
 const FIXTURE_FILE = 'tests/fixtures/ack-mutation-attempt.ts';
@@ -60,11 +69,12 @@ const FIXTURE_FILE = 'tests/fixtures/ack-mutation-attempt.ts';
 // positives on comments/docs). Documented secondary gap mitigated by ADR-018
 // review discipline + tests/types.ts D-07 type-system invariant.
 const RAW_SQL_PATTERN =
-  /\bsql\s*`[^`]*?\b(UPDATE|DELETE\s+FROM)\s+(?:"acknowledgments"|acknowledgments)\b[^`]*?`/gi;
+  /\bsql\s*`[^`]*?\b(UPDATE|DELETE\s+FROM)\s+(?:"(acknowledgments|qa_citation_grants)"|(acknowledgments|qa_citation_grants))\b[^`]*?`/gi;
 
 type Violation = {
   file: string;
   line: number;
+  table: string;
   method: string; // 'update' | 'delete' | 'raw SQL UPDATE' | 'raw SQL DELETE FROM'
 };
 
@@ -78,10 +88,11 @@ function main(): void {
   });
 
   // Always load lib/db/schema.ts so symbol resolution can follow the
-  // import { acknowledgments } from '@/lib/db/schema' chain in either mode.
+  // import { acknowledgments, qaCitationGrants } from '@/lib/db/schema'
+  // chain in either mode.
   // Without this the Sub-pass 1 AST walk cannot resolve the schema symbol
   // and silently passes (false negative — hasDrizzle=false in self-test).
-  project.addSourceFilesAtPaths(ACK_SYMBOL_FILE);
+  project.addSourceFilesAtPaths(SCHEMA_SYMBOL_FILE);
 
   // Files that will be SCANNED for violations. Schema file is added above
   // for symbol resolution only — it's filtered out of the scan loop below.
@@ -129,7 +140,7 @@ function main(): void {
   // ── Sub-pass 1: Drizzle-API CallExpression walk ────────────────────────
   // Walk every source file (filtered by shouldScan), walk every
   // CallExpression, check if the call target is `.update(X)` or `.delete(X)`
-  // where X is an Identifier resolving to the `acknowledgments` schema
+  // where X is an Identifier resolving to an immutable schema
   // symbol (via ts-morph's symbol resolution — handles aliased imports
   // like `acknowledgments as ack`).
   for (const sourceFile of project.getSourceFiles()) {
@@ -146,7 +157,7 @@ function main(): void {
       const methodName = propAccess.getName(); // 'update' or 'delete'
       if (!VIOLATION_METHODS.has(methodName)) return;
 
-      // Inspect the first arg: must be an Identifier resolving to acknowledgments.
+      // Inspect the first arg: must be an Identifier resolving to a locked table.
       const callArgs = callExpr.getArguments();
       if (callArgs.length === 0) return;
       const firstArg = callArgs[0];
@@ -164,8 +175,13 @@ function main(): void {
       // when available; fall back to the original symbol for non-imported
       // identifiers (defensive — wouldn't normally apply to schema refs).
       const aliased = symbol.getAliasedSymbol() ?? symbol;
-      // Only flag if the (resolved) symbol's name is the schema name.
-      if (aliased.getName() !== ACK_SYMBOL_NAME) return;
+      // Only flag if the (resolved) symbol's name is one of the immutable schemas.
+      const symbolName = aliased.getName();
+      if (!IMMUTABLE_SYMBOL_NAMES.has(symbolName)) return;
+      const table = IMMUTABLE_TABLES.find(
+        (candidate) => candidate.symbolName === symbolName,
+      );
+      if (!table) return;
 
       for (const decl of aliased.getDeclarations()) {
         const declFile = decl.getSourceFile().getFilePath();
@@ -176,13 +192,14 @@ function main(): void {
         // (Windows getFilePath() may use backslashes).
         const declFileNorm = declFile.replace(/\\/g, '/');
         if (
-          declFileNorm.endsWith(ACK_SYMBOL_FILE) ||
+          declFileNorm.endsWith(SCHEMA_SYMBOL_FILE) ||
           declFileNorm.includes('/db/schema')
         ) {
           const lineNum = callExpr.getStartLineNumber();
           violations.push({
             file: sourceFile.getFilePath(),
             line: lineNum,
+            table: table.sqlName,
             method: methodName,
           });
           break; // one violation per CallExpression
@@ -227,9 +244,11 @@ function main(): void {
       const pos = match.index;
       const lineCol = sourceFile.getLineAndColumnAtPos(pos);
       const verb = (match[1] ?? '').toUpperCase().replace(/\s+/g, ' ');
+      const table = match[2] ?? match[3] ?? '<unknown>';
       violations.push({
         file: filePath,
         line: lineCol.line,
+        table,
         method: `raw SQL ${verb}`,
       });
     }
@@ -237,29 +256,38 @@ function main(): void {
 
   // ── Result mode handling ────────────────────────────────────────────────
   if (selfTest) {
-    // Reverse-interpretation: gate is proven non-vacuous if >= 2 violations
-    // found in fixture (>= 1 Drizzle-API .update(acknowledgments) AND
-    // >= 1 raw-SQL sql`UPDATE acknowledgments...`).
+    // Reverse-interpretation: gate is proven non-vacuous if each immutable
+    // table trips both detection paths in the fixture.
     // Per EAPI advisor H-1: BOTH detection paths must be exercised by the
     // negative-control fixture every CI run.
-    const hasDrizzle = violations.some(
-      (v) => v.method === 'update' || v.method === 'delete',
+    const hasDrizzle = IMMUTABLE_TABLES.every((table) =>
+      violations.some(
+        (v) =>
+          v.table === table.sqlName &&
+          (v.method === 'update' || v.method === 'delete'),
+      ),
     );
-    const hasRawSql = violations.some((v) => v.method.startsWith('raw SQL'));
-    if (violations.length >= 2 && hasDrizzle && hasRawSql) {
+    const hasRawSql = IMMUTABLE_TABLES.every((table) =>
+      violations.some(
+        (v) => v.table === table.sqlName && v.method.startsWith('raw SQL'),
+      ),
+    );
+    const expectedMinimum = IMMUTABLE_TABLES.length * 2;
+    if (violations.length >= expectedMinimum && hasDrizzle && hasRawSql) {
       console.log(
         `OK — self-test: ${violations.length} violation(s) detected in ${FIXTURE_FILE} ` +
-          `(gate is non-vacuous; both Drizzle-API and raw-SQL detection paths exercised).`,
+          `(gate is non-vacuous for ${IMMUTABLE_TABLES.length} immutable table(s); ` +
+          `both Drizzle-API and raw-SQL detection paths exercised).`,
       );
       process.exit(0);
     }
     console.error(
       `FAIL — self-test: gate is broken. Found ${violations.length} violation(s); ` +
-        `expected >= 2 with both Drizzle-API and raw-SQL detection paths ` +
+        `expected >= ${expectedMinimum} with both Drizzle-API and raw-SQL detection paths ` +
         `(hasDrizzle=${hasDrizzle}, hasRawSql=${hasRawSql}).`,
     );
     for (const v of violations) {
-      console.error(`  ${v.file}:${v.line}  .${v.method}(acknowledgments)`);
+      console.error(`  ${v.file}:${v.line}  ${v.method}(${v.table})`);
     }
     process.exit(1);
   }
@@ -267,8 +295,9 @@ function main(): void {
   // Default (production) mode.
   if (violations.length === 0) {
     const filesScanned = project.getSourceFiles().length;
+    const tableList = IMMUTABLE_TABLES.map((table) => table.sqlName).join(', ');
     console.log(
-      `OK — ADR-018 append-only: 0 .update(acknowledgments) / .delete(acknowledgments) calls ` +
+      `OK — ADR-018 append-only: 0 update/delete calls on ${tableList} ` +
         `(Drizzle-API or raw-SQL) in lib/** (${filesScanned} files scanned).`,
     );
     process.exit(0);
@@ -276,7 +305,7 @@ function main(): void {
 
   console.error(`FAIL — ADR-018 violation(s):`);
   for (const v of violations) {
-    console.error(`  ${v.file}:${v.line}  .${v.method}(acknowledgments)`);
+    console.error(`  ${v.file}:${v.line}  ${v.method}(${v.table})`);
   }
   console.error(
     `\nSee ADR-018 in .planning/PROJECT.md (acknowledgment records are ` +
