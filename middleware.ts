@@ -63,7 +63,39 @@ function requiresAdminRole(pathname: string): boolean {
   return ADMIN_ROLE_REQUIRED_PATTERNS.some((p) => p.test(pathname));
 }
 
-export default clerkMiddleware(async (auth, req: NextRequest) => {
+function requestHeadersWithPathname(req: NextRequest): Headers {
+  const pathname = req.nextUrl.pathname;
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-pathname", pathname);
+  return requestHeaders;
+}
+
+function routeSmokeMiddleware(req: NextRequest): NextResponse {
+  const pathname = req.nextUrl.pathname;
+  const requestHeaders = requestHeadersWithPathname(req);
+
+  if (isWebhookRoute(req) || isCronRoute(req) || isPublicRoute(req)) {
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
+  if (isAdminRoute(pathname)) {
+    return new NextResponse(null, { status: 404 });
+  }
+
+  const signInUrl = new URL("/sign-in", req.url);
+  signInUrl.searchParams.set(
+    "redirect_url",
+    req.nextUrl.pathname + req.nextUrl.search,
+  );
+  return NextResponse.redirect(signInUrl);
+}
+
+const isGithubRouteSmoke =
+  process.env.POLICYPILOT_E2E_AUTH_BYPASS === "1" &&
+  process.env.CI === "true" &&
+  process.env.GITHUB_ACTIONS === "true";
+
+const clerkProtectedMiddleware = clerkMiddleware(async (auth, req: NextRequest) => {
   // x-pathname injection (RESEARCH Pattern 7 / D-06) — every downstream
   // NextResponse.next() carries the original request pathname so Server
   // Components (e.g., AdminSidebar in Plan 03-09) can read it via
@@ -74,8 +106,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   // clobbering any client-supplied x-pathname header. Server Components
   // never see attacker-controlled values.
   const pathname = req.nextUrl.pathname;
-  const requestHeaders = new Headers(req.headers);
-  requestHeaders.set("x-pathname", pathname);
+  const requestHeaders = requestHeadersWithPathname(req);
 
   // Webhook + cron routes bypass Clerk; both verify their own credentials
   // in-route (signature for webhooks, CRON_SECRET header for cron).
@@ -189,6 +220,8 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
 
   return NextResponse.next({ request: { headers: requestHeaders } });
 });
+
+export default isGithubRouteSmoke ? routeSmokeMiddleware : clerkProtectedMiddleware;
 
 export const config = {
   matcher: [

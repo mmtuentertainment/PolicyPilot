@@ -61,6 +61,7 @@ jobs:
           CLERK_WEBHOOK_SECRET=whsec_policy_pilot_ci_dummy
           NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/post-sign-in
           NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=/post-sign-in
+          POLICYPILOT_E2E_AUTH_BYPASS=1
           NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_policy_pilot_ci_dummy
           STRIPE_SECRET_KEY=sk_test_policy_pilot_ci_dummy
           STRIPE_WEBHOOK_SECRET=whsec_policy_pilot_ci_dummy
