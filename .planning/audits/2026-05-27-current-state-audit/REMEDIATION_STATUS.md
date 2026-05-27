@@ -1,6 +1,6 @@
 # PolicyPilot Audit Remediation Status
 
-Last updated: 2026-05-27T11:54:05-04:00
+Last updated: 2026-05-27T12:31:00-04:00
 Source findings: `.planning/audits/2026-05-27-current-state-audit/FINDINGS.md`
 Plan: `.planning/audits/2026-05-27-current-state-audit/REMEDIATION_PLAN.md`
 
@@ -27,6 +27,7 @@ The remaining items are operational or workspace decisions, not failing applicat
 | Phase 5 fast-follow: `qa_citation_grants` immutability | Fixed | The immutability scanner and type invariants now cover both `acknowledgments` and `qa_citation_grants`, including Drizzle and raw-SQL mutation paths. | Immutability gate passed; self-test detected 4 deliberate violations across 2 immutable tables. |
 | Phase 5 fast-follow: assignment and Q&A test coverage | Fixed | Added assignment empty-state tests and stronger Q&A grant upsert assertions for repeat, hallucinated, and foreign-org citations. | Targeted component/action tests, employee harness, and default Vitest passed. |
 | Browser/UAT follow-up tooling | Fixed | Added `@playwright/test`, repo Playwright config, `test:e2e` scripts, and a route smoke covering public, employee-protected, and intentionally hidden admin routes across Chromium/Firefox/WebKit. | `pnpm exec playwright --version` reports 1.60.0; browser binaries installed; `pnpm test:e2e` passed in all three engines. |
+| Continuous verification gap | Fixed | Added `verify:full` and `.github/workflows/verify.yml` so lint, build, Phase 5 gates, deploy-schema verification, and Playwright e2e run as a single repeatable sweep on push, PR, manual dispatch, and nightly schedule. | Local non-browser gates passed after wiring; CI will run `pnpm verify:full` with Playwright browsers installed first. |
 
 ## Deferred By Phase
 
@@ -62,6 +63,7 @@ The remaining items are operational or workspace decisions, not failing applicat
 - Playwright: installed in repo, browsers installed, Chromium/Firefox/WebKit launch verified.
 - Browser smoke: pass via `pnpm test:e2e`; `/`, `/pricing`, employee protected redirects, and admin "advertise nothing" 404 behavior matched current middleware contract in Chromium, Firefox, and WebKit.
 - Phase package gate: pass via `C:\nvm4w\nodejs\corepack.cmd pnpm verify:phase-5`.
+- Continuous sweep: `pnpm verify:full` is now the canonical full local/CI command; GitHub Actions runs it continuously after installing Playwright browsers.
 
 ## Next Safe Step
 

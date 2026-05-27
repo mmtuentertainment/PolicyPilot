@@ -1,0 +1,160 @@
+name: Verify
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'gsd/**'
+  workflow_dispatch:
+  schedule:
+    # Nightly safety net for browser and live-schema drift.
+    - cron: '17 9 * * *'
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  full:
+    name: Full verification sweep
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      DATABASE_URL_TEST: ${{ secrets.DATABASE_URL_TEST }}
+      DIRECT_URL_TEST: ${{ secrets.DIRECT_URL_TEST }}
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+      CLERK_WEBHOOK_SECRET: ${{ secrets.CLERK_WEBHOOK_SECRET }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      STRIPE_PRICE_STARTER_MONTHLY: ${{ secrets.STRIPE_PRICE_STARTER_MONTHLY }}
+      STRIPE_PRICE_STARTER_ANNUAL: ${{ secrets.STRIPE_PRICE_STARTER_ANNUAL }}
+      STRIPE_PRICE_GROWTH_MONTHLY: ${{ secrets.STRIPE_PRICE_GROWTH_MONTHLY }}
+      STRIPE_PRICE_GROWTH_ANNUAL: ${{ secrets.STRIPE_PRICE_GROWTH_ANNUAL }}
+      STRIPE_PRICE_BUSINESS_MONTHLY: ${{ secrets.STRIPE_PRICE_BUSINESS_MONTHLY }}
+      STRIPE_PRICE_BUSINESS_ANNUAL: ${{ secrets.STRIPE_PRICE_BUSINESS_ANNUAL }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      NEXT_PUBLIC_POSTHOG_KEY: ${{ secrets.NEXT_PUBLIC_POSTHOG_KEY }}
+      NEXT_PUBLIC_POSTHOG_HOST: ${{ secrets.NEXT_PUBLIC_POSTHOG_HOST }}
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps
+
+      - name: Write CI environment files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          required=(
+            NEXT_PUBLIC_SUPABASE_URL
+            NEXT_PUBLIC_SUPABASE_ANON_KEY
+            SUPABASE_SERVICE_ROLE_KEY
+            DATABASE_URL
+            DIRECT_URL
+            DATABASE_URL_TEST
+            DIRECT_URL_TEST
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+            CLERK_SECRET_KEY
+            CLERK_WEBHOOK_SECRET
+            ANTHROPIC_API_KEY
+          )
+
+          missing=0
+          for name in "${required[@]}"; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Required repository secret ${name} is not configured."
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+          write_env_file() {
+            local file="$1"
+            local database_url="$2"
+            local direct_url="$3"
+            local sign_in="${NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL:-/post-sign-in}"
+            local sign_up="${NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL:-/post-sign-in}"
+            local app_url="${NEXT_PUBLIC_APP_URL:-http://localhost:3000}"
+            local resend_from="${RESEND_FROM_EMAIL:-noreply@policypilot.com}"
+            local posthog_host="${NEXT_PUBLIC_POSTHOG_HOST:-https://app.posthog.com}"
+
+            {
+              printf 'NEXT_PUBLIC_SUPABASE_URL=%s\n' "$NEXT_PUBLIC_SUPABASE_URL"
+              printf 'NEXT_PUBLIC_SUPABASE_ANON_KEY=%s\n' "$NEXT_PUBLIC_SUPABASE_ANON_KEY"
+              printf 'SUPABASE_SERVICE_ROLE_KEY=%s\n' "$SUPABASE_SERVICE_ROLE_KEY"
+              printf 'DATABASE_URL=%s\n' "$database_url"
+              printf 'DIRECT_URL=%s\n' "$direct_url"
+              printf 'DATABASE_URL_TEST=%s\n' "$DATABASE_URL_TEST"
+              printf 'DIRECT_URL_TEST=%s\n' "$DIRECT_URL_TEST"
+              printf 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=%s\n' "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"
+              printf 'CLERK_SECRET_KEY=%s\n' "$CLERK_SECRET_KEY"
+              printf 'CLERK_WEBHOOK_SECRET=%s\n' "$CLERK_WEBHOOK_SECRET"
+              printf 'NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=%s\n' "$sign_in"
+              printf 'NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=%s\n' "$sign_up"
+              printf 'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=%s\n' "${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-pk_test_placeholder}"
+              printf 'STRIPE_SECRET_KEY=%s\n' "${STRIPE_SECRET_KEY:-sk_test_placeholder}"
+              printf 'STRIPE_WEBHOOK_SECRET=%s\n' "${STRIPE_WEBHOOK_SECRET:-whsec_placeholder}"
+              printf 'STRIPE_PRICE_STARTER_MONTHLY=%s\n' "${STRIPE_PRICE_STARTER_MONTHLY:-price_starter_monthly_placeholder}"
+              printf 'STRIPE_PRICE_STARTER_ANNUAL=%s\n' "${STRIPE_PRICE_STARTER_ANNUAL:-price_starter_annual_placeholder}"
+              printf 'STRIPE_PRICE_GROWTH_MONTHLY=%s\n' "${STRIPE_PRICE_GROWTH_MONTHLY:-price_growth_monthly_placeholder}"
+              printf 'STRIPE_PRICE_GROWTH_ANNUAL=%s\n' "${STRIPE_PRICE_GROWTH_ANNUAL:-price_growth_annual_placeholder}"
+              printf 'STRIPE_PRICE_BUSINESS_MONTHLY=%s\n' "${STRIPE_PRICE_BUSINESS_MONTHLY:-price_business_monthly_placeholder}"
+              printf 'STRIPE_PRICE_BUSINESS_ANNUAL=%s\n' "${STRIPE_PRICE_BUSINESS_ANNUAL:-price_business_annual_placeholder}"
+              printf 'ANTHROPIC_API_KEY=%s\n' "$ANTHROPIC_API_KEY"
+              printf 'RESEND_API_KEY=%s\n' "${RESEND_API_KEY:-re_placeholder}"
+              printf 'RESEND_FROM_EMAIL=%s\n' "$resend_from"
+              printf 'NEXT_PUBLIC_APP_URL=%s\n' "$app_url"
+              printf 'CRON_SECRET=%s\n' "${CRON_SECRET:-cron_placeholder}"
+              printf 'NEXT_PUBLIC_POSTHOG_KEY=%s\n' "${NEXT_PUBLIC_POSTHOG_KEY:-phc_placeholder}"
+              printf 'NEXT_PUBLIC_POSTHOG_HOST=%s\n' "$posthog_host"
+              printf 'SENTRY_DSN=%s\n' "${SENTRY_DSN:-}"
+            } > "$file"
+          }
+
+          write_env_file .env.local "$DATABASE_URL" "$DIRECT_URL"
+          write_env_file .env.local.test "$DATABASE_URL_TEST" "$DIRECT_URL_TEST"
+
+      - name: Run full verification sweep
+        run: pnpm verify:full
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
