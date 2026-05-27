@@ -56,7 +56,7 @@ jobs:
           DIRECT_URL=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci
           DATABASE_URL_TEST=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci_test
           DIRECT_URL_TEST=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci_test
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_cG9saWN5cGlsb3RfY2lfZHVtbXk
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_cG9saWN5LXBpbG90LTQyLmNsZXJrLmFjY291bnRzLmRldiQ
           CLERK_SECRET_KEY=sk_test_policy_pilot_ci_dummy
           CLERK_WEBHOOK_SECRET=whsec_policy_pilot_ci_dummy
           NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/post-sign-in
