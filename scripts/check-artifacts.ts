@@ -364,18 +364,27 @@ function checkEnvLocalSentinels(): Check[] {
     return out;
   }
   const env = read(".env.local");
+  const ciLocalPostgres =
+    (process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true") &&
+    env.includes("DATABASE_URL=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci") &&
+    env.includes("DIRECT_URL=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci");
   // Sentinels mirror Plan 01-02 Task 3 verify block exactly — D-11 keys.
   const sentinels: Array<[string, string]> = [
     ["NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_", "Clerk publishable key (pk_test_ prefix)"],
     ["CLERK_SECRET_KEY=sk_test_", "Clerk secret key (sk_test_ prefix)"],
     ["DATABASE_URL=postgresql://", "Drizzle DATABASE_URL"],
     ["NEXT_PUBLIC_SUPABASE_URL=https://", "Supabase URL (https://)"],
-    ["pooler.supabase.com:6543", "Supabase Transaction pooler URI (D-06)"],
     ["NEXT_PUBLIC_APP_URL=http://localhost:3000", "App URL"],
   ];
   for (const [needle, label] of sentinels) {
     assert(out, env.includes(needle), `.env.local sentinel: ${label}`, "sentinel substring missing");
   }
+  assert(
+    out,
+    env.includes("pooler.supabase.com:6543") || ciLocalPostgres,
+    ".env.local sentinel: Supabase Transaction pooler URI (D-06) or CI local Postgres",
+    "pooler sentinel missing outside CI local Postgres mode",
+  );
   return out;
 }
 
