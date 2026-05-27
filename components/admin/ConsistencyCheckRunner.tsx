@@ -141,10 +141,8 @@ export function ConsistencyCheckRunner({
     // status in deps: when status transitions to a terminal value, the effect
     // re-runs and the new interval immediately clears via the guard above.
     // batchId in deps: prop change (shouldn't happen mid-mount but safe).
-    // errored intentionally NOT in deps: we read it inside poll() to decide
-    // whether to clear the banner; including it would re-arm the interval on
-    // every banner toggle.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // errored intentionally NOT in deps: setErrored uses direct values only;
+    // including it would re-arm the interval on every banner toggle.
   }, [batchId, status]);
 
   if (status === 'completed') {

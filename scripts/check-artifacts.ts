@@ -126,10 +126,73 @@ function checkPackageJsonShape(): Check[] {
   );
   assert(
     out,
-    /"check:db"\s*:\s*"tsx [^"]*--env-file=\.env\.local[^"]*"/.test(pkg),
+    /"check:db"\s*:\s*"tsx [^"]*--env-file=\.env\.local[^"]*"/.test(pkg) ||
+      /"check:db"\s*:\s*"node scripts\/run-react-server-check\.mjs scripts\/check-db\.ts"/.test(
+        pkg,
+      ),
     "check:db wires --env-file=.env.local (Plan 01-04 acceptance)",
-    "tsx --env-file flag missing from check:db script",
+    "check:db must run through tsx --env-file=.env.local or the react-server check runner",
   );
+
+  if (
+    /"check:db"\s*:\s*"node scripts\/run-react-server-check\.mjs scripts\/check-db\.ts"/.test(
+      pkg,
+    )
+  ) {
+    assert(
+      out,
+      exists("scripts/run-react-server-check.mjs"),
+      "react-server check runner exists for check:db",
+      "scripts/run-react-server-check.mjs missing",
+    );
+
+    const runner = exists("scripts/run-react-server-check.mjs")
+      ? read("scripts/run-react-server-check.mjs")
+      : "";
+
+    assert(
+      out,
+      runner.includes("'--env-file=.env.local'") ||
+        runner.includes('"--env-file=.env.local"'),
+      "react-server check runner wires --env-file=.env.local",
+      "--env-file=.env.local missing from scripts/run-react-server-check.mjs",
+    );
+    assert(
+      out,
+      runner.includes("'--conditions=react-server'") ||
+        runner.includes('"--conditions=react-server"'),
+      "react-server check runner uses react-server condition",
+      "--conditions=react-server missing from scripts/run-react-server-check.mjs",
+    );
+    assert(
+      out,
+      runner.includes("server-only") && runner.includes("NODE_PATH"),
+      "react-server check runner resolves server-only for standalone scripts",
+      "server-only NODE_PATH resolution missing from scripts/run-react-server-check.mjs",
+    );
+
+    const foundation = exists("scripts/check-foundation.ts")
+      ? read("scripts/check-foundation.ts")
+      : "";
+    assert(
+      out,
+      foundation.includes("scripts/run-react-server-check.mjs") &&
+        foundation.includes('"scripts/check-db.ts"'),
+      "check-foundation uses react-server runner for DB smoke check",
+      "scripts/check-foundation.ts must route check-db.ts through scripts/run-react-server-check.mjs",
+    );
+
+    const dataLayer = exists("scripts/check-data-layer.ts")
+      ? read("scripts/check-data-layer.ts")
+      : "";
+    assert(
+      out,
+      dataLayer.includes("scripts/run-react-server-check.mjs") &&
+        dataLayer.includes("'scripts/check-auth-context.ts'"),
+      "check-data-layer uses react-server runner for auth-context check",
+      "scripts/check-data-layer.ts must route check-auth-context.ts through scripts/run-react-server-check.mjs",
+    );
+  }
 
   return out;
 }
@@ -301,18 +364,27 @@ function checkEnvLocalSentinels(): Check[] {
     return out;
   }
   const env = read(".env.local");
+  const ciLocalPostgres =
+    (process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true") &&
+    env.includes("DATABASE_URL=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci") &&
+    env.includes("DIRECT_URL=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci");
   // Sentinels mirror Plan 01-02 Task 3 verify block exactly — D-11 keys.
   const sentinels: Array<[string, string]> = [
     ["NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_", "Clerk publishable key (pk_test_ prefix)"],
     ["CLERK_SECRET_KEY=sk_test_", "Clerk secret key (sk_test_ prefix)"],
     ["DATABASE_URL=postgresql://", "Drizzle DATABASE_URL"],
     ["NEXT_PUBLIC_SUPABASE_URL=https://", "Supabase URL (https://)"],
-    ["pooler.supabase.com:6543", "Supabase Transaction pooler URI (D-06)"],
     ["NEXT_PUBLIC_APP_URL=http://localhost:3000", "App URL"],
   ];
   for (const [needle, label] of sentinels) {
     assert(out, env.includes(needle), `.env.local sentinel: ${label}`, "sentinel substring missing");
   }
+  assert(
+    out,
+    env.includes("pooler.supabase.com:6543") || ciLocalPostgres,
+    ".env.local sentinel: Supabase Transaction pooler URI (D-06) or CI local Postgres",
+    "pooler sentinel missing outside CI local Postgres mode",
+  );
   return out;
 }
 
@@ -708,7 +780,7 @@ function checkServerOnlyBoundary(): Check[] {
   // server-side consumers as they land.
   const out: Check[] = [];
   const result = spawnSync(
-    "node",
+    process.execPath,
     [
       "-e",
       // Cross-platform grep replacement using Node fs walker.
@@ -1637,7 +1709,7 @@ function checkPhase4Scaffold(): Check[] {
   // match) across lib/ + app/ + components/ should return ZERO matches — the ONLY
   // declaration is `export const POLICY_CATEGORIES` in lib/policies/categories.ts.
   const blockerResult = spawnSync(
-    'node',
+    process.execPath,
     [
       '-e',
       `const fs = require('node:fs'); const path = require('node:path');
@@ -1949,6 +2021,397 @@ function checkPhase4Scaffold(): Check[] {
   return out;
 }
 
+// ─── Phase 5 (Employee Portal) — Plan 05-08 Task 2d ────────────────────────
+//
+// Asserts every Phase 5 product file exists + key invariants per the
+// per-plan acceptance criteria. Covers:
+//   - 2 new Drizzle migrations (0010 + 0011) + journal entries
+//   - Schema additions (qaCitationGrants table + 3 UNIQUE constraints)
+//   - check-schema.ts qa_citation_grants assertions + wrapped JWT form
+//   - lib/policies/errors.ts D-30 typed error hierarchy
+//   - Repository extensions (acknowledgments/policy_assignments
+//     onConflictDoNothing; Policies.listAssignedAndPublishedForUser;
+//     new QaCitationGrants repository)
+//   - Orchestrators (recordAcknowledgment, askQuestion) + thin route refactor
+//   - Employee routes (layout, my-policies, [id], ask) + components
+//   - Admin bulk-assign panel + Server Action
+//   - AckStatusBadge component (Plan 05-07)
+//   - Plan 05-08 CI gate files (check-acknowledgment-immutability.ts +
+//     fixture + check-rls.ts qa_citation_grants extension +
+//     check-policy-id-brand.ts Phase 5 extensions + check-error-discipline.ts
+//     widened scope)
+//   - package.json check:acknowledgment-immutability script entries
+//
+// Plans 05-09 (check:employee-portal script) + 05-10 (verify:phase-5 chain
+// composition) ship their own entries and assertions; this block does NOT
+// require them.
+//
+// Pattern: mirrors checkPhase4Scaffold at line 1531+.
+
+/**
+ * Phase 5 (Employee Portal) file-existence + invariant scaffold gate.
+ */
+function checkPhase5Scaffold(): Check[] {
+  const out: Check[] = [];
+
+  // ── 1. File-existence rows (Phase 5 net-new product files) ──────────────
+  type Target = { path: string; plan: string };
+  const targets: Target[] = [
+    // Migrations (Plan 05-01)
+    { path: 'drizzle/0010_phase5_uniques.sql', plan: '05-01' },
+    { path: 'drizzle/0011_qa_citation_grants.sql', plan: '05-01' },
+    // Errors (Plan 05-02)
+    { path: 'lib/policies/errors.ts', plan: '05-02' },
+    // Repositories (Plan 05-03)
+    { path: 'lib/db/repositories/qa_citation_grants.ts', plan: '05-03' },
+    // Orchestrators (Plan 05-04)
+    { path: 'lib/policies/acknowledgment.ts', plan: '05-04' },
+    { path: 'lib/ai/qa.ts', plan: '05-04' },
+    // Employee routes (Plan 05-05)
+    { path: 'app/(employee)/layout.tsx', plan: '05-05' },
+    { path: 'app/(employee)/my-policies/page.tsx', plan: '05-05' },
+    { path: 'app/(employee)/my-policies/[id]/page.tsx', plan: '05-05' },
+    { path: 'app/(employee)/my-policies/[id]/actions.ts', plan: '05-05' },
+    { path: 'app/(employee)/my-policies/ask/page.tsx', plan: '05-05' },
+    { path: 'app/(employee)/my-policies/ask/actions.ts', plan: '05-05' },
+    { path: 'components/employee/AcknowledgeButton.tsx', plan: '05-05' },
+    { path: 'components/employee/AskQuestionForm.tsx', plan: '05-05' },
+    // Admin bulk-assign (Plan 05-06)
+    { path: 'components/admin/PolicyAssignmentsPanel.tsx', plan: '05-06' },
+    { path: 'components/admin/PolicyAssignmentsPanelForm.tsx', plan: '05-06' },
+    // Ack-status badge (Plan 05-07)
+    { path: 'components/policy/AckStatusBadge.tsx', plan: '05-07' },
+    // CI gate (this plan, 05-08)
+    { path: 'scripts/check-acknowledgment-immutability.ts', plan: '05-08' },
+    { path: 'tests/fixtures/ack-mutation-attempt.ts', plan: '05-08' },
+  ];
+  for (const { path, plan } of targets) {
+    assert(out, exists(path), `${path} exists (Plan ${plan})`, `Plan ${plan} will create this`);
+  }
+
+  // ── 2. lib/db/schema.ts — Phase 5 schema additions (Plan 05-01) ─────────
+  if (exists('lib/db/schema.ts')) {
+    const schema = read('lib/db/schema.ts');
+    assert(
+      out,
+      schema.includes('qaCitationGrants'),
+      'lib/db/schema.ts: exports qaCitationGrants table (D-29 / Plan 05-01)',
+      'qaCitationGrants Drizzle table missing',
+    );
+    assert(
+      out,
+      schema.includes('acknowledgments_user_id_policy_id_policy_version_id_unique'),
+      'lib/db/schema.ts: declares acknowledgments UNIQUE(user_id, policy_id, policy_version_id) (D-06 / Plan 05-01)',
+      'D-06 UNIQUE constraint name missing',
+    );
+    assert(
+      out,
+      schema.includes('policy_assignments_policy_id_assignee_type_assignee_id_unique'),
+      'lib/db/schema.ts: declares policy_assignments UNIQUE(policy_id, assignee_type, assignee_id) (D-15 / Plan 05-01)',
+      'D-15 UNIQUE constraint name missing',
+    );
+    assert(
+      out,
+      schema.includes('qa_citation_grants_org_user_policy_unique'),
+      'lib/db/schema.ts: declares qa_citation_grants UNIQUE(org_id, user_id, policy_id) (D-29 / Plan 05-01)',
+      'D-29 UNIQUE constraint name missing',
+    );
+  }
+
+  // ── 3. scripts/check-schema.ts — Phase 5 column-shape assertions ────────
+  if (exists('scripts/check-schema.ts')) {
+    const checkSchema = read('scripts/check-schema.ts');
+    assert(
+      out,
+      checkSchema.includes("'qa_citation_grants'"),
+      "scripts/check-schema.ts: includes 'qa_citation_grants' in TENANT_TABLES (Plan 05-01)",
+      'qa_citation_grants RLS assertion missing in check-schema',
+    );
+    assert(
+      out,
+      checkSchema.includes('(SELECT auth.jwt('),
+      'scripts/check-schema.ts: asserts wrapped JWT form (SELECT auth.jwt() ...) per RESEARCH gap-1 + drizzle/0008',
+      'wrapped JWT form assertion missing',
+    );
+  }
+
+  // ── 4. lib/policies/errors.ts — D-30 typed-error hierarchy ──────────────
+  if (exists('lib/policies/errors.ts')) {
+    const errs = read('lib/policies/errors.ts');
+    for (const cls of [
+      'PolicyDomainError',
+      'PolicyArchivedError',
+      'PolicyNotAssignedError',
+      'PolicyNotFoundError',
+    ]) {
+      assert(
+        out,
+        new RegExp(`export\\s+(abstract\\s+)?class\\s+${cls}\\b`).test(errs),
+        `lib/policies/errors.ts: exports class ${cls} (D-30 / Plan 05-02)`,
+        `${cls} class export missing`,
+      );
+    }
+  }
+
+  // ── 5. Repository extensions (Plan 05-03) ───────────────────────────────
+  if (exists('lib/db/repositories/acknowledgments.ts')) {
+    const ack = read('lib/db/repositories/acknowledgments.ts');
+    assert(
+      out,
+      ack.includes('.onConflictDoNothing()'),
+      'lib/db/repositories/acknowledgments.ts: record body uses .onConflictDoNothing() (D-06 / Plan 05-03)',
+      'ON CONFLICT DO NOTHING missing in record body',
+    );
+    // ADR-018 append-only — the type-system D-07 invariant in tests/types.ts
+    // already catches this, but a stray `update:` or `delete:` key in the
+    // exported object would also be caught here at file-substring level.
+    assert(
+      out,
+      !/\bupdate\s*:/.test(ack) && !/\bdelete\s*:/.test(ack),
+      'lib/db/repositories/acknowledgments.ts: does NOT export update: / delete: keys (ADR-018 / D-07)',
+      'append-only invariant violated — Acknowledgments exports update or delete',
+    );
+  }
+  if (exists('lib/db/repositories/policy_assignments.ts')) {
+    const pa = read('lib/db/repositories/policy_assignments.ts');
+    assert(
+      out,
+      pa.includes('.onConflictDoNothing()'),
+      'lib/db/repositories/policy_assignments.ts: create body uses .onConflictDoNothing() (D-15 / Plan 05-06)',
+      'ON CONFLICT DO NOTHING missing in create body',
+    );
+  }
+  if (exists('lib/db/repositories/policies.ts')) {
+    const pol = read('lib/db/repositories/policies.ts');
+    assert(
+      out,
+      pol.includes('listAssignedAndPublishedForUser'),
+      'lib/db/repositories/policies.ts: exports listAssignedAndPublishedForUser (D-01 / Plan 05-03)',
+      'Phase 5 dashboard query method missing',
+    );
+  }
+  if (exists('lib/db/repositories/qa_citation_grants.ts')) {
+    const grants = read('lib/db/repositories/qa_citation_grants.ts');
+    assert(
+      out,
+      grants.includes('export const QaCitationGrants'),
+      'lib/db/repositories/qa_citation_grants.ts: exports const QaCitationGrants (D-29 / Plan 05-03)',
+      'QaCitationGrants export missing',
+    );
+    for (const method of ['listForUser', 'upsert', 'hasGrant']) {
+      assert(
+        out,
+        new RegExp(`\\b${method}\\b\\s*:`).test(grants),
+        `lib/db/repositories/qa_citation_grants.ts: declares ${method} method (D-29 / Plan 05-03)`,
+        `${method} method missing`,
+      );
+    }
+    assert(
+      out,
+      !/\bupdate\s*:/.test(grants) && !/\bdelete\s*:/.test(grants),
+      'lib/db/repositories/qa_citation_grants.ts: does NOT export update: / delete: keys (D-29 write-once grants)',
+      'write-once grant invariant violated — QaCitationGrants exports update or delete',
+    );
+  }
+
+  // ── 6. Orchestrators (Plan 05-04) ───────────────────────────────────────
+  if (exists('lib/policies/acknowledgment.ts')) {
+    const orch = read('lib/policies/acknowledgment.ts');
+    assert(
+      out,
+      /export\s+async\s+function\s+recordAcknowledgment\b/.test(orch),
+      'lib/policies/acknowledgment.ts: exports async function recordAcknowledgment (D-10a / Plan 05-04)',
+      'recordAcknowledgment orchestrator missing',
+    );
+  }
+  if (exists('lib/ai/qa.ts')) {
+    const qa = read('lib/ai/qa.ts');
+    assert(
+      out,
+      /export\s+async\s+function\s+askQuestion\b/.test(qa),
+      'lib/ai/qa.ts: exports async function askQuestion (D-25 / Plan 05-04)',
+      'askQuestion extracted helper missing',
+    );
+  }
+  if (exists('app/api/ai/qa/route.ts')) {
+    const route = read('app/api/ai/qa/route.ts');
+    assert(
+      out,
+      route.includes('askQuestion(ctx'),
+      'app/api/ai/qa/route.ts: delegates to askQuestion(ctx, ...) (D-25 / Plan 05-04 thin-wrapper refactor)',
+      'route handler not refactored to thin wrapper',
+    );
+    // D-25 acceptance: route ≤ 50 lines after the extraction
+    const lineCount = route.split(/\r?\n/).length;
+    assert(
+      out,
+      lineCount <= 50,
+      `app/api/ai/qa/route.ts: ≤ 50 lines after D-25 thin-wrapper refactor (${lineCount} lines)`,
+      `route is ${lineCount} lines — extraction did not meet D-25 50-line ceiling`,
+    );
+  }
+
+  // ── 7. Admin bulk-assign (Plan 05-06) ───────────────────────────────────
+  if (exists('app/(admin)/policies/[id]/actions.ts')) {
+    const adminActions = read('app/(admin)/policies/[id]/actions.ts');
+    assert(
+      out,
+      adminActions.includes('bulkAssignToDepartmentAction'),
+      'app/(admin)/policies/[id]/actions.ts: exports bulkAssignToDepartmentAction (D-13 / Plan 05-06)',
+      'bulk-assign Server Action missing',
+    );
+  }
+  if (exists('app/(admin)/policies/[id]/page.tsx')) {
+    const adminPage = read('app/(admin)/policies/[id]/page.tsx');
+    assert(
+      out,
+      adminPage.includes('PolicyAssignmentsPanel'),
+      'app/(admin)/policies/[id]/page.tsx: renders PolicyAssignmentsPanel (D-13 / Plan 05-06)',
+      'panel not wired into policy detail page',
+    );
+  }
+
+  // ── 8. AckStatusBadge (Plan 05-07) ──────────────────────────────────────
+  if (exists('components/policy/AckStatusBadge.tsx')) {
+    const badge = read('components/policy/AckStatusBadge.tsx');
+    assert(
+      out,
+      /export\s+function\s+AckStatusBadge\b/.test(badge) ||
+        /export\s+const\s+AckStatusBadge\b/.test(badge),
+      'components/policy/AckStatusBadge.tsx: exports AckStatusBadge (D-11 / Plan 05-07)',
+      'AckStatusBadge export missing',
+    );
+  }
+
+  // ── 9. CI gate extensions (this plan, 05-08) ────────────────────────────
+  if (exists('scripts/check-rls.ts')) {
+    const rls = read('scripts/check-rls.ts');
+    assert(
+      out,
+      rls.includes("'qa_citation_grants'"),
+      "scripts/check-rls.ts: TENANT_TABLES includes 'qa_citation_grants' (RESEARCH gap-2 / Plan 05-08)",
+      'qa_citation_grants not added to TENANT_TABLES',
+    );
+  }
+  if (exists('scripts/check-policy-id-brand.ts')) {
+    const brand = read('scripts/check-policy-id-brand.ts');
+    assert(
+      out,
+      brand.includes('qa_citation_grants.ts'),
+      'scripts/check-policy-id-brand.ts: REPO_TARGETS includes qa_citation_grants.ts (RESEARCH gap-4 / Plan 05-08)',
+      'qa_citation_grants brand target missing',
+    );
+    assert(
+      out,
+      brand.includes("'lib/policies/acknowledgment.ts'"),
+      "scripts/check-policy-id-brand.ts: ORCH_TARGETS includes 'lib/policies/acknowledgment.ts' (RESEARCH gap-4 / Plan 05-08)",
+      'acknowledgment orchestrator brand target missing',
+    );
+  }
+  if (exists('scripts/check-error-discipline.ts')) {
+    const errDisc = read('scripts/check-error-discipline.ts');
+    assert(
+      out,
+      errDisc.includes('lib/policies'),
+      'scripts/check-error-discipline.ts: scope widened to lib/policies/** (D-30 / Plan 05-08)',
+      'lib/policies/ scope widening missing',
+    );
+  }
+
+  // ── 10. Migrations — content invariants per D-28 + D-29 + RESEARCH gap-1 ──
+  if (exists('drizzle/0010_phase5_uniques.sql')) {
+    const sql10 = read('drizzle/0010_phase5_uniques.sql');
+    assert(
+      out,
+      /ADD CONSTRAINT.*acknowledgments_user_id_policy_id_policy_version_id_unique/i.test(sql10),
+      '0010_phase5_uniques.sql: ADD CONSTRAINT acknowledgments UNIQUE (D-06)',
+      'D-06 UNIQUE constraint not added in 0010',
+    );
+    assert(
+      out,
+      /ADD CONSTRAINT.*policy_assignments_policy_id_assignee_type_assignee_id_unique/i.test(sql10),
+      '0010_phase5_uniques.sql: ADD CONSTRAINT policy_assignments UNIQUE (D-15)',
+      'D-15 UNIQUE constraint not added in 0010',
+    );
+  }
+  if (exists('drizzle/0011_qa_citation_grants.sql')) {
+    const sql11 = read('drizzle/0011_qa_citation_grants.sql');
+    const body11 = sql11.replace(/^\s*--[^\n]*\r?\n?/gm, '');
+    assert(
+      out,
+      /CREATE TABLE.*qa_citation_grants/i.test(body11),
+      '0011_qa_citation_grants.sql: CREATE TABLE "qa_citation_grants" (D-29)',
+      'qa_citation_grants table creation missing',
+    );
+    assert(
+      out,
+      /ENABLE ROW LEVEL SECURITY/i.test(body11),
+      '0011_qa_citation_grants.sql: ENABLE RLS (D-29)',
+      'RLS enable missing in 0011',
+    );
+    assert(
+      out,
+      /\(SELECT\s+auth\.jwt\(\)/i.test(body11),
+      '0011_qa_citation_grants.sql: uses wrapped (SELECT auth.jwt()) form per RESEARCH gap-1 / drizzle/0008',
+      'D-29 0011 must use wrapped JWT form (RESEARCH gap-1)',
+    );
+    assert(
+      out,
+      /GRANT\s+(SELECT,\s*INSERT,\s*UPDATE,\s*DELETE|ALL)\s+ON\s+"?qa_citation_grants"?\s+TO\s+authenticated/i.test(body11),
+      '0011_qa_citation_grants.sql: GRANT to authenticated role (D-29)',
+      'D-29 GRANT missing',
+    );
+  }
+  if (exists('drizzle/meta/_journal.json')) {
+    const journal = read('drizzle/meta/_journal.json');
+    for (const tag of ['0010_phase5_uniques', '0011_qa_citation_grants']) {
+      assert(
+        out,
+        journal.includes(`"${tag}"`),
+        `drizzle/meta/_journal.json registers ${tag} (Phase 5 migration chain)`,
+        `${tag} entry missing — pnpm db:generate did not register the migration`,
+      );
+    }
+  }
+
+  // ── 11. package.json — Plan 05-08 script entries ────────────────────────
+  // Phase 5 hardening: qa_citation_grants is write-once like acknowledgments,
+  // so the mutation gate must track both the Drizzle symbol and SQL table name.
+  if (exists('scripts/check-acknowledgment-immutability.ts')) {
+    const immutabilityGate = read('scripts/check-acknowledgment-immutability.ts');
+    assert(
+      out,
+      immutabilityGate.includes('qaCitationGrants') &&
+        immutabilityGate.includes('qa_citation_grants'),
+      'scripts/check-acknowledgment-immutability.ts covers qa_citation_grants write-once grants',
+      'qa_citation_grants is missing from the append-only/static mutation gate',
+    );
+  }
+
+  if (exists('package.json')) {
+    let pkgJson: { scripts?: Record<string, string> } | null = null;
+    try {
+      pkgJson = JSON.parse(read('package.json'));
+    } catch {
+      // fall through — assertion below will report
+    }
+    assert(
+      out,
+      typeof pkgJson?.scripts?.['check:acknowledgment-immutability'] === 'string',
+      'package.json declares check:acknowledgment-immutability (Plan 05-08)',
+      'check:acknowledgment-immutability script slot missing',
+    );
+    assert(
+      out,
+      typeof pkgJson?.scripts?.['check:acknowledgment-immutability:self-test'] === 'string',
+      'package.json declares check:acknowledgment-immutability:self-test (Plan 05-08 D-20)',
+      'check:acknowledgment-immutability:self-test script slot missing',
+    );
+  }
+
+  return out;
+}
+
 /**
  * Runs the full set of artifact regression checks, prints results, and terminates the process.
  *
@@ -2068,6 +2531,8 @@ function main(): void {
     ...checkPhase4Scaffold(),
     // Phase 4 deploy-prep (Issue #16 carry, 2026-05-22):
     ...checkDeployPrep(),
+    // Phase 5 (Employee Portal) — Plan 05-08 Task 2d:
+    ...checkPhase5Scaffold(),
   ];
 
   let passed = 0;

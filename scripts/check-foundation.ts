@@ -10,7 +10,10 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 // argv stays static and `shell:false` holds.
 const NODE_BIN = process.execPath;
 const TSC_ENTRY = resolvePath(process.cwd(), "node_modules/typescript/bin/tsc");
-const TSX_ENTRY = resolvePath(process.cwd(), "node_modules/tsx/dist/cli.mjs");
+const REACT_SERVER_CHECK_ENTRY = resolvePath(
+  process.cwd(),
+  "scripts/run-react-server-check.mjs",
+);
 
 type Result = { ok: boolean; label: string; detail?: string };
 
@@ -127,9 +130,7 @@ function checkSelectOne(): Result {
   const result = spawnSync(
     NODE_BIN,
     [
-      TSX_ENTRY,
-      "--conditions=react-server",
-      "--env-file=.env.local",
+      REACT_SERVER_CHECK_ENTRY,
       "scripts/check-db.ts",
     ],
     {

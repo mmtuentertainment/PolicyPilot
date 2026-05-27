@@ -33,6 +33,21 @@ describe('lib/ai/qa-parser — parseQaResponse (D-10 + D-11)', () => {
     expect(out.citations).toEqual([]);
   });
 
+  it('tolerates no-space fence variant ---CITATIONS--- emitted by Sonnet 4.6 in practice (Phase 5 UAT regression)', () => {
+    const raw =
+      'Vacation policy says 10 days/year per the Vacation Policy.\n' +
+      '---CITATIONS---\n' +
+      '[{"title":"Vacation Policy","id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}]\n' +
+      '---END CITATIONS---';
+    const out = parseQaResponse(raw, validIds);
+    expect(out.answer).toBe('Vacation policy says 10 days/year per the Vacation Policy.');
+    expect(out.citations).toHaveLength(1);
+    expect(out.citations[0]).toEqual({
+      title: 'Vacation Policy',
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    });
+  });
+
   it('returns { answer: <body>, citations: [] } when JSON inside fence is malformed (D-11)', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const raw =

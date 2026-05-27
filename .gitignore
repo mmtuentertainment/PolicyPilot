@@ -26,6 +26,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Playwright
+test-results/
+playwright-report/
+
 # Vercel / Railway
 .vercel
 .railway
@@ -64,8 +68,11 @@ yarn-error.log*
 .mcp.json
 .agents/
 .claude/
+.codex/
 .wiki/
 audit-cache/
+scratch/
+Designprototypes/
 skills-lock.json
 
 # Dev server logs (UAT smoke runs, real-key probes)

@@ -1,4 +1,4 @@
-// Drizzle schema — 12 tables: 10 tenant-scoped + 2 service-role aux (stripe_events, clerk_events).
+// Drizzle schema — 14 tables: 12 tenant-scoped + 2 service-role aux (stripe_events, clerk_events).
 //
 // Phase 2 schema amendments on top of reference/SCHEMA.md frozen contract:
 //   - D-02: org_id denormalized onto policy_versions, policy_assignments,
@@ -15,6 +15,13 @@
 //   - users → departments uses a COMPOSITE FK on (org_id, department_id)
 //     so cross-org assignment is rejected by Postgres, not just RLS.
 //     The target is the (org_id, id) UNIQUE on departments below.
+//
+// Phase 5 schema delta (lands via drizzle/0010 + drizzle/0011):
+//   - Phase 5 D-28: combined ALTER TABLE ADD CONSTRAINT migration in 0010 adds
+//                   two UNIQUE constraints (acknowledgments + policy_assignments).
+//   - Phase 5 D-29: new qa_citation_grants table (Q&A→citation server-tracked
+//                   grants per T-2(4c)) with RLS using post-0008 wrapped
+//                   (SELECT auth.jwt()->>'org_id') form per RESEARCH gap-1.
 //
 // Table order: alphabetical (acknowledgments → ... → workflowStages). Drizzle's
 // references(() => organizations.id) defers evaluation, so forward references
@@ -54,6 +61,15 @@ export const acknowledgments = pgTable('acknowledgments', {
   // RLS predicate + app-layer OrgScope filter both query on org_id; without
   // this btree, tenant-filtered SELECTs fall back to seq scan.
   index('acknowledgments_org_id_idx').on(table.orgId),
+  // Phase 5 D-06 + D-10 — DB-enforced idempotency. ON CONFLICT DO NOTHING on
+  // this UNIQUE drives D-10 silent-success semantics. Does NOT include org_id
+  // (the user_id+policy_id+policy_version_id UUIDs already imply org via
+  // composite FK).
+  unique('acknowledgments_user_id_policy_id_policy_version_id_unique').on(
+    table.userId,
+    table.policyId,
+    table.policyVersionId,
+  ),
 ]);
 
 export const aiGenerations = pgTable('ai_generations', {
@@ -183,6 +199,15 @@ export const policyAssignments = pgTable('policy_assignments', {
   assignedAt: timestamp('assigned_at').defaultNow(),
 }, (table) => [
   index('policy_assignments_org_id_idx').on(table.orgId),
+  // Phase 5 D-15 — DB-enforced idempotency for bulk-assignment writes. Permits
+  // both (user, X) and (department, X) rows (different assignee_type) for the
+  // same policy — admin can target the same user individually AND via their
+  // dept; D-01 SELECT DISTINCT dedupes at query time.
+  unique('policy_assignments_policy_id_assignee_type_assignee_id_unique').on(
+    table.policyId,
+    table.assigneeType,
+    table.assigneeId,
+  ),
 ]);
 
 export const policyVersions = pgTable(
@@ -212,6 +237,42 @@ export const policyVersions = pgTable(
     // The unique constraint above is on (policy_id, version_number) and
     // does NOT cover org_id; this btree handles the RLS + listForOrg path.
     index('policy_versions_org_id_idx').on(table.orgId),
+  ],
+);
+
+// Phase 5 D-29 — Q&A citation-referral grants. After `askQuestion` (lib/ai/qa.ts)
+// returns parsed citations, the orchestrator UPSERTs one row per cited policy
+// the requesting user is NOT assigned to. Subsequent navigation to
+// /my-policies/[id] checks: assigned → full PolicyView; else has grant +
+// published → TL;DR-only view; else 404. Grants are non-expiring for MVP per
+// T-2(4c); cleanup cron deferred to Phase 7+ if data volume warrants.
+//
+// RLS (in drizzle/0011_qa_citation_grants.sql) uses the post-0008 wrapped
+// (SELECT auth.jwt()->>'org_id') form per RESEARCH gap-1.
+export const qaCitationGrants = pgTable(
+  'qa_citation_grants',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').notNull().references(() => users.id),
+    policyId: uuid('policy_id').notNull().references(() => policies.id),
+    grantedAt: timestamp('granted_at').defaultNow().notNull(),
+  },
+  (table) => [
+    // D-29 UNIQUE (org_id, user_id, policy_id) drives ON CONFLICT DO NOTHING
+    // idempotency in `QaCitationGrants.upsert`. Org_id included because grants
+    // are tenant-scoped at the row level; this UNIQUE doubles as defense-in-
+    // depth against a hallucinated policy UUID collision across orgs (Pitfall 3).
+    unique('qa_citation_grants_org_user_policy_unique').on(
+      table.orgId,
+      table.userId,
+      table.policyId,
+    ),
+    // RLS predicate path: WHERE org_id = $jwt-org_id.
+    index('qa_citation_grants_org_id_idx').on(table.orgId),
+    // Composite btree for `hasGrant(s, userId, policyId)` fast-path and
+    // `listForUser(s, userId)` filter path.
+    index('qa_citation_grants_user_policy_idx').on(table.userId, table.policyId),
   ],
 );
 

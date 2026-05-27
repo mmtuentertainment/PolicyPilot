@@ -151,10 +151,15 @@ vi.mock('@/lib/db/scoped', () => ({
 vi.mock('@/lib/db/repositories/policies', () => ({
   Policies: {
     listPublishedForOrg: async (s: { orgId: string; tx: postgres.TransactionSql }) => {
-      const rows = await s.tx<{ id: string; title: string; content_json: unknown }[]>`
-        SELECT id, title, content_json FROM policies
+      const rows = await s.tx<{ id: string; title: string; tldr_summary: string | null; content_json: unknown }[]>`
+        SELECT id, title, tldr_summary, content_json FROM policies
         WHERE org_id = ${s.orgId} AND status = 'published'`;
-      return rows.map((r) => ({ id: r.id, title: r.title, contentJson: r.content_json }));
+      return rows.map((r) => ({
+        id: r.id,
+        title: r.title,
+        tldrSummary: r.tldr_summary,
+        contentJson: r.content_json,
+      }));
     },
     findById: async (
       s: { orgId: string; tx: postgres.TransactionSql },
@@ -173,6 +178,78 @@ vi.mock('@/lib/db/repositories/policies', () => ({
       await s.tx`UPDATE policies SET tldr_summary = ${summary}, updated_at = now()
                   WHERE org_id = ${s.orgId} AND id = ${id}`;
       return [];
+    },
+    // Phase 5 Plan 05-04 Task 2 — askQuestion calls this per D-27a to
+    // annotate each citation's `accessibility` flag (UI hint; security
+    // boundary is at /my-policies/[id]). Returns assigned + published rows;
+    // the SP-1 cross-org integration test does NOT seed any
+    // policy_assignments, so this returns [] for the test fixture and every
+    // citation gets accessibility: 'tldr-only'. The shape matches the real
+    // listAssignedAndPublishedForUser return enough for the askQuestion
+    // path: `id` is what gets put into the Set + checked against citation
+    // IDs. Filters by orgId at the SQL level so cross-org IDs cannot leak
+    // into the `assignedIds` Set even if the test fixture seeded them.
+    listAssignedAndPublishedForUser: async (
+      s: { orgId: string; tx: postgres.TransactionSql },
+      userId: string,
+    ) => {
+      const rows = await s.tx<{ id: string }[]>`
+        SELECT DISTINCT p.id
+        FROM policies p
+        INNER JOIN policy_assignments pa ON pa.policy_id = p.id
+          AND pa.org_id = ${s.orgId}
+          AND (
+            (pa.assignee_type = 'user' AND pa.assignee_id = ${userId})
+            OR (pa.assignee_type = 'department' AND pa.assignee_id IN
+                (SELECT department_id FROM users WHERE id = ${userId} AND org_id = ${s.orgId}))
+          )
+        WHERE p.org_id = ${s.orgId} AND p.status = 'published'`;
+      return rows;
+    },
+  },
+}));
+
+// Phase 5 Plan 05-04 Task 2 — askQuestion calls QaCitationGrants.upsert
+// per D-26 for each parsed.citations row (post-validIds-filter per RESEARCH
+// gap-3). Routes through the outer tx so the INSERT participates in the
+// same intentional-ROLLBACK envelope as the rest of the test. RESEARCH
+// gap-3 invariant: if upsert is ever called with a foreign-org policyId
+// (i.e., one not in the SP-1 fix.policyA1/A2 set during Org A's session),
+// the SP-1 integration test would surface it via the existing assertion
+// `citations.some(c => c.id === fix.policyB1) === false` — and additionally
+// any garbage row landing in qa_citation_grants would persist under the
+// outer org's RLS, RLS-404-ing at /my-policies/[id]. Mock writes one row
+// per call and lets the outer ROLLBACK clear it.
+vi.mock('@/lib/db/repositories/qa_citation_grants', () => ({
+  QaCitationGrants: {
+    upsert: async (
+      s: { orgId: string; userId: string; tx: postgres.TransactionSql },
+      input: { userId: string; policyId: string },
+    ) => {
+      await s.tx`INSERT INTO qa_citation_grants (org_id, user_id, policy_id)
+                  VALUES (${s.orgId}, ${input.userId}, ${input.policyId})
+                  ON CONFLICT (org_id, user_id, policy_id) DO NOTHING`;
+      return [];
+    },
+    hasGrant: async (
+      s: { orgId: string; tx: postgres.TransactionSql },
+      userId: string,
+      policyId: string,
+    ) => {
+      const rows = await s.tx<{ c: number }[]>`
+        SELECT cast(count(*) as int) AS c FROM qa_citation_grants
+        WHERE org_id = ${s.orgId} AND user_id = ${userId} AND policy_id = ${policyId}
+        LIMIT 1`;
+      return Number(rows[0]?.c ?? 0) > 0;
+    },
+    listForUser: async (
+      s: { orgId: string; tx: postgres.TransactionSql },
+      userId: string,
+    ) => {
+      const rows = await s.tx`
+        SELECT * FROM qa_citation_grants
+        WHERE org_id = ${s.orgId} AND user_id = ${userId}`;
+      return rows;
     },
   },
 }));

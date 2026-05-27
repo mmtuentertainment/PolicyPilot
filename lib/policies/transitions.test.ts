@@ -59,14 +59,9 @@ vi.mock('@/lib/db/scoped', () => ({
     }),
 }));
 
+const mockGetOrgContext = vi.fn();
 vi.mock('@/lib/auth/context', () => ({
-  getOrgContext: async () => ({
-    orgId: 'org_1',
-    userId: 'user_1',
-    clerkOrgId: 'clerk_test_org',
-    clerkUserId: 'clerk_test_user',
-    role: 'admin' as const,
-  }),
+  getOrgContext: (...args: unknown[]) => mockGetOrgContext(...args),
 }));
 
 const findByIdMock = vi.fn();
@@ -130,6 +125,14 @@ import type { PolicyId } from './types';
 const POLICY_ID_FIXTURE = 'p1' as unknown as PolicyId;
 
 beforeEach(() => {
+  mockGetOrgContext.mockReset();
+  mockGetOrgContext.mockResolvedValue({
+    orgId: 'org_1',
+    userId: 'user_1',
+    clerkOrgId: 'clerk_test_org',
+    clerkUserId: 'clerk_test_user',
+    role: 'admin' as const,
+  });
   findByIdMock.mockReset();
   updateDraftMock.mockReset();
   pvCreateMock.mockReset();
@@ -141,6 +144,23 @@ beforeEach(() => {
   generateSummaryForPolicyMock.mockResolvedValue(undefined);
   txUpdateMock.mockClear();
   txSetMock.mockClear();
+});
+
+describe('admin role gate', () => {
+  it('rejects before transition reads or writes when caller is not admin', async () => {
+    mockGetOrgContext.mockResolvedValueOnce({
+      orgId: 'org_1',
+      userId: 'user_1',
+      clerkOrgId: 'clerk_test_org',
+      clerkUserId: 'clerk_test_user',
+      role: 'employee' as const,
+    });
+
+    await expect(publish(POLICY_ID_FIXTURE)).rejects.toThrow('admin role required');
+    expect(findByIdMock).not.toHaveBeenCalled();
+    expect(pvCreateMock).not.toHaveBeenCalled();
+    expect(txUpdateMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('publish (REQ-policy-lifecycle SC#2)', () => {
@@ -191,7 +211,14 @@ describe('editPublished (REQ-policy-lifecycle SC#3)', () => {
     );
   });
 
-  it('snapshots prior published content + resets status + bumps version', async () => {
+  it('does NOT create a PolicyVersions snapshot — just resets status + bumps version (DUP-VN-2 fix afb7693)', async () => {
+    // Post-DUP-VN-2 (commit afb7693): editPublished no longer writes a snapshot row.
+    // publish() (line 156-176) already wrote the policy_versions row with
+    // versionNumber=currentVersion when this policy was originally published.
+    // Re-inserting that same (policy_id, version_number) pair would 23505 against
+    // the 03-G3 T2 UNIQUE constraint. editPublished's job is now just to flip
+    // status='draft' + bump currentVersion + overwrite contentJson; the next
+    // publish() will write the new vN+1 snapshot row.
     const priorContent = { type: 'doc', content: [{ type: 'paragraph' }] };
     findByIdMock.mockResolvedValueOnce([
       { id: 'p1', status: 'published', currentVersion: 3, contentJson: priorContent },
@@ -202,18 +229,10 @@ describe('editPublished (REQ-policy-lifecycle SC#3)', () => {
     };
     await editPublished(POLICY_ID_FIXTURE, newContent, 'fixed typo');
 
-    // 1. PolicyVersions.create called with the OLD content + OLD version number
-    expect(pvCreateMock).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        policyId: 'p1',
-        versionNumber: 3,
-        contentJson: priorContent,
-        createdBy: 'user_1',
-        changeSummary: 'fixed typo',
-      }),
-    );
-    // 2. tx.update called (status='draft' + content overwrite + version bump)
+    // 1. PolicyVersions.create NOT called — that was the DUP-VN-2 bug.
+    expect(pvCreateMock).not.toHaveBeenCalled();
+    // 2. tx.update called (status='draft' + content overwrite + version bump
+    //    from 3 to 4 — the next publish() will write that v4 row).
     expect(txUpdateMock).toHaveBeenCalled();
   });
 });

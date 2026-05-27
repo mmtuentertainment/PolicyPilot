@@ -302,8 +302,8 @@ Meta-criterion: the product must be demonstrably faster and more reliable than a
 | REQ-access-control | 3 — Admin UI | Pending |
 | REQ-ai-policy-assistant | 4 — AI Layer | Pending |
 | REQ-ai-usage-rules | 4 — AI Layer | Pending |
-| REQ-acknowledgment-tracking | 5 — Employee Portal | Pending |
-| REQ-acknowledgment-rules | 5 — Employee Portal | Pending |
+| REQ-acknowledgment-tracking | 5 — Employee Portal | Complete |
+| REQ-acknowledgment-rules | 5 — Employee Portal | Complete |
 | REQ-tier-starter | 6 — Billing | Pending |
 | REQ-tier-growth | 6 — Billing | Pending |
 | REQ-tier-business | 6 — Billing | Pending |

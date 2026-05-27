@@ -34,6 +34,7 @@ import { PolicyHeaderActions } from "@/components/policy/PolicyHeaderActions";
 import { PolicyRegenerateTldrButton } from "@/components/policy/PolicyRegenerateTldrButton";
 import { PolicyVersionHistory } from "@/components/policy/PolicyVersionHistory";
 import { EditPolicyForm } from "@/components/policy/EditPolicyForm";
+import { PolicyAssignmentsPanel } from "@/components/admin/PolicyAssignmentsPanel";
 import type { PolicyStatus } from "@/lib/policies/state-machine";
 import { PolicyIdSchema } from "@/lib/policies/types";
 
@@ -113,6 +114,20 @@ export default async function EditPolicyPage({
         <aside className="lg:col-span-2">
           <PolicyVersionHistory policyId={idParsed.data} />
         </aside>
+      </div>
+      {/*
+        Phase 5 D-13 — admin bulk-assign affordance. Renders at the BOTTOM
+        of the page, after PolicyTransitionMenu (which lives in the header
+        via PolicyHeaderActions) and after the edit/version-history grid.
+        Server Component reads PolicyAssignments.listForPolicy +
+        Departments.listAll inside ONE withOrgScope closure; Client child
+        form (PolicyAssignmentsPanelForm) handles the dept-selector +
+        Assign action. D-14 empty-departments UX (disabled button + native
+        tooltip "Create a department first") + D-16 read-only assignment
+        list (no Un-assign) both implemented in the panel itself.
+      */}
+      <div className="mt-8">
+        <PolicyAssignmentsPanel policyId={idParsed.data} />
       </div>
     </div>
   );

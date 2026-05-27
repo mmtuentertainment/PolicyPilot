@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 // scripts/check-ai-prompts.ts — Phase 4 D-26 ts-morph gate.
 //
 // Asserts each of the 4 prompt constants in lib/ai/prompts.ts contains a hardcoded

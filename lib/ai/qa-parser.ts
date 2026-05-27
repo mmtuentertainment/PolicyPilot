@@ -25,7 +25,12 @@ import 'server-only';
  * citation object will fail `pnpm typecheck`.
  */
 
-const CITATION_FENCE = /\n--- CITATIONS ---\n([\s\S]*?)\n--- END CITATIONS ---/;
+// Whitespace-tolerant: matches both the documented `--- CITATIONS ---` (with spaces)
+// AND the variant `---CITATIONS---` (no spaces) that Sonnet 4.6 actually emits in
+// practice. Surfaced during Phase 5 UAT 2026-05-24 — without `\s*` the parser fell
+// through to the no-match branch on every real Q&A response, leaving the fence text
+// visible in the rendered answer and dropping all citations.
+const CITATION_FENCE = /\n---\s*CITATIONS\s*---\n([\s\S]*?)\n---\s*END CITATIONS\s*---/;
 
 export function parseQaResponse(
   raw: string,

@@ -32,10 +32,14 @@ export const Notifications = {
       ),
 
   create: (_s: OrgScope, _input: NotificationCreateInput) => {
+    void _s;
+    void _input;
     throw new Error('Not yet implemented — Phase 7 (Crons + Email)');
   },
 
   markRead: (_s: OrgScope, _id: string) => {
+    void _s;
+    void _id;
     throw new Error('Not yet implemented — Phase 7 (Crons + Email)');
   },
 };

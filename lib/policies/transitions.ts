@@ -5,14 +5,15 @@
 // change. Plan 03-07's Server Actions are thin wrappers; the real
 // transactional business logic lives here. Each orchestrator:
 //   1. Resolves OrgContext via getOrgContext (Clerk session)
-//   2. Opens withOrgScope (one Drizzle transaction + SET LOCAL ROLE
+//   2. Requires admin role before any DB/AI side effect.
+//   3. Opens withOrgScope (one Drizzle transaction + SET LOCAL ROLE
 //      authenticated + set_config('request.jwt.claims', ..., true) so
 //      Supabase RLS evaluates against the actual ctx.orgId — ADR-025).
-//   3. Loads the policy via Policies.findById (which already filters by
+//   4. Loads the policy via Policies.findById (which already filters by
 //      scope.orgId — defense in depth alongside RLS).
-//   4. Validates the requested transition via canTransition; throws
+//   5. Validates the requested transition via canTransition; throws
 //      IllegalTransitionError on illegal moves.
-//   5. Performs any side-effects (PolicyVersions.create snapshot for
+//   6. Performs any side-effects (PolicyVersions.create snapshot for
 //      publish/editPublished/approve; WorkflowStages.recordSubmission for
 //      submitForReview) AND the policies row update inside the SAME
 //      transaction — so a partial write is impossible (T-03-06-02).
@@ -35,6 +36,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { and, eq, sql } from 'drizzle-orm';
 import { withOrgScope, type OrgScope } from '@/lib/db/scoped';
 import { getOrgContext } from '@/lib/auth/context';
+import { requireAdminFromCtx } from '@/lib/auth/require-admin';
 import { Policies } from '@/lib/db/repositories/policies';
 import { PolicyVersions } from '@/lib/db/repositories/policy_versions';
 import { WorkflowStages } from '@/lib/db/repositories/workflow_stages';
@@ -45,6 +47,7 @@ import {
   IllegalTransitionError,
   type PolicyStatus,
 } from './state-machine';
+import { PolicyNotFoundError } from './errors';
 import type { PolicyId } from './types';
 
 // Narrowed row shape returned by Policies.findById. The drizzle column
@@ -58,10 +61,18 @@ type PolicyRow = {
   contentJson: unknown;
 };
 
+async function getAdminOrgContext() {
+  const ctx = await getOrgContext();
+  requireAdminFromCtx(ctx);
+  return ctx;
+}
+
 /**
  * Common "load + validate transition" sequence. Runs inside an already-
  * opened OrgScope; returns the loaded policy on success. Throws:
- *  - Error('Policy not found') when the WHERE org_id + id miss
+ *  - PolicyNotFoundError when the WHERE org_id + id miss (D-30 typed
+ *    error per Plan 05-02; was `Error('Policy not found')` until Plan
+ *    05-08 widened check-error-discipline.ts to scan lib/policies/**)
  *  - IllegalTransitionError when canTransition(from, to) is false
  *
  * Both throws abort the surrounding withOrgScope transaction, rolling
@@ -74,7 +85,7 @@ async function loadAndAssertTransition(
 ): Promise<PolicyRow> {
   const rows = await Policies.findById(s, policyId);
   const row = rows[0];
-  if (!row) throw new Error('Policy not found');
+  if (!row) throw new PolicyNotFoundError(policyId);
   const policy: PolicyRow = {
     id: row.id,
     status: row.status as PolicyStatus,
@@ -96,7 +107,7 @@ export async function submitForReview(
   policyId: PolicyId,
   reviewerId: string | null,
 ): Promise<void> {
-  const ctx = await getOrgContext();
+  const ctx = await getAdminOrgContext();
   await withOrgScope(ctx, async (s) => {
     await loadAndAssertTransition(s, policyId, 'under_review');
     // ADR-028: use the branded `policyId` (already in scope) rather than
@@ -128,7 +139,9 @@ export async function approve(policyId: PolicyId): Promise<void> {
  * policy_versions — versions only track the published lineage (D-04).
  */
 export async function reject(policyId: PolicyId, _reason?: string): Promise<void> {
-  const ctx = await getOrgContext();
+  void _reason;
+
+  const ctx = await getAdminOrgContext();
   await withOrgScope(ctx, async (s) => {
     await loadAndAssertTransition(s, policyId, 'draft');
     await s.tx
@@ -151,7 +164,7 @@ export async function reject(policyId: PolicyId, _reason?: string): Promise<void
  * Both steps inside one withOrgScope tx — partial state impossible.
  */
 export async function publish(policyId: PolicyId): Promise<void> {
-  const ctx = await getOrgContext();
+  const ctx = await getAdminOrgContext();
   await withOrgScope(ctx, async (s) => {
     const policy = await loadAndAssertTransition(s, policyId, 'published');
     // D-04: create policy_versions row capturing the about-to-be-published
@@ -221,7 +234,7 @@ export async function publish(policyId: PolicyId): Promise<void> {
  * publish() call that landed it).
  */
 export async function archive(policyId: PolicyId): Promise<void> {
-  const ctx = await getOrgContext();
+  const ctx = await getAdminOrgContext();
   await withOrgScope(ctx, async (s) => {
     await loadAndAssertTransition(s, policyId, 'archived');
     await s.tx
@@ -245,7 +258,7 @@ export async function archive(policyId: PolicyId): Promise<void> {
  * restore→republish is a NEW version event (auditors expect a new vN row).
  */
 export async function restore(policyId: PolicyId): Promise<void> {
-  const ctx = await getOrgContext();
+  const ctx = await getAdminOrgContext();
   await withOrgScope(ctx, async (s) => {
     const policy = await loadAndAssertTransition(s, policyId, 'draft');
     await s.tx
@@ -281,22 +294,24 @@ export async function editPublished(
   newContent: unknown,
   changeSummary?: string,
 ): Promise<void> {
-  const ctx = await getOrgContext();
+  const ctx = await getAdminOrgContext();
   await withOrgScope(ctx, async (s) => {
     const policy = await loadAndAssertTransition(s, policyId, 'draft');
     if (policy.status !== 'published') {
       throw new IllegalTransitionError(policy.status, 'draft');
     }
-    // Snapshot the prior published version BEFORE overwriting (D-04 + L-05).
-    // ADR-028: pass branded `policyId` (orchestrator input) instead of
-    // `policy.id` (DB-row field typed as raw string).
-    await PolicyVersions.create(s, {
-      policyId,
-      versionNumber: policy.currentVersion,
-      contentJson: policy.contentJson,
-      createdBy: s.userId,
-      changeSummary,
-    });
+    // No snapshot needed here: publish() already wrote a
+    // policy_versions row for `versionNumber = policy.currentVersion` when
+    // this policy was originally published. Re-writing the same
+    // (policy_id, version_number) pair would violate the 03-G3 T2 UNIQUE
+    // constraint added to policy_versions and 23505 the editPublished flow.
+    // We just bump currentVersion + reset to draft; the next publish() will
+    // write the new vN+1 row from policies.currentVersion as the snapshot.
+    // changeSummary is carried into the next publish via a different path
+    // (operator can re-enter it before re-publishing) — Phase 3 originally
+    // expected the snapshot here; the publish-side snapshot was added later
+    // (03-G3 era) and the duplicate path was missed at the time.
+    void changeSummary;
     await s.tx
       .update(policies)
       .set({

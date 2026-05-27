@@ -13,8 +13,9 @@
 //   - Forged status field cannot reach the policies row: updateDraftAction
 //     accepts ONLY title/category/contentJson; status changes go through
 //     transition actions → orchestrators → state-machine.
-//   - Cross-org policyId: orchestrators run inside withOrgScope, so
-//     Policies.findById filters by orgId AND Postgres RLS enforces.
+//   - Cross-org policyId: orchestrators and direct writes run behind
+//     requireAdminFromCtx + withOrgScope, so repository orgId predicates
+//     and Postgres RLS both enforce.
 //   - Error disclosure: IllegalTransitionError surfaces a typed
 //     `{ ok: false, error: <message> }`; unexpected errors are logged
 //     server-side and bubble to Next.js' framework boundary.
@@ -23,8 +24,11 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getOrgContext } from '@/lib/auth/context';
+import { requireAdminFromCtx } from '@/lib/auth/require-admin';
 import { withOrgScope } from '@/lib/db/scoped';
 import { Policies } from '@/lib/db/repositories/policies';
+import { Departments } from '@/lib/db/repositories/departments';
+import { PolicyAssignments } from '@/lib/db/repositories/policy_assignments';
 import {
   submitForReview,
   approve,
@@ -359,8 +363,9 @@ export async function updateDraftAction(
   if (Object.keys(patch).length === 0) {
     return { ok: false, error: 'No changes to save.' };
   }
+  const ctx = await getOrgContext();
+  requireAdminFromCtx(ctx);
   try {
-    const ctx = await getOrgContext();
     await withOrgScope(ctx, async (s) => {
       await Policies.updateDraft(s, policyId, patch);
     });
@@ -370,5 +375,104 @@ export async function updateDraftAction(
     return { ok: false, error: 'Could not save changes. Please try again.' };
   }
   revalidateAfter(policyId);
+  return { ok: true };
+}
+
+// ─── Phase 5 D-13..D-15 — admin bulk-assignment action ────────────────────
+// Inline panel on /policies/[id] (per D-13) submits this action.
+// D-15 — UNIQUE(policy_id, assignee_type, assignee_id) from migration 0010
+// fires on duplicate; PolicyAssignments.create returns empty array silently;
+// this action treats as success (admin double-click safe).
+// D-16 — NO un-assign action in Phase 5 (read-only assignment list in panel).
+// D-17 — dept-only assignment (R-4 scope); individual-user UI deferred.
+//
+// Threat-model wiring (T-05-06-01..05 from Plan 05-06):
+//   - Tampering: double-click idempotency via DB UNIQUE + ON CONFLICT DO
+//     NOTHING (T-05-06-01); forged policyId/departmentId blocked by
+//     same-scope existence checks before the assignment insert (T-05-06-02).
+//   - Information Disclosure: orgId comes from OrgScope, never input
+//     (defense per repo header) (T-05-06-03).
+//   - Synchronization: revalidatePath('/my-policies') propagates the new
+//     assignment to the assignee's dashboard (T-05-06-05). The brief race
+//     window where employee already loaded /my-policies pre-assign would
+//     show stale until next navigation; full SSE push deferred.
+
+const BulkAssignSchema = z.object({
+  policyId: PolicyIdSchema,
+  departmentId: z.string().uuid(),
+});
+
+/**
+ * D-15 + R-4 — bulk-assign a policy to a department.
+ *
+ * Calls PolicyAssignments.create with assigneeType='department'. The DB
+ * UNIQUE constraint (policy_id, assignee_type, assignee_id) from migration
+ * 0010 ensures exactly-one row per (policy, dept) tuple; the repository
+ * uses ON CONFLICT DO NOTHING so a duplicate Assign click returns an
+ * empty array — this action treats that as silent success (admin
+ * double-click safe per T-05-06-01).
+ *
+ * Diverges from Phase 3 transition actions in two ways:
+ *   1. Does NOT call handleTransitionError — this action does not flow
+ *      through the state-machine, so IllegalTransitionError is not a
+ *      possible error class here.
+ *   2. revalidatePath fires both `/policies/[id]` (PolicyAssignmentsPanel
+ *      re-render to show the new row) AND `/my-policies` (assignee
+ *      dashboard re-render). Phase 3's revalidateAfter helper covers
+ *      `/policies/[id]` + `/policies` + `/dashboard`; this action's set
+ *      is distinct, so we inline the revalidate calls rather than
+ *      forking the helper.
+ */
+export async function bulkAssignToDepartmentAction(
+  _prev: ActionState | undefined,
+  formData: FormData,
+): Promise<ActionState> {
+  const parsed = BulkAssignSchema.safeParse({
+    policyId: formData.get('policyId'),
+    departmentId: formData.get('departmentId'),
+  });
+  if (!parsed.success) return INVALID_PAYLOAD;
+
+  const ctx = await getOrgContext();
+  requireAdminFromCtx(ctx);
+  try {
+    await withOrgScope(ctx, async (s) => {
+      const policyRows = await Policies.findById(s, parsed.data.policyId);
+      const departmentRows = await Departments.findById(
+        s,
+        parsed.data.departmentId,
+      );
+      if (policyRows.length === 0 || departmentRows.length === 0) {
+        throw new Error('Policy or department not found');
+      }
+      await PolicyAssignments.create(s, {
+        policyId: parsed.data.policyId,
+        assigneeType: 'department',
+        assigneeId: parsed.data.departmentId,
+        assignedBy: s.userId,
+      });
+      // D-15 — empty RETURNING on conflict is silent success.
+      // The UNIQUE constraint blocks duplicate (policy_id, 'department',
+      // department_id) rows. T-05-06-01 mitigation complete.
+    });
+  } catch (err) {
+    // bulk-assign doesn't throw IllegalTransitionError; any error here is
+    // unexpected (FK violation from forged deptId, RLS denial, DB
+    // connectivity, etc.). Sanitized server-side log per the
+    // policyIdFrom log-format precedent; user sees a generic message.
+    if (err instanceof Error) {
+      console.error('[bulkAssignToDepartmentAction] unexpected error', {
+        message: err.message.slice(0, 200),
+      });
+    }
+    return { ok: false, error: 'Failed to assign policy. Please try again.' };
+  }
+
+  // D-09 — revalidatePath outside try/catch.
+  // Refresh the policy detail page (so PolicyAssignmentsPanel shows the
+  // new row) and the employee dashboard (so the new assignee sees the
+  // policy in /my-policies on next navigation per T-05-06-05).
+  revalidatePath(`/policies/${parsed.data.policyId}`);
+  revalidatePath('/my-policies');
   return { ok: true };
 }
