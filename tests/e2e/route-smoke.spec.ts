@@ -13,16 +13,26 @@ test.describe("route smoke", () => {
 
     const employeeRoutes = ["/my-policies", "/my-policies/ask", "/post-sign-in"];
     for (const path of employeeRoutes) {
-      const response = await page.goto(path, { waitUntil: "domcontentloaded" });
-      expect(response?.status(), path).toBe(200);
-      expect(new URL(page.url()).pathname, path).toBe("/sign-in");
+      const routePage = await page.context().newPage();
+      try {
+        const response = await routePage.goto(path, { waitUntil: "domcontentloaded" });
+        expect(response?.status(), path).toBe(200);
+        expect(new URL(routePage.url()).pathname, path).toBe("/sign-in");
+      } finally {
+        await routePage.close();
+      }
     }
 
     const adminRoutes = ["/policies", "/policies/new"];
     for (const path of adminRoutes) {
-      const response = await page.goto(path, { waitUntil: "domcontentloaded" });
-      expect(response?.status(), path).toBe(404);
-      expect(new URL(page.url()).pathname, path).toBe(path);
+      const routePage = await page.context().newPage();
+      try {
+        const response = await routePage.goto(path, { waitUntil: "domcontentloaded" });
+        expect(response?.status(), path).toBe(404);
+        expect(new URL(routePage.url()).pathname, path).toBe(path);
+      } finally {
+        await routePage.close();
+      }
     }
   });
 });
