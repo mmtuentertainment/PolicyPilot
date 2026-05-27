@@ -107,8 +107,34 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          install_supabase_stubs() {
+            local db="$1"
+            PGPASSWORD=policy_pilot psql -h 127.0.0.1 -U policy_pilot -d "$db" <<'SQL'
+          DO $$
+          BEGIN
+            CREATE ROLE authenticated;
+          EXCEPTION WHEN duplicate_object THEN
+            NULL;
+          END
+          $$;
+
+          CREATE SCHEMA IF NOT EXISTS auth;
+
+          CREATE OR REPLACE FUNCTION auth.jwt()
+          RETURNS jsonb
+          LANGUAGE sql
+          STABLE
+          AS $$
+            SELECT COALESCE(NULLIF(current_setting('request.jwt.claims', true), ''), '{}')::jsonb;
+          $$;
+          SQL
+          }
+
           PGPASSWORD=policy_pilot psql -h 127.0.0.1 -U policy_pilot -d policypilot_ci -tc "SELECT 1 FROM pg_database WHERE datname = 'policypilot_ci_test'" | grep -q 1 || \
             PGPASSWORD=policy_pilot createdb -h 127.0.0.1 -U policy_pilot policypilot_ci_test
+          install_supabase_stubs policypilot_ci
+          install_supabase_stubs policypilot_ci_test
           pnpm db:migrate
           pnpm db:migrate:test
 
