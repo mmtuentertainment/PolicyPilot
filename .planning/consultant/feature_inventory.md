@@ -34,7 +34,7 @@ Scoring:
 | Employee assigned-policies dashboard | 5 | Hardening | Employee | Direct | High | High | Needed before product is useful beyond admins. |
 | Append-only acknowledgment flow | 5 | Hardening | Employee/admin/auditor | Direct | High | High | One of the product's strongest value props; harden before billing. |
 | Notification records | 5-7 | Partial/Pending | System/employee | Indirect | Medium | Medium | Becomes valuable once email reminders ship. |
-| Stripe Checkout | 6 | Pending | Buyer/admin | Direct | Low | Medium | Revenue switch; sequence after Phase 5 ship-clean. |
+| Stripe Checkout | 6 | Pending / planning-only | Buyer/admin | Direct | Low | Medium | Revenue switch; resume through proper Phase 6 planning path before implementation. |
 | Stripe 5-event webhook | 6 | Pending | System | Direct/Defensive | Medium | High | Must handle renewals, failures, cancellation, and plan changes idempotently. |
 | Tier gating | 6 | Pending | Admin/system | Direct | Medium | High | Turns AI and advanced features into monetizable packaging. |
 | Railway reminders worker | 7 | Pending | Employee/system | Indirect | High | Medium | Drives completion rates; must be idempotent. |
@@ -49,8 +49,8 @@ Scoring:
 
 Highest near-term revenue leverage:
 
-1. Phase 5 acknowledgment flow hardening — unlocks the core paid use case.
-2. Phase 6 Stripe + tier gating — unlocks collection and packaging.
+1. Phase 6 Stripe + tier gating — unlocks collection and packaging.
+2. Phase 7 reminders — completes the acknowledgment follow-up loop.
 3. Phase 8 CSV export/reporting — produces buyer-visible audit evidence.
 4. Employee Q&A citations — supports AI differentiation if reliable.
 

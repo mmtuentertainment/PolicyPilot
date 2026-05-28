@@ -1,6 +1,6 @@
 # Consultant Backlog — PolicyPilot
 
-Updated: 2026-05-28
+Updated: 2026-05-28 - Phase 5 ship reconciled
 
 Use this backlog for consultant-level sequencing only. It does not replace `.planning/ROADMAP.md` or phase plans. The purpose is to keep strategic pressure on the smallest high-value moves that improve launch readiness, revenue readiness, and trust.
 
@@ -16,16 +16,16 @@ Each input is scored 1-5. Higher priority ships first unless blocked by phase di
 
 | Rank | Item | Phase | Revenue | Pain | Risk Reduction | Beat-Manual | Reversibility | Effort | Priority | Status | Next micro-batch |
 |---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
-| 1 | Close Phase 5 hardening and reconcile audit artifacts. | 5 | 5 | 5 | 5 | 5 | 3 | 3 | 20 | Active | Run the smallest remediation batch needed to make Phase 5 ship-clean. |
-| 2 | Prove append-only acknowledgment behavior through executable gates. | 5 | 5 | 5 | 5 | 5 | 3 | 3 | 20 | Active | Keep immutability checks in `verify:phase-5`; add only targeted tests if audit exposes a gap. |
-| 3 | Prepare Phase 6 Stripe webhook spec before implementation. | 6 | 5 | 3 | 5 | 3 | 4 | 2 | 18 | Pending | Draft endpoint contract for all 5 events, idempotency, and 403 upgrade behavior. |
-| 4 | Implement Stripe Checkout + 5-event idempotent webhook. | 6 | 5 | 4 | 5 | 3 | 3 | 4 | 16 | Pending | Start only after Phase 5 is closed or paused by decision. |
+| 1 | Review and merge the operating-layer docs PR. | Cross-cutting | 2 | 2 | 3 | 2 | 5 | 1 | 13 | Active | Finish PR #30 review after this Phase 5 ship reconciliation lands. |
+| 2 | Prepare Phase 6 Stripe webhook spec before implementation. | 6 | 5 | 3 | 5 | 3 | 4 | 2 | 18 | Pending / planning-only | Resume only through the proper Phase 6 branch/spec/plan path. |
+| 3 | Preserve append-only acknowledgment behavior through future gates. | 5+ | 5 | 5 | 5 | 5 | 3 | 3 | 20 | Shipped / monitor | Keep immutability checks active when later phases touch policy or acknowledgment surfaces. |
+| 4 | Implement Stripe Checkout + 5-event idempotent webhook. | 6 | 5 | 4 | 5 | 3 | 3 | 4 | 16 | Pending | Start only after Matthew resumes Phase 6 from the proper branch/spec/plan path. |
 | 5 | Add tier-gating proof for AI and Growth+ features. | 6 | 5 | 3 | 4 | 3 | 4 | 3 | 16 | Pending | Ensure insufficient plan returns 403 + upgrade prompt where applicable. |
 | 6 | Design idempotent reminder send model. | 7 | 3 | 4 | 5 | 4 | 4 | 2 | 18 | Pending | Define send-state key before building email worker. |
 | 7 | Implement minimal Railway reminder worker. | 7 | 3 | 4 | 4 | 4 | 3 | 4 | 14 | Pending | Build one reminder type before expanding templates. |
 | 8 | Ship CSV export for acknowledgment evidence. | 8 | 5 | 4 | 3 | 5 | 5 | 2 | 20 | Pending | Favor simple CSV first; dashboard charts can follow. |
 | 9 | Run end-to-end beat-manual acceptance path. | 8 | 5 | 5 | 4 | 5 | 4 | 3 | 20 | Pending | Measure signup → draft → publish → assign → acknowledge → export. |
-| 10 | Convert consultant PR from draft to merge-ready after review. | Cross-cutting | 2 | 2 | 3 | 2 | 5 | 1 | 13 | Active | Add remaining files, update PR body, then mark ready when accepted. |
+| 10 | Phase 5 shipped-state bookkeeping. | 5 | 2 | 3 | 4 | 3 | 5 | 1 | 16 | Done in this patch | Reconciled `STATE`, `ROADMAP`, and consultant packets with PR #27 merge facts. |
 
 ---
 
@@ -44,8 +44,8 @@ Do not prioritize these until the core revenue loop is proven:
 ## Next Recommended Micro-Batch
 
 1. Finish the consultant operating file PR.
-2. Return to Phase 5 hardening.
-3. Close or explicitly pause Phase 5 before Phase 6 billing starts.
+2. Resume Phase 6 planning only when Matthew intentionally reopens that path.
+3. Keep Phase 6 implementation unstarted until the proper branch/spec/plan path is active.
 
 ---
 

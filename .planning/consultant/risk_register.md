@@ -1,6 +1,6 @@
 # Consultant Risk Register — PolicyPilot
 
-Updated: 2026-05-28
+Updated: 2026-05-28 - Phase 5 ship reconciled
 
 Scoring: Probability 1-5, Impact 1-5, Score = P × I. Keep this register focused on risks that affect launch, revenue readiness, tenant trust, or the beat-manual gate.
 
@@ -8,9 +8,9 @@ Scoring: Probability 1-5, Impact 1-5, Score = P × I. Keep this register focused
 
 | ID | Risk | Category | P | I | Score | Status | Mitigation / next control |
 |---|---|---:|---:|---:|---:|---|---|
-| R-001 | Phase 5 hardening remains open, blocking the usable employee acknowledgment loop. | Product/Delivery | 4 | 5 | 20 | Open | Close audit remediation before starting Phase 6 or explicitly pause with a written ship/no-ship decision. |
+| R-001 | Phase 5 shipped state is not reflected in live planning docs, causing future sessions to reopen closed hardening work. | Ops/Knowledge | 1 | 4 | 4 | Closed by this patch | PR #27 merge facts recorded in `STATE`, `ROADMAP`, consultant packets, and the delta report. |
 | R-002 | Tenant isolation regression through a future raw DB import, missing `org_id` filter, or RLS policy drift. | Security/Data | 2 | 5 | 10 | Controlled/Open | Preserve repository-first access, `check:db-imports`, `check:rls`, and migration verifier gates. Add review focus to every DB-touching PR. |
-| R-003 | Acknowledgment audit integrity weakened by update/delete paths, version mismatch, or re-acknowledgment edge cases. | Product/Compliance | 3 | 5 | 15 | Open | Keep append-only invariant executable; require Phase 5 hardening proof before billing work. |
+| R-003 | Acknowledgment audit integrity weakened by future update/delete paths, version mismatch, or re-acknowledgment edge cases. | Product/Compliance | 2 | 5 | 10 | Controlled/Open | Phase 5 shipped with append-only gates; keep those checks active when later phases touch policy or acknowledgment surfaces. |
 | R-004 | Stripe billing implementation misses renewal/failure/cancel/update events or idempotency. | Revenue/Ops | 3 | 5 | 15 | Pending | Phase 6 must implement all 5 locked webhook events and persist processed Stripe event IDs. |
 | R-005 | AI costs or retries exceed assumptions if tier gates, prompt caching, Batch API, or logging drift. | Cost/Product | 3 | 4 | 12 | Controlled/Open | Keep Claude calls server-only, tier-gated, max-retry bounded, and logged to `ai_generations`. |
 | R-006 | Reminder/email jobs duplicate sends or create noisy employee experience. | Ops/Product | 3 | 4 | 12 | Pending | Phase 7 worker must use idempotency keys or send-state rows, plus safe retry semantics. |

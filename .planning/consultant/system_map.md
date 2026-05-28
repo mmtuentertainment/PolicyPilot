@@ -72,13 +72,13 @@ Phase 1 Foundation      shipped
 Phase 2 Data Layer      shipped
 Phase 3 Admin UI        shipped
 Phase 4 AI Layer        shipped
-Phase 5 Employee Portal hardening in progress
-Phase 6 Billing         pending
+Phase 5 Employee Portal shipped
+Phase 6 Billing         pending / planning-only
 Phase 7 Crons + Email   pending
 Phase 8 Validation      pending
 ```
 
-Phase 5 is the present constraint. Billing should not start until Phase 5 hardening is closed or explicitly paused.
+Phase 5 shipped via PR #27 at `3344847`. Phase 6 is the next planning gate, but billing implementation should not start until the proper Phase 6 branch/spec/plan path is intentionally resumed.
 
 ---
 

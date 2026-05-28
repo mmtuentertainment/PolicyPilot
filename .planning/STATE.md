@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: audit_remediation
-last_updated: "2026-05-27T05:30:00.000-04:00"
+status: phase_6_planning_gate
+last_updated: "2026-05-28T15:02:47.306-04:00"
 progress:
   total_phases: 8
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 51
   completed_plans: 51
-  percent: 50
+  percent: 63
 ---
 
 # STATE — PolicyPilot
@@ -24,30 +24,30 @@ GSD session state. Updated each time a phase or plan transitions. Source of trut
 - **Operator**: Matthew (MMTU Entertainment LLC) — `mmtuentertainment@gmail.com`
 - **Core value**: Replaces Google Drive / SharePoint for SMB policy management with AI drafting, append-only acknowledgment tracking, and audit-ready compliance trails — at a price an SMB can afford.
 - **Beat-manual gate**: Product must be demonstrably faster and more reliable than a Google Drive folder.
-- **Current focus**: Phase 5 Employee Portal release-hardening after the 2026-05-27 current-state audit. Phase 5 code/UAT is complete, but the phase is not ship-clean until audit remediation gates are green.
+- **Current focus**: Post-Phase-5 shipped bookkeeping and Phase 6 planning gate. Phase 5 shipped to `main` via PR #27 at commit `3344847` on 2026-05-27T22:06:16Z; Phase 6 implementation has not started.
 - **Granularity**: standard (8 phases)
 
 ---
 
 ## Current Position
 
-Phase: 5 of 8 (Employee Portal hardening)
-Plan: 2026-05-27 audit remediation
-Branch: `gsd/phase-5-employee-portal` (local branch includes a pause-work handoff commit ahead of origin; do not blindly ship handoff artifacts)
-Main HEAD: `c50b317`
+Phase: post-Phase-5 shipped / Phase 6 planning gate
+Plan: post-ship state reconciliation
+Branch: `consultant/project-operating-system-2026-05-28` (docs-only PR #30 branch; not a phase implementation branch)
+Main HEAD: `3344847`
 
 - **Phase 1** — Foundation **complete** (2026-05-16; 5/5 plans; PR #1 merged)
 - **Phase 2** — Data Layer **complete** (2026-05-18; 7/7 plans = 6 main + 02-07 hotfix; verify:phase-2 8/8 OK; PR #2 squash-merged to `main` @ `130b8ab` on 2026-05-19)
 - **Phase 3** — Admin UI **SHIPPED** (2026-05-20; 15/15 plans; PR #3 squash-merged to `main` @ `edebab7`; 3 fast-follows shipped PR #5/#7/#13; 3-audit cascade complete PR #8/#10/#11; closure test PR #9; state bookkeeping PR #12)
 - **Phase 4** — AI Layer **SHIPPED** (2026-05-22; 14/14 plans; PR #15 squash-merged to `main` @ `f8207f4`; post-merge cleanup PR #17 @ `eda7bb4`; 60/60 STRIDE threats CLOSED; UAT 5/5 PASS with real-key Anthropic smoke verifying SPEC R4 cache mechanics)
-- **Phase 5** — Employee Portal code/UAT complete; release-hardening in progress from `.planning/audits/2026-05-27-current-state-audit/`.
-- **Progress**: 4 / 8 phases shipped (50%); Phase 5 hardening in progress; Phases 6-8 not complete.
+- **Phase 5** — Employee Portal **SHIPPED** (2026-05-27; PR #27 "Phase 5: Employee Portal" merged to `main` at `3344847`, parent `c50b317`; `gsd/phase-5-employee-portal` branch is gone).
+- **Progress**: 5 / 8 phases shipped (63%); Phase 6 is planning-only/paused; Phases 6-8 are not complete.
 
 ```text
-[████░░░░] 4/8 phases shipped  —  Foundation ✓  ·  Data Layer ✓  ·  Admin UI ✓  ·  AI Layer ✓  ·  Employee Portal ▶
+[#####---] 5/8 phases shipped - Foundation done / Data Layer done / Admin UI done / AI Layer done / Employee Portal shipped
 ```
 
-**Next action**: Continue 2026-05-27 audit remediation: keep build/lint/test/deploy-schema gates green, reconcile remaining local artifacts (`AGENTS.md`, `.codex/`, `Designprototypes/`, malformed `CUsers...` directory), then decide whether Phase 5 is ready for verify/ship. Do not start Phase 6 work until Phase 5 hardening is intentionally closed or explicitly paused.
+**Next action**: Finish post-ship bookkeeping on the docs-only operating-layer PR, then resume Phase 6 only through the intentional GSD spec/plan path. Do not treat Phase 6 implementation as started until a proper Phase 6 branch/spec/plan path is deliberately resumed.
 
 **Fast-follow PR backlog** (3 sequential PRs, originally scoped from PR #3 carry-forward):
 
@@ -72,7 +72,7 @@ Main HEAD: `c50b317`
 
 | Metric | Value |
 |--------|-------|
-| Phases complete | 4 / 8 |
+| Phases complete | 5 / 8 |
 | Phase 1 plans drafted | 5 / 5 |
 | Phase 1 plans executed | 5 / 5 |
 | Phase 2 context | drafted 2026-05-17 |
@@ -261,7 +261,7 @@ Surfaced by `/pr-review-toolkit:review-pr` against PR #1 head `e3689d3` (silent-
 | 2 | Data Layer | REQ-user-roles, REQ-multi-tenancy | Complete — Plans 02-01..02-06 + 02-07 hotfix shipped 2026-05-17 → 2026-05-18 (7 / 7 plans complete); `pnpm verify:phase-2` exits 0 with 7/7 OK against live TEST DB. Code-review CR-01 (webhook publicMetadata.role mirror) + HI-01 (middleware narrowing parity) closed by Plan 02-07. Blockers: SF-DB-1 CLOSED, SF-DB-2 CLOSED, SF-M4 FULLY CLOSED, CR-01 CLOSED, HI-01 CLOSED. Carry-forward: CR-02 admin-matcher dead code → Phase 3. |
 | 3 | Admin UI | REQ-policy-library, REQ-policy-lifecycle, REQ-access-control | Shipped — PR #3 @ `edebab7` (2026-05-20). Fast-follows: PR #5 ADR-026 typed errors @ `bf65712`, PR #7 ADR-027 lookup-scoping @ `c6dca6a`. Audit cascade (security/validation/verification) complete via PR #8/#10/#11 — PR #8 SHIPPED @ `5a57000` (SECURED 67/67 STRIDE); PR #10 + #11 OPEN. VALIDATION-2.7 closure via PR #9 OPEN (10-assertion `check:policies-list-filters`). PR 3.3 ADR-028 PolicyId brand still queued. |
 | 4 | AI Layer | REQ-ai-policy-assistant, REQ-ai-usage-rules | **SHIPPED** — PR #15 squash-merged to `main` @ `f8207f4` (2026-05-22; 14/14 plans + UAT 5/5 + gsd-security-auditor 60/60 STRIDE CLOSED + real-key Anthropic smoke verifying SPEC R4 cache mechanics for ~$0.021 spend). Post-merge cleanup PR #17 @ `eda7bb4` (one-shot HANDOFF artifact deletions). Deploy-prep PR in flight (chore/phase-4-deploy-prep) — staging/prod migration infrastructure (verifier, runbook, CI workflow, Vercel hook). Phase 4.5 polish backlog tracked at GitHub issue #16 (~30 deferred items). |
-| 5 | Employee Portal | REQ-acknowledgment-tracking, REQ-acknowledgment-rules | EXECUTING — 7/10 plans complete (Wave 1: 05-01 ✓ + 05-02 ✓ + 05-07 ✓; Wave 2: 05-03 ✓ + 05-04 ✓; Wave 3: 05-05 ✓ + 05-06 pending) |
-| 6 | Billing | REQ-tier-starter, REQ-tier-growth, REQ-tier-business | Not started |
+| 5 | Employee Portal | REQ-acknowledgment-tracking, REQ-acknowledgment-rules | **SHIPPED** — PR #27 merged to `main` at `3344847` on 2026-05-27T22:06:16Z; 10/10 plans complete; audit remediation gates closed before merge. |
+| 6 | Billing | REQ-tier-starter, REQ-tier-growth, REQ-tier-business | Planning-only / paused; implementation not started. |
 | 7 | Crons + Email | REQ-notification-system | Not started |
 | 8 | Validation | REQ-compliance-dashboard, REQ-integrations, REQ-acceptance-criteria | Not started |
