@@ -16,6 +16,8 @@ Phase 6 owns the write path. The `organizations` table already has `plan_tier`, 
 
 Context7 note: Stripe documentation was refreshed with `ctx7` on 2026-05-27 after Matthew's approvals. The refreshed Stripe docs confirm the raw-body signature-verification requirement, webhook-driven subscription lifecycle handling, and server-created Checkout/Customer Portal surfaces. Next.js route-shape requirements remain governed by the approved Phase 6 review direction and the project App Router conventions.
 
+Planning reconciliation note (2026-05-28): `.planning/phases/06-billing/06-CONTEXT.md` is the authoritative HOW addendum to this SPEC. The approvals recorded in this SPEC and CONTEXT supersede older review copies that described the official `stripe` package, the additive billing-state migration, canonical Subscription retrieval, transaction-scoped webhook idempotency, or hosted cumulative `verify:phase-6` as still approval-gated.
+
 ## Requirements
 
 1. **Stripe catalog and price-ID mapping are complete before checkout can run.**
@@ -143,6 +145,8 @@ Checkout Session creation MUST set:
 
 The server MUST ignore or reject any client-supplied org ID, customer ID, subscription ID, price ID, client reference, or metadata.
 
+Checkout creation MUST reject or redirect to Customer Portal when the org already has a linked subscription in `active`, `trialing`, or `past_due` status. Phase 6 does not implement custom upgrade/downgrade flows outside Stripe Portal. A fresh Checkout Session may be offered only when no subscription is linked or the current stored subscription state is non-entitling.
+
 ### Webhook canonical state
 
 For these events, entitlement MUST be derived from the current Stripe Subscription retrieved through the Stripe SDK:
@@ -173,6 +177,8 @@ Status handling:
 - `past_due`: preserve the last known paid `planTier`, set `stripeSubscriptionStatus = 'past_due'`, and sync diagnostic subscription fields when available.
 - `incomplete`: link the customer/subscription only if org mapping is unambiguous; do not upgrade `planTier`.
 - `unpaid`, `canceled`, `incomplete_expired`, and `paused`: set `planTier = 'starter'`, set `stripeSubscriptionStatus` to the Stripe status, and sync diagnostic fields when available.
+
+`active` or `trialing` with `cancel_at_period_end = true` remains entitling. The UI may show scheduled-cancel state, but the webhook MUST NOT downgrade until the current Subscription reports a non-entitling status or `customer.subscription.deleted` maps exactly to the org.
 
 `invoice.payment_failed` remains non-destructive for MVP:
 
@@ -216,6 +222,8 @@ After signature verification and required Stripe API re-fetches, each event MUST
 2. If the insert conflicts, return `200` with no org mutation.
 3. If the insert succeeds, apply the validated org billing mutation in the same transaction.
 4. If any org mutation fails, roll back the `stripe_events` insert so Stripe retry can reprocess the event.
+
+The `stripe_events.id` dedupe is necessary for Stripe retry replay, but the billing mutation MUST also be idempotent for distinct Stripe Event IDs that reference the same underlying customer/subscription and event type. In that case, the final org state MUST still equal the canonical current Stripe Subscription state.
 
 The handler MUST never log:
 
@@ -324,13 +332,16 @@ UAT evidence MUST NOT include:
 - [ ] Authenticated admin checkout creation uses server-side org context and cannot be forged to bill another org.
 - [ ] Checkout Session creation sets `client_reference_id`, session metadata, and subscription metadata from server-derived `orgId`.
 - [ ] Checkout success does not change `organizations.planTier` until a verified webhook is processed.
+- [ ] Checkout creation rejects or redirects to Customer Portal when the org already has a linked active/trialing/past_due subscription.
 - [ ] `POST /api/webhooks/stripe` rejects invalid signatures before parsing JSON.
 - [ ] Duplicate webhook delivery for the same Stripe `event.id` produces no duplicate org mutation.
+- [ ] Two different Stripe event IDs for the same underlying subscription/customer and same event type leave org state equal to the canonical current Subscription state.
 - [ ] `checkout.session.completed` links customer/subscription and sets `planTier` only after current Subscription retrieval proves a recognized recurring Price ID and unambiguous org mapping.
 - [ ] `invoice.paid` re-fetches the current Subscription and never blindly reactivates a stale or canceled org.
 - [ ] `invoice.payment_failed` sets `stripeSubscriptionStatus = 'past_due'` and leaves `planTier` unchanged.
 - [ ] `customer.subscription.deleted` verifies exactly one org mapping, sets `stripeSubscriptionStatus = 'canceled'`, and downgrades `planTier = 'starter'`.
 - [ ] `customer.subscription.updated` syncs tier, subscription status, Price ID, subscription item ID, current period end, cancel-at-period-end, and last-event-created fields from the current Subscription.
+- [ ] Active/trialing subscriptions with `cancel_at_period_end = true` remain paid until Stripe reports a non-entitling status or a verified deletion event.
 - [ ] Unknown price ID or ambiguous org mapping logs a sanitized failure and leaves org billing state unchanged.
 - [ ] `checkTierLimit` returns real current counts for `aiDraftsMonthly` and `maxUsers`.
 - [ ] Starter consistency-check attempt returns 403 with `error: 'tier_limit_exceeded'` and `upgradeUrl: '/pricing'`.
@@ -369,4 +380,4 @@ Initial ambiguity was already <= 0.20 after codebase scout, so no blocking user 
 
 *Phase: 06-billing*
 *Spec created: 2026-05-27*
-*Next step: /gsd-discuss-phase 6 or /gsd-plan-phase 6 - implementation decisions for checkout route shape, webhook transaction/idempotency ordering, admin billing UI placement, fixture strategy, and test-mode UAT checklist. Stripe SDK/package approval and the minimal additive billing-state migration are no longer blocking questions.*
+*Next step: /gsd-plan-phase 6 - use this SPEC plus `06-CONTEXT.md` as the authoritative planning inputs. Stripe SDK/package approval, the minimal additive billing-state migration, canonical Subscription retrieval, transaction-scoped webhook idempotency, and hosted cumulative verification are no longer blocking questions.*
