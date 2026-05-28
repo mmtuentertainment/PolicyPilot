@@ -12,8 +12,8 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 - [x] **Phase 2: Data Layer** — Drizzle schema + RLS + Clerk webhooks; `org_id` invariant established. ✓ 2026-05-18 (operator-approved; `pnpm verify:phase-2` 7/7 OK; webhook live-smoke deferred to Phase 3)
 - [x] **Phase 3: Admin UI** — Policy library, TipTap editor, full lifecycle (Draft → Published → Archived). ✓ 2026-05-20 (12 main plans 03-00..03-11 + 3 gap-closure plans 03-G1/G2/G3 = 15 total; 6/6 HUMAN-UAT PASS; verify:phase-2 8/8 OK; verify:phase-3 8 gates + 270/270 artifacts + 53/53 vitest)
 - [x] **Phase 4: AI Layer** — Draft generation, TL;DR summaries, Employee Q&A, Consistency Check (Growth+). ✓ 2026-05-22
-- [ ] **Phase 5: Employee Portal** — Assigned-policies dashboard + append-only acknowledgment flow. Code/UAT complete; current audit remediation hardening in progress.
-- [ ] **Phase 6: Billing** — Stripe Checkout + 5-event webhook + tier gating via `TIER_LIMITS`.
+- [x] **Phase 5: Employee Portal** — Assigned-policies dashboard + append-only acknowledgment flow. Shipped via PR #27 at `3344847` on 2026-05-27T22:06:16Z.
+- [ ] **Phase 6: Billing** — Stripe Checkout + 5-event webhook + tier gating via `TIER_LIMITS`. Pending/planning-only; implementation not started.
 - [ ] **Phase 7: Crons + Email** — Railway worker + Resend templates + idempotent reminders.
 - [ ] **Phase 8: Validation** — Compliance dashboard + CSV export + all 8 acceptance criteria green.
 
@@ -117,6 +117,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 - [x] 04-14-PLAN.md — Wave 4: scripts/check-ai-layer.ts integration test + check-artifacts.ts Phase 4 scaffold + verify:phase-4 chain (D-24) + operator UAT checkpoint
 
 ### Phase 5: Employee Portal
+**Status**: Shipped to `main` via PR #27 at commit `3344847` on 2026-05-27T22:06:16Z.
 **Goal**: An employee can sign in, see only their assigned + published policies, read them, ask Q&A questions, and one-click acknowledge — with every acknowledgment captured append-only with timestamp and IP. Policy updates correctly require re-acknowledgment.
 **Depends on**: Phase 3 *(amended by ADR-029 2026-05-21; was Phase 4 — Phase 5 SC 1–5 do not consume Phase 4 AI surfaces per `/gsd-manager --analyze-deps`; eligible for Wave 1 parallel with Phase 4. R-6 Q&A surface added 2026-05-23 via discuss-phase Q-21(c) operator override creates a runtime-consumption link to Phase 4 — orthogonal to ADR-029's dependency-graph parallelism gating, which Phase 4 SHIPPED 2026-05-22 moots anyway.)*
 **Requirements**: REQ-acknowledgment-tracking, REQ-acknowledgment-rules
@@ -128,7 +129,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
   4. Bulk assignment to a department creates one `policy_assignments` row with `assigneeType = 'department'` and is visible to every member of that department.
   5. No code path exists to DELETE or UPDATE rows in `acknowledgments` — verified by code inspection (tests/types.ts D-07 compile-time + scripts/check-acknowledgment-immutability.ts ts-morph CI + DB GRANT-asymmetry-documented).
   6. (R-6 — operator amendment 2026-05-23) Employee Q&A surface at `/my-policies/ask` consumes Phase 4 `askQuestion` orchestrator, returns cited answers, with citation Links navigating to `/my-policies/[id]` with D-27 access-aware page handler (assigned → full PolicyView; cited-but-not-assigned → TL;DR-only with banner; else 404).
-**Plans**: 10 plans
+**Plans**: 10 plans, all complete
 - [x] 05-01-schema-migrations-PLAN.md — Wave 1: lib/db/schema.ts + drizzle/0010_phase5_uniques.sql (D-28) + drizzle/0011_qa_citation_grants.sql (D-29 + RESEARCH gap-1 wrapped-RLS) + pnpm db:migrate + pnpm db:migrate:test (BLOCKING) + scripts/check-schema.ts Phase 5 column-shape assertions
 - [x] 05-02-errors-PLAN.md — Wave 1: lib/policies/errors.ts PolicyDomainError hierarchy per D-30 (mirrors ADR-026 BootstrapError shape) — parallel with 05-01 ✓ 2026-05-24T01:30Z (commit `2456b75`; abstract base + PolicyDomainErrorCode literal union + 3 concrete subclasses with public readonly policyId + literal readonly code + explicit this.name; pre-emptively satisfies Plan 05-08 widened gate)
 - [x] 05-03-repositories-PLAN.md — Wave 2: Acknowledgments.record + PolicyAssignments.create fills (D-06/10/15 ON CONFLICT DO NOTHING) + Policies.listAssignedAndPublishedForUser (D-01..D-04 LEFT JOIN + ackState enum) + NEW lib/db/repositories/qa_citation_grants.ts (D-29 listForUser/upsert/hasGrant) ✓ 2026-05-24T01:55Z (commits `e23a4a4` Task 1 + `b8de7f1` Task 2; 3 modified + 1 created; 18/18 acceptance criteria pass; tsc clean; runtime probe OK; ADR-018/019/023/028 all preserved; zero deviations)
@@ -142,6 +143,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 **UI hint**: yes
 
 ### Phase 6: Billing
+**Status**: Pending/planning-only. Do not treat Phase 6 implementation as started until the proper Phase 6 branch/spec/plan path is intentionally resumed.
 **Goal**: A new sign-up can pick a plan, complete Stripe Checkout, see their org's `planTier` synced from the webhook, hit tier limits with a clear 403 + upgrade prompt, and have their subscription survive the first billing-cycle renewal automatically.
 **Depends on**: Phase 4 *(amended by ADR-029 2026-05-21; was Phase 5 — `checkTierLimit` is the binding dependency per Phase 4 SC #1/#5, not the employee portal; eligible for Wave 2 parallel with Phase 7)*
 **Requirements**: REQ-tier-starter, REQ-tier-growth, REQ-tier-business
@@ -192,7 +194,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 | 2. Data Layer | 7/7 | Complete | 2026-05-18 |
 | 3. Admin UI | 15/15 | Complete | 2026-05-20 |
 | 4. AI Layer | 14/14 | Complete | 2026-05-22 |
-| 5. Employee Portal | 10/10 | Hardening - code/UAT complete; 2026-05-27 audit remediation is closing build/test/deploy-schema/planning drift before phase ship | - |
-| 6. Billing | 0/0 | Not started | - |
+| 5. Employee Portal | 10/10 | Complete - shipped via PR #27 at `3344847` | 2026-05-27 |
+| 6. Billing | 0/0 | Pending / planning-only; implementation not started | - |
 | 7. Crons + Email | 0/0 | Not started | - |
 | 8. Validation | 0/0 | Not started | - |

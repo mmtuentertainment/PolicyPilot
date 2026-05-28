@@ -17,6 +17,9 @@ policypilot/
 ├── components/             — UI components (policy/, dashboard/, shared/)
 ├── lib/                    — Clients and utilities (db/, ai/, stripe/, email/)
 ├── reference/              — STACK.md, SCHEMA.md, PROMPTS.md, TIER-LIMITS.md, API-SPEC.md
+├── .planning/consultant/   — Consultant memory, map, risk, feature, backlog files
+├── ops/deltas/             — Consultant delta reports for meaningful changes
+├── CONSULTANT.md           — High-level consultant operating instructions
 └── docs/                   — Policies, designs, runbooks
 ```
 
@@ -32,11 +35,47 @@ policypilot/
 2. **Business rules / domain (live)** → `.planning/REQUIREMENTS.md` · *frozen*: `REQUIREMENTS.md`
 3. **Active roadmap** → `.planning/ROADMAP.md`
 4. **Session memory** → `.planning/STATE.md`
-5. **Stack rationale (frozen)** → `reference/STACK.md`
-6. **DB schema (frozen contract)** → `reference/SCHEMA.md`
-7. **AI prompts (frozen contract)** → `reference/PROMPTS.md`
-8. **Tier limits (frozen contract)** → `reference/TIER-LIMITS.md`
-9. **API route specs (frozen contract)** → `reference/API-SPEC.md`
+5. **Consultant operating layer** → `CONSULTANT.md` + `.planning/consultant/*.md`
+6. **Consultant deltas** → `ops/deltas/*.md`
+7. **Stack rationale (frozen)** → `reference/STACK.md`
+8. **DB schema (frozen contract)** → `reference/SCHEMA.md`
+9. **AI prompts (frozen contract)** → `reference/PROMPTS.md`
+10. **Tier limits (frozen contract)** → `reference/TIER-LIMITS.md`
+11. **API route specs (frozen contract)** → `reference/API-SPEC.md`
+
+---
+
+## Consultant Overlay (high-level)
+
+Operate as a high-level product, technical, and operating consultant on the PolicyPilot build. The consultant layer is advisory and execution-oriented: challenge scope, preserve launch focus, surface tradeoffs, and recommend the smallest reversible change that improves revenue readiness, time-to-value, tenant trust, or audit integrity.
+
+Role split:
+
+- Matthew is the operator, product owner, and approval authority.
+- ChatGPT is the consultant/research/risk-review/implementation-router/GSD-guide
+  and prompt/handoff review layer.
+- Claude Code is the long-horizon repo exploration, broad-audit, GSD
+  research/planning, security/risk review, branch/state diagnosis,
+  multi-file-consistency, and ambiguous-investigation agent. It is read-mostly
+  by default and should hand exact patches, tests, PR updates, or verification
+  instructions to Codex unless Matthew explicitly asks otherwise.
+- Codex is the scoped implementation executor for exact patches, tests,
+  verification gates, PR/delta updates, and small reversible fixes; its
+  operating contract is `AGENTS.md`.
+- Anthropic Claude API is the product AI layer. Claude Code and Codex are
+  implementation agents, not product AI APIs.
+
+The GSD operating chain is:
+
+```text
+pr-branch -> spec -> discuss -> UAT intent -> research -> validate -> plan -> checker -> execute -> secure phase -> verifier -> ship review
+```
+
+Before meaningful advice or implementation, read `AGENTS.md`, `CONSULTANT.md`, `.planning/consultant/working_context.md`, `.planning/consultant/system_map.md`, `.planning/consultant/feature_inventory.md`, `.planning/consultant/risk_register.md`, and `.planning/consultant/backlog.md` after the core GSD files above.
+
+Keep-current rule: no meaningful project change is complete until the consultant file set is reviewed and either updated or explicitly marked `no-change` in `ops/deltas/<date>-<slug>.md`.
+
+Current phase state comes from `.planning/STATE.md`. As of PR #30, Phase 5 Employee Portal shipped via PR #27 at commit `3344847`; Phase 6 is pending/planning-only. Do not treat a Phase 6 branch, phase directory, or handoff as permission to start Phase 6 implementation.
 
 ---
 
@@ -105,6 +144,7 @@ FOR ALL USING (org_id = auth.jwt()->>'org_id');
 4. Use prompt caching on all repeated Claude API system prompts
 5. Store every Claude API call in `ai_generations` table
 6. Check tier limits before every Claude API call — full spec in `reference/TIER-LIMITS.md`
+7. Review consultant files after meaningful changes and update them or mark `no-change` in the delta report
 
 ### ASK FIRST
 1. Any package not in the stack list above
@@ -231,6 +271,11 @@ Mobile app · LMS / training · HR integrations · Document generation · Offlin
 |---|---|
 | `REQUIREMENTS.md` | Domain knowledge, business rules, acceptance criteria |
 | `BLUEPRINT.md` | Architecture, repo layout, API specs, build sequence |
+| `AGENTS.md` | Codex implementation-agent contract, GSD workflow, startup order, handoff format |
+| `CLAUDE.md` | Primary AI/operator rules and project entrypoint |
+| `CONSULTANT.md` | High-level consultant instructions and keep-current rule |
+| `.planning/consultant/*.md` | Consultant memory, system map, feature inventory, risk register, and backlog |
+| `ops/deltas/*.md` | Consultant delta reports for meaningful changes |
 | `reference/STACK.md` | Stack decisions with full rationale and research |
 | `reference/SCHEMA.md` | Complete Drizzle schema, all tables, RLS policies |
 | `reference/API-SPEC.md` | Every API route: method, auth, request, response, errors |
