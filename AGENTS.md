@@ -143,7 +143,7 @@ fallback in the handoff.
 ## Phase Constraint
 
 `.planning/STATE.md` is the source of truth for current phase state. As of PR
-#30, Phase 5 Employee Portal shipped via PR #27 at commit `3344847` on
+`#30`, Phase 5 Employee Portal shipped via PR `#27` at commit `3344847` on
 2026-05-27, and Phase 6 is pending/planning-only. Do not start Phase 6
 implementation until Matthew intentionally resumes the proper Phase 6 GSD
 branch/spec/plan path. A Phase 6 branch or handoff is not enough by itself.
