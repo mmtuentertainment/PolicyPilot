@@ -1,0 +1,88 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-05-27T22:42:37.7329916-04:00",
+  "phase": "6",
+  "phase_name": "Billing",
+  "phase_dir": ".planning/phases/06-billing",
+  "plan": null,
+  "task": null,
+  "total_tasks": 6,
+  "status": "paused",
+  "completed_tasks": [
+    {
+      "id": 1,
+      "name": "Create Phase 6 Billing SPEC",
+      "status": "done",
+      "commit": "69432a6"
+    },
+    {
+      "id": 2,
+      "name": "Create ChatGPT Pro review brief",
+      "status": "done",
+      "commit": "c24a3b8"
+    },
+    {
+      "id": 3,
+      "name": "Install and smoke-test Stripe CLI",
+      "status": "done",
+      "commit": "local-only"
+    },
+    {
+      "id": 4,
+      "name": "Configure and OAuth-test Codex Stripe MCP",
+      "status": "done",
+      "commit": "local-only"
+    }
+  ],
+  "remaining_tasks": [
+    {
+      "id": 5,
+      "name": "Open fresh Codex session and recheck active Stripe MCP tool registry",
+      "status": "not_started"
+    },
+    {
+      "id": 6,
+      "name": "Run ChatGPT Pro review, amend spec if needed, then discuss/plan Phase 6",
+      "status": "not_started"
+    }
+  ],
+  "blockers": [
+    {
+      "description": "The currently active Codex chat session still does not expose Stripe MCP tools, although Codex CLI reports the Stripe MCP server as enabled.",
+      "type": "external",
+      "workaround": "Restart Codex or open a fresh Codex thread, then re-run tool-registry checks."
+    }
+  ],
+  "human_actions_pending": [
+    {
+      "action": "Use a fresh Codex session or full restart before relying on Stripe MCP tools in-chat.",
+      "context": "Codex CLI sees the server, but this active conversation has not refreshed its tool namespace.",
+      "blocking": true
+    },
+    {
+      "action": "Run ChatGPT Pro review using the prepared brief.",
+      "context": "Matthew requested external review/optimization of the Phase 6 spec before implementation planning.",
+      "blocking": false
+    }
+  ],
+  "decisions": [
+    {
+      "decision": "Use Codex streamable HTTP MCP config for Stripe, not an npx mcp-remote stdio wrapper.",
+      "rationale": "Official Codex MCP OAuth docs indicate OAuth login is compatible with streamable HTTP servers; the wrapper shape did not surface Stripe tools.",
+      "phase": "6"
+    },
+    {
+      "decision": "Keep secrets out of chat and report only sentinel booleans.",
+      "rationale": "Stripe webhook secret and OAuth outputs can contain sensitive values.",
+      "phase": "6"
+    },
+    {
+      "decision": "Do not implement Phase 6 until review/discuss/plan are complete.",
+      "rationale": "Current artifacts are spec and review prep only; Stripe API details still need current-doc refresh before code.",
+      "phase": "6"
+    }
+  ],
+  "uncommitted_files": [],
+  "next_action": "Open a fresh Codex session or fully restart Codex, ask it to recheck Stripe MCP tools, then run the ChatGPT Pro review brief before /gsd-discuss-phase 6.",
+  "context_notes": "Phase 6 is ready for review, not implementation. Stripe CLI is authenticated, webhook secret sentinel is present in .env.local, repo .mcp.json is ignored and valid, and Codex global config points Stripe MCP to https://mcp.stripe.com. The active chat session still lacks Stripe tool exposure."
+}
