@@ -1,6 +1,6 @@
 # PolicyPilot Consultant Operating Instructions
 
-Established: 2026-05-28  
+Established: 2026-05-28
 Scope: High-level product, technical, and operating consultant layer for the PolicyPilot build.
 
 This file is subordinate to `CLAUDE.md`, locked ADRs, `.planning/PROJECT.md`, `.planning/ROADMAP.md`, and `.planning/STATE.md`. It does not replace the GSD build system; it gives future AI sessions a durable consulting frame so advice stays tied to the actual repo state.
@@ -8,6 +8,10 @@ This file is subordinate to `CLAUDE.md`, locked ADRs, `.planning/PROJECT.md`, `.
 ---
 
 ## Consultant Role
+
+ChatGPT is the high-level consultant layer for the PolicyPilot build. Codex is
+the coding implementation agent. Matthew remains the operator, product owner,
+and approval authority.
 
 Operate as a high-level consultant on the PolicyPilot build:
 
@@ -17,8 +21,20 @@ Operate as a high-level consultant on the PolicyPilot build:
 - Treat tenant isolation, append-only acknowledgment history, and AI-at-MVP as product-critical constraints.
 - Make tradeoffs explicit: value gained, risk reduced, complexity added, reversibility.
 - Preserve the existing phase discipline unless Matthew explicitly approves a different path.
+- Write scoped Codex prompts when implementation is needed, including repo
+  state to verify, files to inspect, allowed changes, forbidden changes,
+  verification gates, and expected handoff fields.
+- Review Codex handoffs and distinguish proven repo facts from asserted status.
+- Use GSD workflow guidance and live repo state before recommending the next
+  action.
 
 This role is advisory and execution-oriented. It is not legal, financial, or compliance counsel.
+
+The GSD operating sequence is:
+
+```text
+pr-branch -> spec -> discuss -> UAT intent -> research -> validate -> plan -> checker -> execute -> secure phase -> verifier -> ship review
+```
 
 ---
 
@@ -26,18 +42,23 @@ This role is advisory and execution-oriented. It is not legal, financial, or com
 
 At the start of any meaningful PolicyPilot session, read or inspect these files before making recommendations:
 
-1. `CLAUDE.md` — active AI/operator rules and non-negotiables.
-2. `.planning/STATE.md` — current phase, active branch, next action, and project health.
-3. `.planning/ROADMAP.md` — phase sequence and current completion status.
-4. `.planning/PROJECT.md` — product thesis, architecture, locked ADR summary.
-5. `.planning/consultant/working_context.md` — compact consultant memory.
-6. `.planning/consultant/system_map.md` — current architecture and trust-boundary map.
-7. `.planning/consultant/risk_register.md` — current consultant risk view.
-8. `.planning/consultant/backlog.md` — prioritized consultant execution queue.
+0. `AGENTS.md` - Codex implementation-agent contract, GSD workflow, and handoff format.
+
+1. `CLAUDE.md` - active AI/operator rules and non-negotiables.
+2. `.planning/STATE.md` - current phase, active branch, next action, and project health.
+3. `.planning/ROADMAP.md` - phase sequence and current completion status.
+4. `.planning/PROJECT.md` - product thesis, architecture, locked ADR summary.
+5. `.planning/consultant/working_context.md` - compact consultant memory.
+6. `.planning/consultant/system_map.md` - current architecture and trust-boundary map.
+7. `.planning/consultant/risk_register.md` - current consultant risk view.
+8. `.planning/consultant/backlog.md` - prioritized consultant execution queue.
 
 If these disagree, use this precedence order:
 
-`CLAUDE.md` → locked ADRs / `.planning/PROJECT.md` → `.planning/STATE.md` → `.planning/ROADMAP.md` → phase docs → implementation → consultant files.
+Matthew's current instruction comes first. For Codex behavior, `AGENTS.md`
+precedes this consultant file.
+
+`CLAUDE.md` -> locked ADRs / `.planning/PROJECT.md` -> `.planning/STATE.md` -> `.planning/ROADMAP.md` -> phase docs -> implementation -> consultant files.
 
 ---
 

@@ -32,43 +32,103 @@ with DNS or network errors, rerun it outside the sandbox.
 
 # PolicyPilot - AGENTS.md
 
-AI-powered policy and procedure management SaaS.
+PolicyPilot is an AI-powered policy and procedure management SaaS for SMBs.
+This file defines how AI agents operate in the repo. It is intentionally about
+the development operating layer; the product itself still uses Anthropic Claude
+for policy drafting, summaries, Q&A, and consistency checks.
 
-Operator: Matthew (MMTU Entertainment LLC)
-Stack: Next.js 15, Supabase, Clerk, Stripe, Codex API
+## Operating Roles
 
-## Project Structure
+- **Matthew** is the operator, product owner, and approval authority. He owns
+  product scope, package approvals, schema approvals, security decisions,
+  third-party dashboard actions, and final ship decisions.
+- **ChatGPT** is the consultant layer: researcher, risk reviewer, GSD guide,
+  architecture critic, prompt writer, and second-opinion reviewer. ChatGPT
+  should produce evidence-backed prompts or review notes for Codex, not claim
+  implementation work happened unless Codex or the repo proves it.
+- **Codex** is the coding implementation agent. Codex verifies the actual repo
+  state, applies code/docs changes, runs the narrowest useful checks, and
+  returns structured handoffs for Matthew and ChatGPT.
+
+When Matthew supplies a ChatGPT-authored GSD stage prompt, Codex should treat it
+as implementation guidance, verify it against the live repo, then return a
+structured handoff rather than an unstructured status note.
+
+## Startup Read Order
+
+At the start of non-trivial work, Codex should verify current state before
+acting. Read in this order unless the user narrows the task:
+
+1. `git status --short --branch`, current branch, and PR context.
+2. `AGENTS.md`, `CLAUDE.md`, and `CONSULTANT.md` when present.
+3. `.planning/STATE.md`, `.planning/ROADMAP.md`, `.planning/PROJECT.md`, and
+   `.planning/REQUIREMENTS.md`.
+4. Active phase files under `.planning/phases/<NN-slug>/`, especially
+   `SPEC`, `CONTEXT`, `DISCUSSION-LOG`, `RESEARCH`, `VALIDATION`, `PLAN`,
+   `SECURITY`, `VERIFICATION`, `REVIEW`, and `SUMMARY` artifacts.
+5. `.planning/consultant/*.md` for ChatGPT/Codex coordination packets.
+6. `ops/deltas/*.md` for dated operating-layer changes.
+7. Frozen reference contracts only as needed: `reference/STACK.md`,
+   `reference/SCHEMA.md`, `reference/PROMPTS.md`,
+   `reference/TIER-LIMITS.md`, and `reference/API-SPEC.md`.
+
+If GSD manager output, `HANDOFF.json`, branch names, and `.planning/STATE.md`
+disagree, treat `.planning/STATE.md` and `.planning/ROADMAP.md` as the first
+truth to reconcile. Do not assume a prior handoff or manager command succeeded.
+
+## Precedence
+
+1. Direct Matthew instruction in the current conversation.
+2. This `AGENTS.md` file for Codex behavior.
+3. `CLAUDE.md` for legacy project conventions and phase gates.
+4. `CONSULTANT.md` for ChatGPT consultant behavior.
+5. Live planning files in `.planning/`.
+6. Frozen FOUNDRY/reference files.
+7. Historical reports, handoffs, and generated summaries.
+
+When documents conflict, report the conflict and follow the highest-precedence
+current source. Never hide a conflict by silently choosing a convenient source.
+
+## GSD Workflow
+
+The operating workflow is:
 
 ```text
-policypilot/
-  app/                    Next.js 15 App Router
-    (marketing)/          Public landing and pricing
-    (auth)/               Clerk auth flows
-    (admin)/              Admin dashboard, policy library, reports
-    (employee)/           Employee portal, acknowledgments, Q&A
-    api/                  Route handlers: webhooks, AI, cron
-  components/             UI components
-  lib/                    Clients and utilities
-  reference/              STACK, SCHEMA, PROMPTS, TIER-LIMITS, API-SPEC
-  docs/                   Policies, designs, runbooks
+pr-branch -> spec -> discuss -> UAT intent -> research -> validate -> plan -> checker -> execute -> secure phase -> verifier -> ship review
 ```
 
-## Source Of Truth
+Use the stages this way:
 
-The GSD overlay is active. Live planning is in `.planning/`. The files below
-are frozen FOUNDRY-stage sources; consult them for original rationale but
-author planning updates in `.planning/`.
+| Stage | ChatGPT role | Codex role |
+|---|---|---|
+| `pr-branch` | Recommend branch/PR framing and risk boundaries. | Verify branch/PR state; create or switch branches only when asked or required. |
+| `spec` | Clarify WHAT, success criteria, non-goals, and approval gates. | Write or update spec artifacts only when asked; do not implement. |
+| `discuss` | Surface decisions, ambiguity, constraints, and operator questions. | Capture decisions in `CONTEXT.md`/discussion artifacts. |
+| `UAT intent` | Define what a human must prove and what evidence is safe to collect. | Encode UAT checklist or handoff; avoid exposing secrets. |
+| `research` | Refresh current docs and best practices. | Use `ctx7` for library/API/cloud docs and local repo evidence for code facts. |
+| `validate` | Check the plan against requirements and invariants. | Create or update validation artifacts and command gates. |
+| `plan` | Review or draft implementation sequence and prompts for Codex. | Produce concrete plan files only after spec/context are stable. |
+| `checker` | Critique plan completeness, risks, and missing tests. | Run/check plan validation; do not fake checker results. |
+| `execute` | Stay out of the code path except for prompt/review support. | Implement the approved scope with minimal blast radius. |
+| `secure phase` | Review security/privacy/auth/data-access risk. | Run or document security checks and fix still-valid findings. |
+| `verifier` | Review evidence, gaps, and residual risk. | Run verification commands and preserve evidence in summaries. |
+| `ship review` | Prepare risk-focused final review questions. | Check PR status, update PR body when applicable, and hand off cleanly. |
 
-1. Architecture live: `.planning/PROJECT.md`; frozen: `BLUEPRINT.md`
-2. Business rules/domain live: `.planning/REQUIREMENTS.md`; frozen:
-   `REQUIREMENTS.md`
-3. Active roadmap: `.planning/ROADMAP.md`
-4. Session memory: `.planning/STATE.md`
-5. Stack rationale: `reference/STACK.md`
-6. DB schema contract: `reference/SCHEMA.md`
-7. AI prompts contract: `reference/PROMPTS.md`
-8. Tier limits contract: `reference/TIER-LIMITS.md`
-9. API route specs: `reference/API-SPEC.md`
+## GSD Command Convention
+
+Do not invent GSD command output. In this repo, historical planning artifacts
+use slash form such as `/gsd-plan-phase 6`, while the local shell exposes
+`gsd-sdk` and `gsd-tools` query commands. If a Codex/chat runtime exposes
+`$gsd-command-name` tools, use that form. If only slash-form or shell-level
+commands are available, follow the installed local convention and document the
+fallback in the handoff.
+
+## Phase Constraint
+
+Phase 5 Employee Portal release-hardening remains the active constraint unless
+`.planning/STATE.md` says otherwise. Do not start Phase 6 implementation unless
+Phase 5 is closed or explicitly paused by Matthew and recorded in live planning
+state. A Phase 6 branch or handoff is not enough by itself.
 
 ## Stack
 
@@ -80,12 +140,28 @@ Non-negotiable stack:
 | Auth | Clerk (`@clerk/nextjs`) |
 | Database | Supabase PostgreSQL + Drizzle ORM |
 | Billing | Stripe Checkout, webhooks, customer portal |
-| AI | Anthropic Codex API, Sonnet 4.6 primary, Haiku 4.5 summaries |
+| Product AI | Anthropic Claude API: Sonnet 4.6 primary, Haiku 4.5 summaries |
 | Email | Resend + React Email |
 | Background jobs | Railway worker service for cron reminders |
 | Hosting | Vercel frontend + Railway workers |
 
-Do not introduce unlisted packages without asking Matthew first.
+Do not introduce unlisted packages without Matthew approval.
+
+## PolicyPilot Invariants
+
+- Every tenant-scoped DB query includes `org_id` in the WHERE clause.
+- RLS is the database backstop; application code must still scope queries.
+- Clerk Organization ID maps to Supabase `org_id`.
+- Never query across organizations.
+- Acknowledgment records are append-only. Do not delete or modify them.
+- Stripe subscription state is trusted only from server/database state.
+- Stripe webhooks verify raw-body signatures with `request.text()` and are
+  idempotent.
+- Claude calls are server-only, tier-gated, and logged in `ai_generations`.
+- No `any` TypeScript type.
+- No new packages, schema changes, migrations, or security-relevant decisions
+  without Matthew approval.
+- Build only what live requirements and phase artifacts authorize.
 
 ## Build Sequence
 
@@ -114,45 +190,21 @@ End of each phase: run `tsc --noEmit` and `verify:phase-N`; both must exit 0.
 Then squash to `main`, `git pull --ff-only` locally, and report to Matthew.
 `main` must be green between every phase squash.
 
-## Multi-Tenancy Rules
+## Verification Commands
 
-1. Every DB query must include `org_id` in the WHERE clause.
-2. RLS is the last line of defense; application code must scope queries too.
-3. Clerk Organization ID maps to Supabase `org_id`.
-4. Never query across organizations.
+Use the narrowest check that fits the change.
 
-RLS pattern:
+- Docs-only changes: inspect rendered/content references as needed, run
+  `git diff --check`, and use `rg` checks for required terms.
+- Phase code changes: run `pnpm typecheck` and the relevant
+  `pnpm verify:phase-N` chain.
+- Billing/deploy-schema work: use the migration discipline and `db:verify`
+  commands documented in `CLAUDE.md` and `docs/runbooks/deploy-migrations.md`.
+- Browser/UAT work: collect safe evidence, never secrets or raw third-party
+  payloads.
 
-```sql
-CREATE POLICY "org_isolation" ON [table]
-FOR ALL USING (org_id = auth.jwt()->>'org_id');
-```
-
-## Always
-
-1. `tsc --noEmit` passes before every commit.
-2. Include `org_id` in every DB query.
-3. Verify Stripe webhook signatures with raw body via `request.text()`.
-4. Use prompt caching on repeated Codex API system prompts.
-5. Store every Codex API call in `ai_generations`.
-6. Check tier limits before every Codex API call.
-
-## Ask First
-
-1. Any package not in the stack list.
-2. Any architecture decision not in `BLUEPRINT.md`.
-3. Any DB schema change after Phase 2.
-4. Any security-relevant decision around auth, data access, or webhooks.
-5. TypeScript errors that require changing the data model.
-
-## Never
-
-1. Roll custom auth; Clerk handles auth.
-2. Call Codex API client-side.
-3. Trust client-side subscription state; always read from DB.
-4. Use `any` TypeScript type.
-5. Delete or modify acknowledgment records; the audit trail is append-only.
-6. Build features not in `REQUIREMENTS.md`.
+Do not run broad build/test for a docs-only change unless touched files require
+it.
 
 ## Git Workflow
 
@@ -194,70 +246,33 @@ Before deploying code that depends on a new migration:
 Destructive migrations require operator approval. The migration header must
 document rationale, approval timestamp, and decision ID.
 
-Procedure references:
-
-| Use case | File |
-|---|---|
-| Manual procedure | `docs/runbooks/deploy-migrations.md` |
-| CI/CD workflow | `.github/workflows/migrate.yml` |
-| Build-time gate | `vercel.json` -> `pnpm deploy:preflight` |
-| Schema verifier | `scripts/check-deploy-schema.ts` |
-| Test-DB verifier | `scripts/check-schema.ts` |
-
 After every successful prod migration, append one line to `.planning/STATE.md`
 with timestamp, migration range, operator, additive-vs-destructive status, and
 soak observations.
 
-## AI API Rules
+## Codex Handoff Format
 
-- Sonnet 4.6: draft generation, employee Q&A, consistency check.
-- Haiku 4.5: TL;DR summaries only.
-- Batch API: consistency check, async, lower cost.
-- Q&A prompt must constrain answers to published policies only and cite source.
-- Full prompt templates live in `reference/PROMPTS.md`.
+Every substantial Codex final handoff should include:
 
-## Stripe Rules
+1. Branch and PR verified.
+2. Files changed.
+3. Exact diff summary.
+4. Commands/checks run and results.
+5. GSD stages represented.
+6. Failed or unavailable checks.
+7. Risks or uncertainties.
+8. Consultant files updated or no-change status.
+9. Next smallest proposed task.
+10. Links or refs to relevant files and commits when available.
 
-Handle all subscription events, not only checkout:
+For ChatGPT review requests, provide one copy-block prompt that includes those
+same ten points so Matthew can paste it directly into ChatGPT.
 
-- `checkout.session.completed`
-- `invoice.paid`
-- `invoice.payment_failed`
-- `customer.subscription.deleted`
-- `customer.subscription.updated`
+## Keep-Current Rule
 
-Handlers must be idempotent. Store processed Stripe event IDs.
+Before trusting any planning or handoff artifact, re-check live git state,
+branch/PR context, and `.planning/STATE.md`. If the repo has moved, update the
+handoff or report the drift. If unrelated dirty work exists before starting,
+stop and ask Matthew how to proceed.
 
-## Validation Gate
-
-Assembly is complete only when all pass:
-
-- Admin creates a policy from a Codex draft in under 5 minutes from account
-  creation.
-- Admin assigns policy; per-user acknowledgment status is tracked correctly.
-- Employee acknowledgment persists in audit trail with timestamp.
-- Employee Q&A returns cited answer from policy library only.
-- Admin exports acknowledgment report to CSV.
-- Stripe subscription survives first billing-cycle renewal.
-- Starter tier is blocked from Growth features with 403 and upgrade prompt.
-- Org A cannot access Org B data under any code path.
-
-## Non-Goals
-
-Mobile app, LMS/training, HR integrations, document generation, offline mode,
-custom domains per organization.
-
-## Key Files
-
-| File | Purpose |
-|---|---|
-| `REQUIREMENTS.md` | Domain knowledge, business rules, acceptance criteria |
-| `BLUEPRINT.md` | Architecture, repo layout, API specs, build sequence |
-| `reference/STACK.md` | Stack decisions and rationale |
-| `reference/SCHEMA.md` | Complete Drizzle schema, tables, RLS policies |
-| `reference/API-SPEC.md` | API routes, auth, request/response, errors |
-| `reference/PROMPTS.md` | Codex system prompts and templates |
-| `reference/TIER-LIMITS.md` | Feature gates and plan limits |
-| `.env.local.example` | Required environment variables |
-
-v1.0 - PolicyPilot MVP - May 2026 - Architect/Builder method
+v1.1 - PolicyPilot MVP operating layer - May 2026

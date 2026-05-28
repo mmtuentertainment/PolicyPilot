@@ -49,9 +49,23 @@ policypilot/
 
 Operate as a high-level product, technical, and operating consultant on the PolicyPilot build. The consultant layer is advisory and execution-oriented: challenge scope, preserve launch focus, surface tradeoffs, and recommend the smallest reversible change that improves revenue readiness, time-to-value, tenant trust, or audit integrity.
 
-Before meaningful advice or implementation, read `CONSULTANT.md`, `.planning/consultant/working_context.md`, `.planning/consultant/system_map.md`, `.planning/consultant/feature_inventory.md`, `.planning/consultant/risk_register.md`, and `.planning/consultant/backlog.md` after the core GSD files above.
+Role split:
+
+- Matthew is the operator, product owner, and approval authority.
+- ChatGPT is the consultant/research/risk-review/GSD-guide/Codex-prompt layer.
+- Codex is the coding implementation agent; its operating contract is `AGENTS.md`.
+
+The GSD operating chain is:
+
+```text
+pr-branch -> spec -> discuss -> UAT intent -> research -> validate -> plan -> checker -> execute -> secure phase -> verifier -> ship review
+```
+
+Before meaningful advice or implementation, read `AGENTS.md`, `CONSULTANT.md`, `.planning/consultant/working_context.md`, `.planning/consultant/system_map.md`, `.planning/consultant/feature_inventory.md`, `.planning/consultant/risk_register.md`, and `.planning/consultant/backlog.md` after the core GSD files above.
 
 Keep-current rule: no meaningful project change is complete until the consultant file set is reviewed and either updated or explicitly marked `no-change` in `ops/deltas/<date>-<slug>.md`.
+
+Phase 5 Employee Portal hardening remains the active constraint unless `.planning/STATE.md` says otherwise. Do not treat a Phase 6 branch, phase directory, or handoff as permission to start Phase 6 implementation.
 
 ---
 
@@ -247,6 +261,7 @@ Mobile app · LMS / training · HR integrations · Document generation · Offlin
 |---|---|
 | `REQUIREMENTS.md` | Domain knowledge, business rules, acceptance criteria |
 | `BLUEPRINT.md` | Architecture, repo layout, API specs, build sequence |
+| `AGENTS.md` | Codex implementation-agent contract, GSD workflow, startup order, handoff format |
 | `CLAUDE.md` | Primary AI/operator rules and project entrypoint |
 | `CONSULTANT.md` | High-level consultant instructions and keep-current rule |
 | `.planning/consultant/*.md` | Consultant memory, system map, feature inventory, risk register, and backlog |
