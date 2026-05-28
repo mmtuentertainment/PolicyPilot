@@ -8,13 +8,14 @@
 
 ## Context7 Status
 
-The local project rule says to use Context7 for current library/framework/SDK/API/cloud-service docs. During preparation, the command below failed with a monthly quota error:
+The local project rule says to use Context7 for current library/framework/SDK/API/cloud-service docs. The original preparation attempt hit a monthly quota error, but the Phase 6 amendment pass refreshed Stripe docs successfully on 2026-05-27:
 
 ```powershell
-npx ctx7@latest library Stripe "PolicyPilot Phase 6 Billing review report: Stripe Checkout, raw body webhook signature verification, subscription lifecycle events, Customer Portal, current best practices 2026-05-27"
+npx ctx7@latest library Stripe "Update Phase 6 spec and plan with Matthew's approvals: add official stripe package, additive billing-state migration on organizations, Stripe Checkout client_reference_id and subscription_data.metadata org linkage, webhook signature verification raw request body, canonical subscription state from current Stripe Subscription, Customer Portal, Billing test clocks and subscription status handling"
+npx ctx7@latest docs /websites/stripe "Update Phase 6 spec and plan with Matthew's approvals: add official stripe package, additive billing-state migration on organizations, Stripe Checkout client_reference_id and subscription_data.metadata org linkage, webhook signature verification raw request body, canonical subscription state from current Stripe Subscription, Customer Portal short-lived sessions, Billing test clocks and subscription status handling"
 ```
 
-Result: monthly quota reached. Before implementation planning, refresh Stripe/Next.js docs with Context7 after running `npx ctx7@latest login` or setting `CONTEXT7_API_KEY`. This report uses local repo evidence plus official web documentation links as a review guide, but ChatGPT Pro should independently verify current API syntax.
+Result: `/websites/stripe` was selected as the best official Stripe documentation source. The docs reinforced raw-body signature verification, subscription lifecycle webhook handling, and server-created billing surfaces. Next.js route-handler details remain anchored by the approved review direction and project App Router conventions.
 
 ## Paste This Into ChatGPT Pro
 
@@ -29,7 +30,7 @@ Primary spec: .planning/phases/06-billing/06-SPEC.md
 
 Review rules:
 - Do not assume client-side subscription state is trusted. Billing authority must be server-side and database-backed.
-- Do not propose new packages, DB schema changes, or architectural changes as already approved. Mark them as "requires Matthew approval" if needed.
+- Treat the official `stripe` package and the minimal additive organization billing-state migration as Matthew-approved. Mark any additional package, schema, security, or architecture change as "requires Matthew approval".
 - Do not introduce unlisted product scope such as tax, coupons, trials, revenue analytics, dunning emails, or custom billing identity unless you mark it out-of-scope or approval-gated.
 - Treat ADRs in .planning/PROJECT.md as locked unless you explicitly identify a conflict and propose an approval path.
 - Protect secrets. Do not ask for or print Stripe keys, webhook secrets, customer emails, or raw webhook payloads.
@@ -64,13 +65,13 @@ Deliver a review with:
 5. Proposed discuss-phase questions Matthew should answer.
 6. Proposed implementation plan outline: modules/files, sequence, validation gates, and manual UAT.
 7. Testing strategy: unit, integration, webhook replay/idempotency, out-of-order events, Stripe test clocks/sandbox, and no-secret evidence capture.
-8. Explicit "requires approval" list for any package, schema, architecture, security, or product-scope change.
+8. Explicit "requires approval" list for any additional package, schema, architecture, security, or product-scope change beyond the approved Stripe SDK and minimal billing-state migration.
 9. A concise final recommendation for what Codex should do next.
 
 Areas to stress-test:
-- Whether existing org columns are enough or whether current_period_end, price_id, subscription item id, cancel_at_period_end, or last event timestamp are required. If required, explain why and mark as approval-gated.
+- Treat current_period_end, price_id, subscription item id, cancel_at_period_end, and last event timestamp as approved minimal organization billing fields; stress-test whether any further state is required and mark only extra state as approval-gated.
 - Whether hard downgrade on customer.subscription.deleted and no downgrade on invoice.payment_failed are good MVP decisions.
-- Whether invoice.paid can safely preserve tier or should always re-derive tier from subscription/line item to avoid stale state.
+- Verify that `invoice.paid` always re-derives entitlement from the current Stripe Subscription and never blindly preserves or reactivates stale tier state.
 - Out-of-order and duplicate webhook delivery, including stale invoice.paid after cancellation and subscription.updated after checkout.
 - Atomic idempotency ordering: insert event before dispatch, after dispatch, or with transactional status tracking.
 - How to map Stripe customer/subscription to exactly one Clerk/Supabase org without trusting client metadata.
@@ -98,9 +99,10 @@ Key locked choices in the spec:
 - `customer.subscription.deleted` hard-downgrades to Starter for MVP.
 - `invoice.payment_failed` sets `past_due` but does not downgrade `planTier`.
 - Unknown price IDs, ambiguous mappings, and missing metadata fail closed with no plan-tier mutation.
-- No DB schema change is approved by the spec.
+- The official `stripe` package is approved for server-side Stripe SDK usage.
+- A minimal additive `organizations` billing-state migration is approved for Price ID, subscription item ID, current period end, cancel-at-period-end, last event created, and nullable unique partial indexes for Stripe customer/subscription IDs when missing.
+- Webhook entitlement must be derived from the current Stripe Subscription for `checkout.session.completed`, `invoice.paid`, and `customer.subscription.updated`, not from stale event snapshots.
 - Middleware remains auth/role routing only; tier gates stay in application code.
-- Adding the `stripe` package still requires Matthew approval because it is not currently in `package.json`.
 
 ## Repo Evidence Map
 
@@ -151,14 +153,14 @@ Important doc-derived checks to validate:
 
 ### Data Model
 
-- Are `stripe_customer_id`, `stripe_subscription_id`, `stripe_subscription_status`, and `plan_tier` enough to safely sync subscription state?
-- Should Phase 6 store the active Stripe Price ID, subscription item ID, current period end, cancel-at-period-end, latest processed event time, or customer email hash? If yes, mark as "requires Matthew approval" because the spec currently disallows schema changes.
-- Can stale/out-of-order events be handled safely without additional persisted fields?
+- Are the approved fields (`stripe_customer_id`, `stripe_subscription_id`, `stripe_subscription_status`, `plan_tier`, active Price ID, subscription item ID, current period end, cancel-at-period-end, and last event created) enough to safely sync subscription state?
+- Do not add customer email hash, raw payload storage, invoice payload storage, or custom billing identity in Phase 6.
+- Can stale/out-of-order events be handled safely with canonical Subscription re-fetch plus the approved fields?
 
 ### Webhook Correctness
 
 - What is the safest idempotency strategy for this repo: insert event before dispatch, insert after dispatch, or store event status in a transaction?
-- Should webhook handlers re-fetch the current Stripe Subscription for `invoice.paid` and `subscription.updated`, or trust event payload snapshots?
+- Verify webhook handlers re-fetch the current Stripe Subscription for `checkout.session.completed`, `invoice.paid`, and `subscription.updated`, and do not trust event payload snapshots for entitlement.
 - How should the implementation prove duplicate, replayed, stale, and out-of-order events are safe?
 - What should happen for unknown price IDs, missing org metadata, missing customer, or multiple org rows with the same Stripe customer?
 
@@ -219,8 +221,8 @@ Copy-paste Markdown edits for 06-SPEC.md.
 ## Implementation Plan Recommendations
 Numbered sequence with files and verification gates.
 
-## Approval-Gated Items
-Packages, schema changes, security decisions, or product-scope changes that require Matthew approval.
+## Remaining Approval-Gated Items
+Additional packages, schema changes, security decisions, or product-scope changes beyond the approved Stripe SDK and minimal additive billing-state migration.
 
 ## Tests And UAT
 Automated tests, manual Stripe sandbox steps, and expected evidence.
@@ -235,6 +237,5 @@ Only questions that block a correct plan.
 - Do not recommend client-side Stripe authority. Client state is display/intent only.
 - Do not recommend editing migrations already registered in `drizzle/meta/_journal.json`; migrations are immutable.
 - Do not recommend logging raw Stripe payloads, secrets, or customer identifiers.
-- Do not treat Context7 quota failure as permission to rely on stale SDK memory. Refresh docs before implementation.
+- Use the refreshed Context7 Stripe docs and rerun Context7 for any SDK/API syntax question that remains unclear before implementation.
 - If using Vercel guidance, account for the repo's current Node 22 pin and the project's existing Next.js App Router patterns.
-

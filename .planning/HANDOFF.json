@@ -1,13 +1,13 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-27T22:42:37.7329916-04:00",
+  "timestamp": "2026-05-27T23:51:45-04:00",
   "phase": "6",
   "phase_name": "Billing",
   "phase_dir": ".planning/phases/06-billing",
   "plan": null,
   "task": null,
   "total_tasks": 6,
-  "status": "paused",
+  "status": "ready_for_planning",
   "completed_tasks": [
     {
       "id": 1,
@@ -32,17 +32,18 @@
       "name": "Configure and OAuth-test Codex Stripe MCP",
       "status": "done",
       "commit": "local-only"
+    },
+    {
+      "id": 5,
+      "name": "Discuss Phase 6 and capture implementation context",
+      "status": "done",
+      "commit": "local-only"
     }
   ],
   "remaining_tasks": [
     {
-      "id": 5,
-      "name": "Open fresh Codex session and recheck active Stripe MCP tool registry",
-      "status": "not_started"
-    },
-    {
       "id": 6,
-      "name": "Run ChatGPT Pro review, amend spec if needed, then discuss/plan Phase 6",
+      "name": "Plan Phase 6 from the amended spec and captured context",
       "status": "not_started"
     }
   ],
@@ -56,12 +57,12 @@
   "human_actions_pending": [
     {
       "action": "Use a fresh Codex session or full restart before relying on Stripe MCP tools in-chat.",
-      "context": "Codex CLI sees the server, but this active conversation has not refreshed its tool namespace.",
-      "blocking": true
+      "context": "Codex CLI sees the server, but this active conversation has not refreshed its tool namespace. This is advisory for implementation assistance, not a blocker for plan-phase.",
+      "blocking": false
     },
     {
-      "action": "Run ChatGPT Pro review using the prepared brief.",
-      "context": "Matthew requested external review/optimization of the Phase 6 spec before implementation planning.",
+      "action": "Proceed to Phase 6 plan from the amended spec and context.",
+      "context": "Matthew recorded approval for the official stripe package and the minimal additive billing-state migration; 06-CONTEXT.md now locks the implementation decisions for planning.",
       "blocking": false
     }
   ],
@@ -77,12 +78,27 @@
       "phase": "6"
     },
     {
-      "decision": "Do not implement Phase 6 until review/discuss/plan are complete.",
-      "rationale": "Current artifacts are spec and review prep only; Stripe API details still need current-doc refresh before code.",
+      "decision": "Do not implement Phase 6 until plan-phase is complete.",
+      "rationale": "Current artifacts remain pre-implementation planning artifacts; 06-SPEC.md and 06-CONTEXT.md are ready, but implementation plans are not yet locked.",
+      "phase": "6"
+    },
+    {
+      "decision": "Matthew approved adding the official stripe package and the minimal additive organization billing-state migration.",
+      "rationale": "The Phase 6 review identified durable subscription state and official SDK usage as required for correct Checkout, Customer Portal, webhook verification, Subscription retrieval, and typed handler/test parsing.",
+      "phase": "6"
+    },
+    {
+      "decision": "Webhook entitlement must be derived from the current Stripe Subscription for checkout.session.completed, invoice.paid, and customer.subscription.updated.",
+      "rationale": "Canonical Subscription retrieval prevents stale event snapshots and out-of-order invoice events from incorrectly upgrading or reactivating an org.",
+      "phase": "6"
+    },
+    {
+      "decision": "Use the admin Settings surface as the trusted billing home; public pricing carries only non-authoritative tier and interval intent.",
+      "rationale": "This reuses the existing Phase 6 Settings sidebar placeholder while keeping checkout creation behind authenticated admin org context.",
       "phase": "6"
     }
   ],
   "uncommitted_files": [],
-  "next_action": "Open a fresh Codex session or fully restart Codex, ask it to recheck Stripe MCP tools, then run the ChatGPT Pro review brief before /gsd-discuss-phase 6.",
-  "context_notes": "Phase 6 is ready for review, not implementation. Stripe CLI is authenticated, webhook secret sentinel is present in .env.local, repo .mcp.json is ignored and valid, and Codex global config points Stripe MCP to https://mcp.stripe.com. The active chat session still lacks Stripe tool exposure."
+  "next_action": "Use .planning/phases/06-billing/06-SPEC.md and .planning/phases/06-billing/06-CONTEXT.md as the Phase 6 source of truth, then run /gsd-plan-phase 6. Do not re-ask whether the official stripe package or minimal billing-state migration are approved.",
+  "context_notes": "Phase 6 remains pre-implementation. Stripe CLI is authenticated, webhook secret sentinel is present in .env.local, repo .mcp.json is ignored and valid, and Codex global config points Stripe MCP to https://mcp.stripe.com. The active chat session still lacks Stripe tool exposure, but that is advisory. Matthew approved the official stripe package and an additive organizations billing-state migration with stripe_price_id, stripe_subscription_item_id, stripe_current_period_end, stripe_cancel_at_period_end, stripe_last_event_created, and nullable unique partial indexes for customer/subscription IDs where missing. Phase 6 discussion captured decisions in 06-CONTEXT.md; next step is plan-phase."
 }
