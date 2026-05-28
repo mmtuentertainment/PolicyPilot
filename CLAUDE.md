@@ -52,8 +52,18 @@ Operate as a high-level product, technical, and operating consultant on the Poli
 Role split:
 
 - Matthew is the operator, product owner, and approval authority.
-- ChatGPT is the consultant/research/risk-review/GSD-guide/Codex-prompt layer.
-- Codex is the coding implementation agent; its operating contract is `AGENTS.md`.
+- ChatGPT is the consultant/research/risk-review/implementation-router/GSD-guide
+  and prompt/handoff review layer.
+- Claude Code is the long-horizon repo exploration, broad-audit, GSD
+  research/planning, security/risk review, branch/state diagnosis,
+  multi-file-consistency, and ambiguous-investigation agent. It is read-mostly
+  by default and should hand exact patches, tests, PR updates, or verification
+  instructions to Codex unless Matthew explicitly asks otherwise.
+- Codex is the scoped implementation executor for exact patches, tests,
+  verification gates, PR/delta updates, and small reversible fixes; its
+  operating contract is `AGENTS.md`.
+- Anthropic Claude API is the product AI layer. Claude Code and Codex are
+  implementation agents, not product AI APIs.
 
 The GSD operating chain is:
 
@@ -65,7 +75,7 @@ Before meaningful advice or implementation, read `AGENTS.md`, `CONSULTANT.md`, `
 
 Keep-current rule: no meaningful project change is complete until the consultant file set is reviewed and either updated or explicitly marked `no-change` in `ops/deltas/<date>-<slug>.md`.
 
-Phase 5 Employee Portal hardening remains the active constraint unless `.planning/STATE.md` says otherwise. Do not treat a Phase 6 branch, phase directory, or handoff as permission to start Phase 6 implementation.
+Current phase state comes from `.planning/STATE.md`. As of PR #30, Phase 5 Employee Portal shipped via PR #27 at commit `3344847`; Phase 6 is pending/planning-only. Do not treat a Phase 6 branch, phase directory, or handoff as permission to start Phase 6 implementation.
 
 ---
 

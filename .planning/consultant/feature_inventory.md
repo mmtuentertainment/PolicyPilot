@@ -31,8 +31,8 @@ Scoring:
 | Claude TL;DR summaries | 4 | Shipped | Employee/admin | Indirect | Medium | Medium | Good usability feature; publish-time cache avoids repeated cost. |
 | Employee Q&A over published policies | 4 | Shipped | Employee | Direct | High | Medium | Differentiator if citations remain reliable and scoped. |
 | Consistency check via Batch API | 4 | Shipped | Admin | Direct | Medium | Medium | Growth+ candidate; avoid letting async complexity block core MVP. |
-| Employee assigned-policies dashboard | 5 | Hardening | Employee | Direct | High | High | Needed before product is useful beyond admins. |
-| Append-only acknowledgment flow | 5 | Hardening | Employee/admin/auditor | Direct | High | High | One of the product's strongest value props; harden before billing. |
+| Employee assigned-policies dashboard | 5 | Shipped | Employee | Direct | High | High | Shipped in PR #27; future phases must preserve assignment visibility and tenant scoping. |
+| Append-only acknowledgment flow | 5 | Shipped / monitor | Employee/admin/auditor | Direct | High | High | Shipped in PR #27; future phases must preserve append-only audit integrity. |
 | Notification records | 5-7 | Partial/Pending | System/employee | Indirect | Medium | Medium | Becomes valuable once email reminders ship. |
 | Stripe Checkout | 6 | Pending / planning-only | Buyer/admin | Direct | Low | Medium | Revenue switch; resume through proper Phase 6 planning path before implementation. |
 | Stripe 5-event webhook | 6 | Pending | System | Direct/Defensive | Medium | High | Must handle renewals, failures, cancellation, and plan changes idempotently. |

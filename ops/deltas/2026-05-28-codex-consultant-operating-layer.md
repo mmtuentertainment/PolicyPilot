@@ -11,8 +11,10 @@ Type: docs / operating system / Codex handoff
 
 Move the docs-only Codex/ChatGPT operating-layer work off
 `gsd/phase-6-billing` and onto the existing operating-layer PR branch so Phase
-6 is not implied to be active while Phase 5 Employee Portal hardening remains
-the live constraint.
+6 is not implied to be active. At the time of this replay, Phase 5 hardening
+was still represented as the live constraint in planning docs; that status was
+superseded by `ops/deltas/2026-05-28-phase5-ship-reconcile.md`, which records
+Phase 5 shipped via PR #27 at `3344847` and Phase 6 as pending/planning-only.
 
 ---
 
@@ -66,17 +68,20 @@ repo artifacts use slash-form GSD prompts, while shell-level `gsd-sdk` and
     PolicyPilot invariants, verification commands, handoff format, and
     keep-current rule.
 - `CLAUDE.md`
-  - Added the Matthew / ChatGPT / Codex role split.
+  - Added the Matthew / ChatGPT / Claude Code / Codex role split.
   - Points meaningful sessions to `AGENTS.md`, `CONSULTANT.md`, and consultant
     packets.
-  - Preserves the Phase 5 hardening guardrail.
+  - Defers current Phase 5 / Phase 6 truth to `.planning/STATE.md`.
 - `CONSULTANT.md`
-  - Names ChatGPT as consultant, researcher, risk reviewer, GSD guide, and
-    Codex prompt writer.
-  - Requires scoped Codex prompts and Codex handoff review against live repo
+  - Names ChatGPT as consultant, researcher, risk reviewer,
+    implementation-router, GSD guide, and prompt/handoff reviewer.
+  - Names Claude Code as the long-horizon exploration, audit, security/risk,
+    branch/state, and multi-file consistency agent.
+  - Requires scoped implementation prompts and handoff review against live repo
     evidence.
 - `.planning/consultant/README.md`
-  - Added the coordination overview for Matthew, ChatGPT, and Codex.
+  - Added the coordination overview for Matthew, ChatGPT, Claude Code, and
+    Codex.
 - `ops/deltas/2026-05-28-consultant-operating-layer.md`
   - Updated the original PR #30 delta to include `AGENTS.md`, the README, and
     this replay delta.
@@ -87,7 +92,8 @@ Consultant files inspected but not otherwise changed:
 
 - `.planning/consultant/working_context.md`
 - `.planning/consultant/system_map.md`
-- `.planning/consultant/feature_inventory.md`
+- `.planning/consultant/feature_inventory.md` (later updated to mark Phase 5
+  Employee Portal features shipped / monitor)
 - `.planning/consultant/risk_register.md`
 - `.planning/consultant/backlog.md`
 
@@ -131,13 +137,15 @@ Local docs checks:
 ## Risks and Uncertainties
 
 - PR #30 remains a draft until Matthew chooses to mark it ready.
-- Phase 5 remains the live constraint. This PR should not be interpreted as
-  permission to start Phase 6 billing.
+- Phase 5 is shipped as of PR #27 at `3344847`; Phase 6 remains
+  pending/planning-only. This PR should not be interpreted as permission to
+  start Phase 6 billing implementation.
 - No temporary stash remains from the replay.
 
 ---
 
 ## Next Micro-Batch
 
-Review PR #30 for merge readiness, then return to the Phase 5 hardening queue
-or explicitly pause/close Phase 5 before any Phase 6 work proceeds.
+Review PR #30 for merge readiness. Keep Phase 6 implementation unstarted until
+Matthew intentionally resumes Phase 6 through the proper GSD branch/spec/plan
+path.

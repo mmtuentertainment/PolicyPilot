@@ -42,17 +42,29 @@ for policy drafting, summaries, Q&A, and consistency checks.
 - **Matthew** is the operator, product owner, and approval authority. He owns
   product scope, package approvals, schema approvals, security decisions,
   third-party dashboard actions, and final ship decisions.
-- **ChatGPT** is the consultant layer: researcher, risk reviewer, GSD guide,
-  architecture critic, prompt writer, and second-opinion reviewer. ChatGPT
-  should produce evidence-backed prompts or review notes for Codex, not claim
-  implementation work happened unless Codex or the repo proves it.
-- **Codex** is the coding implementation agent. Codex verifies the actual repo
-  state, applies code/docs changes, runs the narrowest useful checks, and
-  returns structured handoffs for Matthew and ChatGPT.
+- **ChatGPT** is the consultant layer: researcher, risk reviewer,
+  implementation-router, GSD guide, architecture critic, prompt/handoff
+  reviewer, and second-opinion reviewer. ChatGPT should produce
+  evidence-backed prompts or review notes for Claude Code and Codex, not claim
+  implementation work happened unless an implementation agent or the repo
+  proves it.
+- **Claude Code** is the long-horizon repo exploration and broad-audit agent.
+  Claude Code is best for GSD research/planning, security and risk review,
+  branch/state diagnosis, multi-file consistency analysis, and ambiguous
+  codebase investigation. It is read-mostly by default and should hand exact
+  patches, tests, PR updates, or verification instructions to Codex unless
+  Matthew explicitly asks Claude Code to implement.
+- **Codex** is the scoped implementation executor. Codex verifies the actual
+  repo state, applies exact patches and small reversible fixes, runs tests and
+  verification gates, updates PR/delta docs, and returns structured handoffs
+  for Matthew, ChatGPT, and Claude Code.
 
-When Matthew supplies a ChatGPT-authored GSD stage prompt, Codex should treat it
-as implementation guidance, verify it against the live repo, then return a
-structured handoff rather than an unstructured status note.
+Claude/Anthropic is the product AI layer. Claude Code and Codex are
+implementation agents, not product AI APIs.
+
+When Matthew supplies a ChatGPT- or Claude Code-authored GSD stage prompt,
+Codex should treat it as implementation guidance, verify it against the live
+repo, then return a structured handoff rather than an unstructured status note.
 
 ## Startup Read Order
 
@@ -114,6 +126,11 @@ Use the stages this way:
 | `verifier` | Review evidence, gaps, and residual risk. | Run verification commands and preserve evidence in summaries. |
 | `ship review` | Prepare risk-focused final review questions. | Check PR status, update PR body when applicable, and hand off cleanly. |
 
+Claude Code normally supports the long-horizon `research`, `validate`,
+`checker`, `secure phase`, `verifier`, and `ship review` lanes. It should
+produce exact findings, patch plans, tests, and PR-body updates that Codex can
+execute or verify.
+
 ## GSD Command Convention
 
 Do not invent GSD command output. In this repo, historical planning artifacts
@@ -125,10 +142,11 @@ fallback in the handoff.
 
 ## Phase Constraint
 
-Phase 5 Employee Portal release-hardening remains the active constraint unless
-`.planning/STATE.md` says otherwise. Do not start Phase 6 implementation unless
-Phase 5 is closed or explicitly paused by Matthew and recorded in live planning
-state. A Phase 6 branch or handoff is not enough by itself.
+`.planning/STATE.md` is the source of truth for current phase state. As of PR
+#30, Phase 5 Employee Portal shipped via PR #27 at commit `3344847` on
+2026-05-27, and Phase 6 is pending/planning-only. Do not start Phase 6
+implementation until Matthew intentionally resumes the proper Phase 6 GSD
+branch/spec/plan path. A Phase 6 branch or handoff is not enough by itself.
 
 ## Stack
 

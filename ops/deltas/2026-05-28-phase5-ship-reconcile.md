@@ -63,6 +63,11 @@ contracts, or app behavior.
 No changes were made to `CLAUDE.md`, `AGENTS.md`, or `CONSULTANT.md`; they
 already defer Phase 5/Phase 6 truth to `.planning/STATE.md`.
 
+Merge-readiness addendum: PR #30 later updated `AGENTS.md`, `CLAUDE.md`,
+`CONSULTANT.md`, and `.planning/consultant/README.md` to add the explicit
+Claude Code operating role and remove stale current-instruction wording that
+still described Phase 5 hardening as active.
+
 ---
 
 ## Keep-Current Status
