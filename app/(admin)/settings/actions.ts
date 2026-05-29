@@ -44,6 +44,29 @@ async function readBillingOrgState(scope: OrgScope): Promise<BillingOrgState> {
   return row;
 }
 
+export async function createPortalSessionAction(_formData?: FormData): Promise<void> {
+  const ctx = await getOrgContext();
+  requireAdminFromCtx(ctx);
+
+  const org = await withOrgScope(ctx, readBillingOrgState);
+  if (!org.stripeCustomerId) {
+    redirect('/settings?billing=setup');
+  }
+
+  const appUrl = getAppUrl();
+  const stripe = getStripeClient();
+  const portalSession = await stripe.billingPortal.sessions.create({
+    customer: org.stripeCustomerId,
+    return_url: `${appUrl}/settings`,
+  });
+
+  if (!portalSession.url) {
+    throw new Error('Stripe Customer Portal Session did not return a URL.');
+  }
+
+  redirect(portalSession.url);
+}
+
 export type CreateCheckoutSessionState = { ok: false; error: string } | undefined;
 
 export async function createCheckoutSessionAction(

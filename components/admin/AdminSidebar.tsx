@@ -37,7 +37,8 @@ import {
  *   visible-but-disabled state at this layer.
  * Phase 3 placeholder items (disabled, tooltip with arrival phase per
  *   UI-SPEC §Sidebar grayed-out items microcopy):
- *   Employees (Phase 5), Reports (Phase 8), Settings (Phase 6).
+ *   Employees (Phase 5), Reports (Phase 8).
+ * Phase 6 D-23 enables Settings as the admin billing home.
  *
  * Component-API note: shadcn base-nova's `SidebarMenuButton` uses base-ui's
  * `useRender` API (a `render` prop), NOT Radix's `asChild`. The marketing
@@ -132,10 +133,9 @@ export async function AdminSidebar() {
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
-              disabled
-              tooltip="Available in Phase 6"
-              title="Available in Phase 6"
-              className="opacity-50 cursor-not-allowed"
+              isActive={isActive("/settings")}
+              aria-current={isActive("/settings") ? "page" : undefined}
+              render={<Link href="/settings" />}
             >
               <Settings className="size-4" aria-hidden="true" />
               <span>Settings</span>

@@ -45,6 +45,7 @@ const isCronRoute = createRouteMatcher([
 const ADMIN_URL_PATTERNS: RegExp[] = [
   /^\/dashboard(\/|$)/,
   /^\/policies(\/|$)/,
+  /^\/settings(\/|$)/,
 ];
 function isAdminRoute(pathname: string): boolean {
   return ADMIN_URL_PATTERNS.some((p) => p.test(pathname));
@@ -58,6 +59,7 @@ function isAdminRoute(pathname: string): boolean {
 const ADMIN_ROLE_REQUIRED_PATTERNS: RegExp[] = [
   /^\/dashboard(\/|$)/,
   /^\/policies(\/|$)/,
+  /^\/settings(\/|$)/,
 ];
 function requiresAdminRole(pathname: string): boolean {
   return ADMIN_ROLE_REQUIRED_PATTERNS.some((p) => p.test(pathname));
@@ -147,7 +149,7 @@ const clerkProtectedMiddleware = clerkMiddleware(async (auth, req: NextRequest) 
     // admin URL is added back.
     if (!userId) {
       if (requiresAdminRole(pathname)) {
-        // D-10: don't advertise that /dashboard or /policies exist to
+        // D-10: don't advertise that admin routes exist to
         // unauthenticated callers — 404, not redirect.
         return new NextResponse(null, { status: 404 });
       }
@@ -181,7 +183,7 @@ const clerkProtectedMiddleware = clerkMiddleware(async (auth, req: NextRequest) 
     // closure: /onboarding moved out of this array). This branch is
     // therefore only reached when both isAdminRoute() and
     // requiresAdminRole() are true AND the role check passed above — i.e.
-    // a real authenticated admin hitting /dashboard or /policies.
+    // a real authenticated admin hitting an admin URL.
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 

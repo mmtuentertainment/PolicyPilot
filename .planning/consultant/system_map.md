@@ -1,6 +1,6 @@
 # Consultant System Map — PolicyPilot
 
-Updated: 2026-05-29 - Phase 6 Plan 06-04 complete (checkout/pricing intent added; Phase 6 not shipped)
+Updated: 2026-05-29 - Phase 6 Plan 06-05 complete (Customer Portal/settings added; Phase 6 not shipped)
 
 ## Product Boundary
 
@@ -73,12 +73,12 @@ Phase 2 Data Layer      shipped
 Phase 3 Admin UI        shipped
 Phase 4 AI Layer        shipped
 Phase 5 Employee Portal shipped
-Phase 6 Billing         planned (06-01 foundation + 06-02 webhook + 06-03 tier gates + 06-04 checkout/pricing complete; 06-05..06-06 pending)
+Phase 6 Billing         planned (06-01 foundation + 06-02 webhook + 06-03 tier gates + 06-04 checkout/pricing + 06-05 Customer Portal/settings complete; 06-06 pending)
 Phase 7 Crons + Email   pending
 Phase 8 Validation      pending
 ```
 
-Phase 5 shipped via PR #27 at `3344847`. Phase 6 is PLANNED (6 plans, `gsd-plan-checker` PASSED, 2026-05-29). Plans 06-01 through 06-04 are complete locally: catalog/client/mask helpers exist, the additive billing-state migration is applied to TEST DB, the Stripe webhook route now verifies raw bodies, handles the 5 locked events, re-fetches canonical subscriptions where required, writes idempotently, `maxUsers` now uses a real org-scoped user count, the admin checkout Server Action creates Stripe Checkout Sessions from server-derived org/price/metadata, and public pricing carries only non-authoritative tier/interval intent. Customer Portal, the admin settings page UI, and billing UAT remain pending in Plans 06-05 through 06-06. Phase 6 is not shipped.
+Phase 5 shipped via PR #27 at `3344847`. Phase 6 is PLANNED (6 plans, `gsd-plan-checker` PASSED, 2026-05-29). Plans 06-01 through 06-05 are complete locally: catalog/client/mask helpers exist, the additive billing-state migration is applied to TEST DB, the Stripe webhook route now verifies raw bodies, handles the 5 locked events, re-fetches canonical subscriptions where required, writes idempotently, `maxUsers` now uses a real org-scoped user count, the admin checkout Server Action creates Stripe Checkout Sessions from server-derived org/price/metadata, public pricing carries only non-authoritative tier/interval intent, `/settings` is admin-gated, and the admin billing page opens Stripe Customer Portal sessions from the DB-stored customer ID only. Billing UAT and cumulative `verify:phase-6` remain pending in Plan 06-06. Phase 6 is not shipped.
 
 ---
 
@@ -119,7 +119,8 @@ Phase 5 shipped via PR #27 at `3344847`. Phase 6 is PLANNED (6 plans, `gsd-plan-
 3. Stripe webhooks update server-side subscription state.
 4. API routes and Server Components read subscription state from DB.
 5. Feature gates return 403 or redirect to upgrade when plan is insufficient.
-6. Stripe events are stored idempotently.
+6. Linked admins manage payment/subscription details through Stripe Customer Portal from `/settings`.
+7. Stripe events are stored idempotently.
 
 ### 5. Reminder and reporting loop
 

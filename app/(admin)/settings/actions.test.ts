@@ -27,11 +27,17 @@ vi.mock('@/lib/stripe/catalog', () => ({
 }));
 
 const sessionsCreateMock = vi.fn();
+const portalSessionsCreateMock = vi.fn();
 vi.mock('@/lib/stripe/client', () => ({
   getStripeClient: () => ({
     checkout: {
       sessions: {
         create: sessionsCreateMock,
+      },
+    },
+    billingPortal: {
+      sessions: {
+        create: portalSessionsCreateMock,
       },
     },
   }),
@@ -72,6 +78,39 @@ const activeOrg = {
   stripeSubscriptionStatus: null,
 };
 
+const updateMock = vi.fn();
+const deleteMock = vi.fn();
+const insertMock = vi.fn();
+let lastWhereClause: unknown;
+
+function makeScope(row: {
+  stripeCustomerId: string | null;
+  stripeSubscriptionId?: string | null;
+  stripeSubscriptionStatus: string | null;
+  planTier?: string;
+  stripeCurrentPeriodEnd?: Date | null;
+  stripeCancelAtPeriodEnd?: boolean;
+}) {
+  return {
+    ...adminCtx,
+    tx: {
+      select: () => ({
+        from: () => ({
+          where: (predicate: unknown) => {
+            lastWhereClause = predicate;
+            return {
+              limit: async () => [row],
+            };
+          },
+        }),
+      }),
+      update: updateMock,
+      delete: deleteMock,
+      insert: insertMock,
+    },
+  };
+}
+
 function form(overrides: Record<string, string> = {}): FormData {
   const formData = new FormData();
   formData.set('tier', 'growth');
@@ -87,9 +126,15 @@ async function runAction(formData = form()): Promise<unknown> {
   return mod.createCheckoutSessionAction(undefined, formData);
 }
 
+async function runPortalAction(formData = new FormData()): Promise<unknown> {
+  const mod = await import('./actions');
+  return mod.createPortalSessionAction(formData);
+}
+
 describe('createCheckoutSessionAction', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    lastWhereClause = undefined;
     process.env.NEXT_PUBLIC_APP_URL = 'https://app.example.test';
     getOrgContextMock.mockResolvedValue(adminCtx);
     requireAdminFromCtxMock.mockImplementation(() => undefined);
@@ -97,18 +142,10 @@ describe('createCheckoutSessionAction', () => {
     sessionsCreateMock.mockResolvedValue({
       url: 'https://checkout.stripe.test/session',
     });
-    withOrgScopeMock.mockImplementation(async (_ctx, fn) => fn({
-      ...adminCtx,
-      tx: {
-        select: () => ({
-          from: () => ({
-            where: () => ({
-              limit: async () => [activeOrg],
-            }),
-          }),
-        }),
-      },
-    }));
+    portalSessionsCreateMock.mockResolvedValue({
+      url: 'https://billing.stripe.test/session',
+    });
+    withOrgScopeMock.mockImplementation(async (_ctx, fn) => fn(makeScope(activeOrg)));
   });
 
   it('creates a subscription Checkout Session with server-derived org metadata and price lookup', async () => {
@@ -247,5 +284,106 @@ describe('createCheckoutSessionAction', () => {
     });
     await expect(runAction()).rejects.toThrow(ForbiddenError);
     expect(sessionsCreateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('createPortalSessionAction', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    lastWhereClause = undefined;
+    process.env.NEXT_PUBLIC_APP_URL = 'https://app.example.test/';
+    getOrgContextMock.mockResolvedValue(adminCtx);
+    requireAdminFromCtxMock.mockImplementation(() => undefined);
+    sessionsCreateMock.mockResolvedValue({
+      url: 'https://checkout.stripe.test/session',
+    });
+    portalSessionsCreateMock.mockResolvedValue({
+      url: 'https://billing.stripe.test/session',
+    });
+    withOrgScopeMock.mockImplementation(async (_ctx, fn) => fn(makeScope({
+      stripeCustomerId: 'stored_customer_sentinel',
+      stripeSubscriptionId: 'stored_subscription_sentinel',
+      stripeSubscriptionStatus: 'active',
+    })));
+  });
+
+  it('creates a Customer Portal Session for the stored org customer with trusted return_url', async () => {
+    await expect(runPortalAction()).rejects.toThrow(
+      'NEXT_REDIRECT:https://billing.stripe.test/session',
+    );
+
+    expect(getOrgContextMock).toHaveBeenCalledOnce();
+    expect(requireAdminFromCtxMock).toHaveBeenCalledWith(adminCtx);
+    expect(withOrgScopeMock).toHaveBeenCalledWith(adminCtx, expect.any(Function));
+    expect(lastWhereClause).toEqual({
+      left: 'organizations.id',
+      right: adminCtx.orgId,
+    });
+    expect(portalSessionsCreateMock).toHaveBeenCalledWith({
+      customer: 'stored_customer_sentinel',
+      return_url: 'https://app.example.test/settings',
+    });
+    expect(sessionsCreateMock).not.toHaveBeenCalled();
+  });
+
+  it('ignores forged client portal fields and uses only server-derived billing state', async () => {
+    const forged = new FormData();
+    forged.set('customer', 'forged_customer_sentinel');
+    forged.set('customerId', 'forged_customer_id_sentinel');
+    forged.set('return_url', 'https://attacker.example/return');
+    forged.set('subscription', 'forged_subscription_sentinel');
+    forged.set('price', 'forged_price_sentinel');
+    forged.set('metadata', '{"policyPilotOrgId":"forged"}');
+    forged.set('flow_data', '{"type":"subscription_cancel"}');
+
+    await expect(runPortalAction(forged)).rejects.toThrow(
+      'NEXT_REDIRECT:https://billing.stripe.test/session',
+    );
+
+    expect(portalSessionsCreateMock).toHaveBeenCalledWith({
+      customer: 'stored_customer_sentinel',
+      return_url: 'https://app.example.test/settings',
+    });
+    expect(JSON.stringify(portalSessionsCreateMock.mock.calls[0]?.[0])).not.toContain('forged');
+  });
+
+  it('redirects to setup when no stored Stripe customer is linked', async () => {
+    withOrgScopeMock.mockImplementationOnce(async (_ctx, fn) => fn(makeScope({
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      stripeSubscriptionStatus: 'trialing',
+    })));
+
+    await expect(runPortalAction()).rejects.toThrow(
+      'NEXT_REDIRECT:/settings?billing=setup',
+    );
+
+    expect(portalSessionsCreateMock).not.toHaveBeenCalled();
+    expect(sessionsCreateMock).not.toHaveBeenCalled();
+  });
+
+  it('enforces auth and admin checks before portal creation', async () => {
+    getOrgContextMock.mockRejectedValueOnce(new NotAuthenticatedError());
+    await expect(runPortalAction()).rejects.toThrow(NotAuthenticatedError);
+    expect(requireAdminFromCtxMock).not.toHaveBeenCalled();
+    expect(portalSessionsCreateMock).not.toHaveBeenCalled();
+
+    getOrgContextMock.mockResolvedValueOnce({ ...adminCtx, role: 'employee' });
+    requireAdminFromCtxMock.mockImplementationOnce(() => {
+      throw new ForbiddenError('admin role required');
+    });
+    await expect(runPortalAction()).rejects.toThrow(ForbiddenError);
+    expect(portalSessionsCreateMock).not.toHaveBeenCalled();
+  });
+
+  it('does not mutate local subscription truth or acknowledgment-adjacent tables', async () => {
+    await expect(runPortalAction()).rejects.toThrow(
+      'NEXT_REDIRECT:https://billing.stripe.test/session',
+    );
+
+    expect(updateMock).not.toHaveBeenCalled();
+    expect(deleteMock).not.toHaveBeenCalled();
+    expect(insertMock).not.toHaveBeenCalled();
+    expect(portalSessionsCreateMock).toHaveBeenCalledOnce();
   });
 });
