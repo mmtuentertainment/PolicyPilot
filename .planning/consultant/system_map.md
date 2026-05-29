@@ -1,6 +1,6 @@
 # Consultant System Map — PolicyPilot
 
-Updated: 2026-05-28
+Updated: 2026-05-29 - Phase 6 planned (architecture unchanged; phase-status only)
 
 ## Product Boundary
 
@@ -73,12 +73,12 @@ Phase 2 Data Layer      shipped
 Phase 3 Admin UI        shipped
 Phase 4 AI Layer        shipped
 Phase 5 Employee Portal shipped
-Phase 6 Billing         pending / planning-only
+Phase 6 Billing         planned (ready to execute; impl not started)
 Phase 7 Crons + Email   pending
 Phase 8 Validation      pending
 ```
 
-Phase 5 shipped via PR #27 at `3344847`. Phase 6 is the next planning gate, but billing implementation should not start until the proper Phase 6 branch/spec/plan path is intentionally resumed.
+Phase 5 shipped via PR #27 at `3344847`. Phase 6 is PLANNED (6 plans, `gsd-plan-checker` PASSED, 2026-05-29) and ready to execute; the billing components above (Stripe webhook, `stripe_events`, Customer Portal, tier gates) are already on this map — planning added implementation plans, not new architecture. Billing implementation should not start until the operator runs `/gsd:execute-phase 6`.
 
 ---
 
