@@ -1,6 +1,6 @@
 # Consultant Backlog — PolicyPilot
 
-Updated: 2026-05-28 - Phase 5 ship reconciled
+Updated: 2026-05-28 - PR #30 post-merge state refreshed
 
 Use this backlog for consultant-level sequencing only. It does not replace `.planning/ROADMAP.md` or phase plans. The purpose is to keep strategic pressure on the smallest high-value moves that improve launch readiness, revenue readiness, and trust.
 
@@ -16,7 +16,7 @@ Each input is scored 1-5. Higher priority ships first unless blocked by phase di
 
 | Rank | Item | Phase | Revenue | Pain | Risk Reduction | Beat-Manual | Reversibility | Effort | Priority | Status | Next micro-batch |
 |---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
-| 1 | Review and merge the operating-layer docs PR. | Cross-cutting | 2 | 2 | 3 | 2 | 5 | 1 | 13 | Active | Finish PR #30 review after this Phase 5 ship reconciliation lands. |
+| 1 | Review and merge the operating-layer docs PR. | Cross-cutting | 2 | 2 | 3 | 2 | 5 | 1 | 13 | Done | Merged as PR #30 at `ee50880`; no further action. |
 | 2 | Prepare Phase 6 Stripe webhook spec before implementation. | 6 | 5 | 3 | 5 | 3 | 4 | 2 | 18 | Pending / planning-only | Resume only through the proper Phase 6 branch/spec/plan path. |
 | 3 | Preserve append-only acknowledgment behavior through future gates. | 5+ | 5 | 5 | 5 | 5 | 3 | 3 | 20 | Shipped / monitor | Keep immutability checks active when later phases touch policy or acknowledgment surfaces. |
 | 4 | Implement Stripe Checkout + 5-event idempotent webhook. | 6 | 5 | 4 | 5 | 3 | 3 | 4 | 16 | Pending | Start only after Matthew resumes Phase 6 from the proper branch/spec/plan path. |
@@ -43,9 +43,9 @@ Do not prioritize these until the core revenue loop is proven:
 
 ## Next Recommended Micro-Batch
 
-1. Finish the consultant operating file PR.
-2. Resume Phase 6 planning only when Matthew intentionally reopens that path.
-3. Keep Phase 6 implementation unstarted until the proper branch/spec/plan path is active.
+1. Resume Phase 6 planning only when Matthew intentionally reopens that path.
+2. Keep Phase 6 implementation unstarted until the proper branch/spec/plan path is active.
+3. Preserve tenant-isolation and append-only acknowledgment gates as Phase 6 planning resumes.
 
 ---
 

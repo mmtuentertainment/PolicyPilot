@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: phase_6_planning_gate
-last_updated: "2026-05-28T15:02:47.306-04:00"
+last_updated: "2026-05-28T16:55:57.088-04:00"
 progress:
   total_phases: 8
   completed_phases: 5
@@ -24,7 +24,7 @@ GSD session state. Updated each time a phase or plan transitions. Source of trut
 - **Operator**: Matthew (MMTU Entertainment LLC) — `mmtuentertainment@gmail.com`
 - **Core value**: Replaces Google Drive / SharePoint for SMB policy management with AI drafting, append-only acknowledgment tracking, and audit-ready compliance trails — at a price an SMB can afford.
 - **Beat-manual gate**: Product must be demonstrably faster and more reliable than a Google Drive folder.
-- **Current focus**: Post-Phase-5 shipped bookkeeping and Phase 6 planning gate. Phase 5 shipped to `main` via PR #27 at commit `3344847` on 2026-05-27T22:06:16Z; Phase 6 implementation has not started.
+- **Current focus**: Phase 6 planning gate after PR #30 operating-layer docs merged. Phase 5 shipped to `main` via PR #27 at commit `3344847` on 2026-05-27T22:06:16Z; PR #30 merged to `main` at `ee50880b08410ad2194b0ffe146f4de2a1f72cc2` on 2026-05-28T20:52:58Z; Phase 6 implementation has not started.
 - **Granularity**: standard (8 phases)
 
 ---
@@ -32,9 +32,9 @@ GSD session state. Updated each time a phase or plan transitions. Source of trut
 ## Current Position
 
 Phase: post-Phase-5 shipped / Phase 6 planning gate
-Plan: post-ship state reconciliation
-Branch: `consultant/project-operating-system-2026-05-28` (docs-only PR #30 branch; not a phase implementation branch)
-Main HEAD: `3344847`
+Plan: post-PR-30 state refresh
+Branch: `main`
+Main HEAD: `ee50880b08410ad2194b0ffe146f4de2a1f72cc2`
 
 - **Phase 1** — Foundation **complete** (2026-05-16; 5/5 plans; PR #1 merged)
 - **Phase 2** — Data Layer **complete** (2026-05-18; 7/7 plans = 6 main + 02-07 hotfix; verify:phase-2 8/8 OK; PR #2 squash-merged to `main` @ `130b8ab` on 2026-05-19)
@@ -47,7 +47,7 @@ Main HEAD: `3344847`
 [#####---] 5/8 phases shipped - Foundation done / Data Layer done / Admin UI done / AI Layer done / Employee Portal shipped
 ```
 
-**Next action**: Finish post-ship bookkeeping on the docs-only operating-layer PR, then resume Phase 6 only through the intentional GSD spec/plan path. Do not treat Phase 6 implementation as started until a proper Phase 6 branch/spec/plan path is deliberately resumed.
+**Next action**: Resume Phase 6 only through the intentional GSD branch/spec/plan path when Matthew chooses. Do not treat Phase 6 implementation as started until that path is deliberately resumed.
 
 **Fast-follow PR backlog** (3 sequential PRs, originally scoped from PR #3 carry-forward):
 
