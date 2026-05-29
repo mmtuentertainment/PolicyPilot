@@ -1,6 +1,6 @@
 # Consultant System Map — PolicyPilot
 
-Updated: 2026-05-29 - Phase 6 Plan 06-03 complete (maxUsers real count added; Phase 6 not shipped)
+Updated: 2026-05-29 - Phase 6 Plan 06-04 complete (checkout/pricing intent added; Phase 6 not shipped)
 
 ## Product Boundary
 
@@ -73,12 +73,12 @@ Phase 2 Data Layer      shipped
 Phase 3 Admin UI        shipped
 Phase 4 AI Layer        shipped
 Phase 5 Employee Portal shipped
-Phase 6 Billing         planned (06-01 foundation + 06-02 webhook + 06-03 tier gates complete; 06-04..06-06 pending)
+Phase 6 Billing         planned (06-01 foundation + 06-02 webhook + 06-03 tier gates + 06-04 checkout/pricing complete; 06-05..06-06 pending)
 Phase 7 Crons + Email   pending
 Phase 8 Validation      pending
 ```
 
-Phase 5 shipped via PR #27 at `3344847`. Phase 6 is PLANNED (6 plans, `gsd-plan-checker` PASSED, 2026-05-29). Plans 06-01 through 06-03 are complete locally: catalog/client/mask helpers exist, the additive billing-state migration is applied to TEST DB, the Stripe webhook route now verifies raw bodies, handles the 5 locked events, re-fetches canonical subscriptions where required, writes idempotently, and `maxUsers` now uses a real org-scoped user count. Checkout, Customer Portal, pricing UI, and billing UAT remain pending in Plans 06-04 through 06-06. Phase 6 is not shipped.
+Phase 5 shipped via PR #27 at `3344847`. Phase 6 is PLANNED (6 plans, `gsd-plan-checker` PASSED, 2026-05-29). Plans 06-01 through 06-04 are complete locally: catalog/client/mask helpers exist, the additive billing-state migration is applied to TEST DB, the Stripe webhook route now verifies raw bodies, handles the 5 locked events, re-fetches canonical subscriptions where required, writes idempotently, `maxUsers` now uses a real org-scoped user count, the admin checkout Server Action creates Stripe Checkout Sessions from server-derived org/price/metadata, and public pricing carries only non-authoritative tier/interval intent. Customer Portal, the admin settings page UI, and billing UAT remain pending in Plans 06-05 through 06-06. Phase 6 is not shipped.
 
 ---
 
@@ -114,11 +114,12 @@ Phase 5 shipped via PR #27 at `3344847`. Phase 6 is PLANNED (6 plans, `gsd-plan-
 
 ### 4. Billing and tier enforcement
 
-1. Admin chooses plan through Stripe Checkout.
-2. Stripe webhooks update server-side subscription state.
-3. API routes and Server Components read subscription state from DB.
-4. Feature gates return 403 or redirect to upgrade when plan is insufficient.
-5. Stripe events are stored idempotently.
+1. Admin chooses plan through public pricing intent or the admin billing surface.
+2. Authenticated admin checkout creation uses server-derived org context, catalog price lookup, and Stripe Checkout.
+3. Stripe webhooks update server-side subscription state.
+4. API routes and Server Components read subscription state from DB.
+5. Feature gates return 403 or redirect to upgrade when plan is insufficient.
+6. Stripe events are stored idempotently.
 
 ### 5. Reminder and reporting loop
 

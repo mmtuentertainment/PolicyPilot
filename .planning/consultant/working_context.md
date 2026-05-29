@@ -1,6 +1,6 @@
 # Consultant Working Context - PolicyPilot
 
-Updated: 2026-05-29 - Phase 6 Plan 06-03 complete
+Updated: 2026-05-29 - Phase 6 Plan 06-04 complete
 
 ## Mission
 - Build an AI-powered policy and procedure management SaaS for SMBs with 25-300 employees.
@@ -12,7 +12,7 @@ Updated: 2026-05-29 - Phase 6 Plan 06-03 complete
 - Phase 5 Employee Portal shipped to `main` via PR #27 at commit `3344847` on 2026-05-27T22:06:16Z.
 - Phases 6-8 remain: Billing, Crons + Email, Validation.
 - Phase 6 PLANNED 2026-05-29 on `gsd/phase-6-billing` (rebased onto main `af01f0a`): spec+discuss+plan complete, `gsd-plan-checker` PASSED (6 plans).
-- Plans 06-01 through 06-03 are complete locally: Stripe SDK/catalog/client/mask foundation exists, additive `0012_billing_state` is applied to TEST DB, the Stripe webhook route now verifies raw-body signatures, handles all 5 locked events, uses canonical subscription re-fetch where required, commits idempotency + org billing updates transactionally, and `checkTierLimit` now uses a real org-scoped `maxUsers` count. Plans 06-04 through 06-06 remain pending; Phase 6 is not shipped.
+- Plans 06-01 through 06-04 are complete locally: Stripe SDK/catalog/client/mask foundation exists, additive `0012_billing_state` is applied to TEST DB, the Stripe webhook route now verifies raw-body signatures, handles all 5 locked events, uses canonical subscription re-fetch where required, commits idempotency + org billing updates transactionally, `checkTierLimit` now uses a real org-scoped `maxUsers` count, and the checkout/pricing intent slice now creates admin-only Stripe Checkout Sessions from server-derived org/price/metadata while the public pricing page carries non-authoritative tier/interval intent only. Plans 06-05 through 06-06 remain pending; Phase 6 is not shipped.
 
 ## Non-Negotiables
 - `org_id` in every tenant query; RLS remains the last line of defense.
@@ -28,7 +28,7 @@ Updated: 2026-05-29 - Phase 6 Plan 06-03 complete
 - Every material change must refresh or explicitly no-op the consultant files.
 
 ## Active Watchlist
-- Phase 6 Plan 06-03 tier-gate predicate is complete locally; do not broaden into 06-04 checkout work unless Matthew explicitly asks.
-- Billing still needs checkout, customer portal, and end-to-end UAT.
+- Phase 6 Plan 06-04 checkout/pricing intent is complete locally; do not broaden into 06-05 Customer Portal/settings work unless Matthew explicitly asks.
+- Billing still needs Customer Portal, admin settings page wiring, and end-to-end UAT.
 - Phase 7 reminders must be idempotent and auditable.
 - Phase 8 must prove the beat-manual gate with observable user workflows.
