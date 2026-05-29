@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: phase_6_planned
-last_updated: "2026-05-29T03:41:12.801Z"
+status: phase_6_executing
+last_updated: "2026-05-29T23:43:28Z"
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 57
-  completed_plans: 51
+  completed_plans: 56
   percent: 63
 ---
 
@@ -24,31 +24,31 @@ GSD session state. Updated each time a phase or plan transitions. Source of trut
 - **Operator**: Matthew (MMTU Entertainment LLC) — `mmtuentertainment@gmail.com`
 - **Core value**: Replaces Google Drive / SharePoint for SMB policy management with AI drafting, append-only acknowledgment tracking, and audit-ready compliance trails — at a price an SMB can afford.
 - **Beat-manual gate**: Product must be demonstrably faster and more reliable than a Google Drive folder.
-- **Current focus**: Phase 6 Billing **PLANNED** (2026-05-29) on `gsd/phase-6-billing` (rebased onto `main` `af01f0a`). spec→discuss→research→validate→plan complete; 6 plans created and `gsd-plan-checker` PASSED (0 blockers/0 warnings, all 12 dimensions). **Ready to execute** via `/gsd:execute-phase 6`; Phase 6 implementation has NOT started. Phase 5 shipped to `main` via PR #27 at `3344847` on 2026-05-27T22:06:16Z; PR #30 merged at `ee50880` on 2026-05-28T20:52:58Z; PR #31 (state refresh) merged at `af01f0a` on 2026-05-29T02:07:21Z.
+- **Current focus**: Phase 6 Billing **EXECUTING (~92%)** on `gsd/phase-6-billing`. spec→discuss→research→validate→plan complete; plans 06-01..06-05 implemented and committed (`5c9f8c5`/`ebd5708`/`5abe38c`/`f300572`/`0baee19`); plan 06-06 (verify-chain/CI/UAT) is in progress and **uncommitted** in the working tree (a concurrent session may be authoring `.github/workflows/verify-phase-6.yml` + `06-UAT.md`). Not yet merged to `main`; no PR open. Remaining: finish + commit 06-06 → `pnpm verify:phase-6` green → operator Stripe test-clock UAT → ship PR. Forensic reconciliation 2026-05-29 (this STATE was stale at `phase_6_planned`; see `ops/deltas/2026-05-29-forensic-realignment.md` on `main`). Phase 5 shipped to `main` via PR #27 at `3344847` on 2026-05-27T22:06:16Z; PR #30 merged at `ee50880` on 2026-05-28T20:52:58Z; PR #31 (state refresh) merged at `af01f0a` on 2026-05-29T02:07:21Z.
 - **Granularity**: standard (8 phases)
 
 ---
 
 ## Current Position
 
-Phase: Phase 6 Billing — PLANNED, ready to execute (implementation not started)
-Plan: 6 plans drafted + plan-check PASSED (06-01..06-06)
-Branch: `gsd/phase-6-billing` (rebased onto `main` `af01f0a`)
-Main HEAD: `af01f0a6378ab3c38421d5d495da8a72ee7e6887` (PR #31)
+Phase: Phase 6 Billing — EXECUTING (~92%); 06-01..06-05 committed, 06-06 verify-chain in progress (uncommitted)
+Plan: 5 / 6 plans executed + committed; 06-06 (verify-chain/CI/UAT) WIP
+Branch: `gsd/phase-6-billing` (15 commits ahead of `origin/main`; not merged, no PR)
+Main HEAD: `25cfba7` (forensic realignment report `ops/deltas/2026-05-29-forensic-realignment.md`; prior `af01f0a` PR #31)
 
 - **Phase 1** — Foundation **complete** (2026-05-16; 5/5 plans; PR #1 merged)
 - **Phase 2** — Data Layer **complete** (2026-05-18; 7/7 plans = 6 main + 02-07 hotfix; verify:phase-2 8/8 OK; PR #2 squash-merged to `main` @ `130b8ab` on 2026-05-19)
 - **Phase 3** — Admin UI **SHIPPED** (2026-05-20; 15/15 plans; PR #3 squash-merged to `main` @ `edebab7`; 3 fast-follows shipped PR #5/#7/#13; 3-audit cascade complete PR #8/#10/#11; closure test PR #9; state bookkeeping PR #12)
 - **Phase 4** — AI Layer **SHIPPED** (2026-05-22; 14/14 plans; PR #15 squash-merged to `main` @ `f8207f4`; post-merge cleanup PR #17 @ `eda7bb4`; 60/60 STRIDE threats CLOSED; UAT 5/5 PASS with real-key Anthropic smoke verifying SPEC R4 cache mechanics)
 - **Phase 5** — Employee Portal **SHIPPED** (2026-05-27; PR #27 "Phase 5: Employee Portal" merged to `main` at `3344847`, parent `c50b317`; `gsd/phase-5-employee-portal` branch is gone).
-- **Phase 6** — Billing **PLANNED** (2026-05-29; 6 plans 06-01..06-06; `gsd-plan-checker` PASSED; ready to execute; implementation NOT started)
-- **Progress**: 5 / 8 phases shipped (63%); Phase 6 planned & ready-to-execute; Phases 6-8 not complete.
+- **Phase 6** — Billing **EXECUTING** (2026-05-29; ~92%; 06-01..06-05 committed; 06-06 verify-chain WIP/uncommitted; not merged, no PR)
+- **Progress**: 5 / 8 phases shipped (63%); Phase 6 in progress (~92%, finishing the verify spine); Phases 7-8 not started.
 
 ```text
 [#####---] 5/8 phases shipped - Foundation done / Data Layer done / Admin UI done / AI Layer done / Employee Portal shipped
 ```
 
-**Next action**: Phase 6 is planned and plan-checked on `gsd/phase-6-billing`. When Matthew chooses, `/clear` then run `/gsd:execute-phase 6` (Wave 0 has operator-gated checkpoints: `pnpm add stripe`, populate 9 Stripe env vars, create 6 Stripe products, apply the additive `0012` migration to TEST DB). Do not begin implementation before that deliberate step.
+**Next action**: Phase 6 is executing on `gsd/phase-6-billing` (06-01..06-05 committed; 06-06 verify-chain in progress/uncommitted — a concurrent session may be authoring `.github/workflows/verify-phase-6.yml` + `06-UAT.md`). Finish + commit 06-06, then `pnpm tsc --noEmit` and `pnpm verify:phase-6` (both exit 0), then operator runs the secret-safe Stripe test-clock UAT, then ship the Phase 6 PR (squash to `main`). Migration gate: apply additive `0012` to TEST/staging/prod with `db:verify` exit 0 BEFORE deploying dependent code. Open security carry-forward: **SF-WHSEC-1** (rotate Clerk webhook signing secret) before any live public-tunnel smoke.
 
 **Fast-follow PR backlog** (3 sequential PRs, originally scoped from PR #3 carry-forward):
 
