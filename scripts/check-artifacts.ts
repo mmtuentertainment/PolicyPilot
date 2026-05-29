@@ -50,13 +50,17 @@ function assert(
   out.push(cond ? ok(label) : fail(label, detail));
 }
 
+function stripComments(source: string): string {
+  return source
+    .replace(/\/\/[^\n]*/g, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "");
+}
+
 // Strip line + block comments before regex-matching for `any` types so the
 // English word "any" inside a sentence comment doesn't trigger a false
 // positive in the three type-position regexes below.
 function hasAnyType(source: string): boolean {
-  const stripped = source
-    .replace(/\/\/[^\n]*/g, "")
-    .replace(/\/\*[\s\S]*?\*\//g, "");
+  const stripped = stripComments(source);
   return (
     /\bany\b\s*[:,)]/.test(stripped) ||
     /\bas\s+any\b/.test(stripped) ||
@@ -2498,6 +2502,251 @@ function checkDeployPrep(): Check[] {
   return out;
 }
 
+function checkPhase6BillingVerifier(): Check[] {
+  const out: Check[] = [];
+
+  const exactVerifyPhase6 =
+    "pnpm tsc --noEmit && pnpm verify:phase-5 && pnpm run test -- --run lib/stripe && pnpm run test -- --run app/api/webhooks/stripe && pnpm db:verify && pnpm check:artifacts";
+
+  if (exists("package.json")) {
+    let pkgJson: { scripts?: Record<string, string> } | null = null;
+    try {
+      pkgJson = JSON.parse(read("package.json")) as { scripts?: Record<string, string> };
+    } catch {
+      // Assertion below reports malformed or missing package data.
+    }
+    assert(
+      out,
+      pkgJson?.scripts?.["verify:phase-6"] === exactVerifyPhase6,
+      "package.json declares executable verify:phase-6 chain (Phase 6 D-35)",
+      "verify:phase-6 must run tsc, verify:phase-5, lib/stripe tests, stripe webhook tests, db:verify, check:artifacts",
+    );
+  }
+
+  for (const rel of [
+    "app/api/webhooks/stripe/route.ts",
+    "lib/stripe/catalog.ts",
+    "lib/stripe/client.ts",
+    "lib/stripe/normalize.ts",
+    "lib/stripe/mask.ts",
+    "lib/stripe/products.ts",
+    "app/(admin)/settings/page.tsx",
+    "app/(admin)/settings/actions.ts",
+    "drizzle/0012_billing_state.sql",
+    ".planning/phases/06-billing/06-UAT.md",
+    ".github/workflows/verify-phase-6.yml",
+  ]) {
+    assert(out, exists(rel), `${rel} exists (Phase 6 verifier)`, "required Phase 6 verifier artifact missing");
+  }
+
+  if (exists("scripts/check-deploy-schema.ts")) {
+    const deploySchema = read("scripts/check-deploy-schema.ts");
+    for (const needle of [
+      "stripe_price_id",
+      "stripe_subscription_item_id",
+      "stripe_current_period_end",
+      "stripe_cancel_at_period_end",
+      "stripe_last_event_created",
+      "organizations_stripe_customer_id_unique_idx",
+      "organizations_stripe_subscription_id_unique_idx",
+    ]) {
+      assert(
+        out,
+        deploySchema.includes(needle),
+        `scripts/check-deploy-schema.ts asserts ${needle} (Phase 6 D-13)`,
+        `${needle} missing from deploy schema verifier`,
+      );
+    }
+  }
+
+  if (exists("scripts/check-schema.ts")) {
+    const checkSchema = read("scripts/check-schema.ts");
+    for (const needle of [
+      "stripe_price_id",
+      "stripe_subscription_item_id",
+      "stripe_current_period_end",
+      "stripe_cancel_at_period_end",
+      "stripe_last_event_created",
+      "organizations_stripe_customer_id_unique_idx",
+      "organizations_stripe_subscription_id_unique_idx",
+    ]) {
+      assert(
+        out,
+        checkSchema.includes(needle),
+        `scripts/check-schema.ts asserts ${needle} (Phase 6 D-13)`,
+        `${needle} missing from test DB schema verifier`,
+      );
+    }
+  }
+
+  if (exists("app/api/webhooks/stripe/route.ts")) {
+    const stripeRoute = stripComments(read("app/api/webhooks/stripe/route.ts"));
+    assert(
+      out,
+      /export\s+const\s+runtime\s*=\s*['"]nodejs['"]/.test(stripeRoute),
+      "Stripe webhook route exports nodejs runtime",
+      "runtime export missing",
+    );
+    assert(
+      out,
+      /export\s+const\s+dynamic\s*=\s*['"]force-dynamic['"]/.test(stripeRoute),
+      "Stripe webhook route exports force-dynamic",
+      "dynamic export missing",
+    );
+    assert(
+      out,
+      stripeRoute.includes("request.text()"),
+      "Stripe webhook route reads request.text() raw body",
+      "raw-body read missing",
+    );
+    assert(
+      out,
+      stripeRoute.includes("constructEvent"),
+      "Stripe webhook route verifies via constructEvent",
+      "Stripe signature verification call missing",
+    );
+    assert(
+      out,
+      !stripeRoute.includes("request.json("),
+      "Stripe webhook route does not call request.json()",
+      "request.json() would break raw-body signature verification",
+    );
+  }
+
+  if (exists("lib/stripe/catalog.ts")) {
+    const catalog = read("lib/stripe/catalog.ts");
+    for (const needle of ["priceIdToTier", "tierAndIntervalToPriceId"]) {
+      assert(out, catalog.includes(needle), `lib/stripe/catalog.ts exports ${needle}`, `${needle} missing`);
+    }
+  }
+
+  if (exists("lib/stripe/client.ts")) {
+    assert(
+      out,
+      read("lib/stripe/client.ts").includes("getStripeClient"),
+      "lib/stripe/client.ts exports getStripeClient",
+      "getStripeClient missing",
+    );
+  }
+
+  if (exists("lib/stripe/normalize.ts")) {
+    assert(
+      out,
+      read("lib/stripe/normalize.ts").includes("normalizeSubscription"),
+      "lib/stripe/normalize.ts exports normalizeSubscription",
+      "normalizeSubscription missing",
+    );
+  }
+
+  if (exists("lib/stripe/mask.ts")) {
+    const mask = read("lib/stripe/mask.ts");
+    assert(
+      out,
+      mask.includes("maskCustomerId") && mask.includes("maskSubscriptionId"),
+      "lib/stripe/mask.ts exports masked Stripe ID helpers",
+      "mask helper export missing",
+    );
+  }
+
+  if (exists("lib/stripe/products.ts")) {
+    const products = read("lib/stripe/products.ts");
+    assert(
+      out,
+      products.includes("countOrgUsers") && products.includes("self.countOrgUsers"),
+      "lib/stripe/products.ts wires countOrgUsers through spyable self namespace",
+      "countOrgUsers or self.countOrgUsers wiring missing",
+    );
+  }
+
+  if (exists("app/(admin)/settings/actions.ts")) {
+    const actions = stripComments(read("app/(admin)/settings/actions.ts"));
+    assert(
+      out,
+      actions.includes("createCheckoutSessionAction") && actions.includes("createPortalSessionAction"),
+      "settings actions expose checkout and portal Server Actions",
+      "checkout or portal action missing",
+    );
+    assert(
+      out,
+      actions.includes("customer: org.stripeCustomerId") &&
+        actions.includes("return_url: `${appUrl}/settings`"),
+      "Customer Portal action uses stored customer and trusted return_url",
+      "portal customer/return_url trust boundary missing",
+    );
+  }
+
+  if (exists("app/(admin)/settings/page.tsx")) {
+    const page = read("app/(admin)/settings/page.tsx");
+    assert(
+      out,
+      page.includes("createPortalSessionAction") && page.includes("stripeCustomerId"),
+      "settings page renders portal path only for linked customer",
+      "settings portal wiring missing",
+    );
+  }
+
+  if (exists("drizzle/0012_billing_state.sql")) {
+    const migration = read("drizzle/0012_billing_state.sql");
+    for (const needle of [
+      "stripe_price_id",
+      "stripe_subscription_item_id",
+      "stripe_current_period_end",
+      "stripe_cancel_at_period_end",
+      "stripe_last_event_created",
+      "organizations_stripe_customer_id_unique_idx",
+      "organizations_stripe_subscription_id_unique_idx",
+    ]) {
+      assert(out, migration.includes(needle), `0012_billing_state.sql contains ${needle}`, `${needle} missing`);
+    }
+  }
+
+  if (exists("drizzle/meta/_journal.json")) {
+    assert(
+      out,
+      read("drizzle/meta/_journal.json").includes('"0012_billing_state"'),
+      "drizzle journal registers 0012_billing_state",
+      "0012 journal entry missing",
+    );
+  }
+
+  if (exists("middleware.ts")) {
+    assert(
+      out,
+      read("middleware.ts").includes("/^\\/settings(\\/|$)/"),
+      "middleware.ts gates /settings as an admin route",
+      "/settings admin route pattern missing",
+    );
+  }
+
+  if (exists(".planning/phases/06-billing/06-UAT.md")) {
+    const uat = read(".planning/phases/06-billing/06-UAT.md");
+    for (const needle of ["invoice.paid", "invoice.payment_failed", "past_due", "masked", "MUST NOT", "SF-CASCADE-AUDIT"]) {
+      assert(out, uat.includes(needle), `06-UAT.md contains ${needle}`, `${needle} missing from UAT checklist`);
+    }
+    assert(
+      out,
+      !uat.includes("2026-05-27-session-report.md"),
+      "06-UAT.md does not reference uncommitted session report",
+      "L4 violation: remove uncommitted session report reference",
+    );
+  }
+
+  if (exists(".github/workflows/verify-phase-6.yml")) {
+    const workflow = read(".github/workflows/verify-phase-6.yml");
+    for (const needle of ["pull_request", "push", "pnpm verify:phase-6", "secrets."]) {
+      assert(out, workflow.includes(needle), `verify-phase-6.yml contains ${needle}`, `${needle} missing`);
+    }
+    assert(
+      out,
+      !/\b(?:sk|pk|whsec|price)_[A-Za-z0-9]/.test(workflow),
+      "verify-phase-6.yml has no literal Stripe/secret-shaped values",
+      "workflow must reference secrets by name only",
+    );
+  }
+
+  return out;
+}
+
 function main(): void {
   console.log("─── Foundation — artifact regression gate ───");
   console.log(`Repo root: ${REPO_ROOT}`);
@@ -2537,6 +2786,8 @@ function main(): void {
     ...checkDeployPrep(),
     // Phase 5 (Employee Portal) — Plan 05-08 Task 2d:
     ...checkPhase5Scaffold(),
+    // Phase 6 (Billing) - Plan 06-06 verifier/UAT spine:
+    ...checkPhase6BillingVerifier(),
   ];
 
   let passed = 0;

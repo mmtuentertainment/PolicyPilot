@@ -1,6 +1,6 @@
 # Consultant Feature Inventory — PolicyPilot
 
-Updated: 2026-05-29 - Phase 6 Plan 06-05 Customer Portal/settings complete
+Updated: 2026-05-29 - Phase 6 Plan 06-06 verifier wiring complete; UAT/db gate pending
 
 Use this file to keep the product surface tied to revenue, risk, and the beat-manual gate. Update it whenever a feature ships, changes scope, moves phase, or becomes intentionally deferred.
 
@@ -38,6 +38,7 @@ Scoring:
 | Stripe 5-event webhook | 6 | Hardening | System | Direct/Defensive | Medium | High | Plan 06-02 complete locally: raw-body verify, all 5 events, canonical Subscription re-fetch, transaction-scoped idempotency, and M2 status matrix have unit + phase-gate coverage. Still pending Stripe test-clock/UAT and full Phase 6 ship. |
 | Tier gating | 6 | Hardening | Admin/system | Direct | Medium | High | Plan 06-03 complete locally: `maxUsers` uses a real org-scoped user count and the Phase-4 403/429 contract is preserved. Full tier-gate proof still depends on Stripe sandbox/test-clock UAT in Plan 06-06. |
 | Admin billing settings + Customer Portal | 6 | Hardening | Admin | Direct/Defensive | Medium | Medium | Plan 06-05 complete locally: `/settings` is admin-gated, shows minimal DB-sourced billing status, and creates Stripe Customer Portal sessions using only the stored customer ID. Live portal/UAT proof remains in Plan 06-06. |
+| Phase 6 verifier + Stripe UAT checklist | 6 | Hardening | Operator/system | Defensive | Medium | Low | Plan 06-06 verifier wiring is complete locally: `verify:phase-6`, schema/artifact gates, hosted workflow, and masked UAT checklist exist. Phase closeout is blocked until `db:verify` target has `0012_billing_state` and Stripe sandbox/test-clock evidence is recorded. |
 | Railway reminders worker | 7 | Pending | Employee/system | Indirect | High | Medium | Drives completion rates; must be idempotent. |
 | Resend email templates | 7 | Pending | Employee/admin | Indirect | Medium | Medium | Operational glue; avoid over-design before reminder rules are stable. |
 | Compliance dashboard | 8 | Pending | Admin/auditor | Direct | High | Medium | Important buyer-visible proof once acknowledgments exist. |
