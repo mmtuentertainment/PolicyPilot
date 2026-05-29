@@ -1,7 +1,7 @@
 import 'server-only';
 import { and, eq, gte, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { organizations, aiGenerations } from '@/lib/db/schema';
+import { organizations, aiGenerations, users } from '@/lib/db/schema';
 import { TierLimitExceededError } from './errors';
 
 // Self-namespace import — required for vi.spyOn(productsMod, 'readPlanTier') and
@@ -160,6 +160,20 @@ export async function countDraftsThisMonth(orgId: string): Promise<number> {
   return rows[0]?.c ?? 0;
 }
 
+/**
+ * Phase 6 D-27 - exported DB helper for testability.
+ *
+ * Counts every current user row in the org. This is an org-wide seat limit, so
+ * admins, reviewers, and employees all count toward maxUsers per 06-RESEARCH A5.
+ */
+export async function countOrgUsers(orgId: string): Promise<number> {
+  const rows = await db
+    .select({ c: sql<number>`cast(count(*) as int)` })
+    .from(users)
+    .where(eq(users.orgId, orgId));
+  return rows[0]?.c ?? 0;
+}
+
 // ===========================================================================================
 // Public API: checkTierLimit + requireTierLimit (orchestrators over the helpers above).
 //
@@ -201,9 +215,13 @@ export async function checkTierLimit(
     return { allowed: true, limit: -1, current: 0 };
   }
 
-  // Phase 4 only counts drafts. maxUsers gating is Phase 6 surface.
+  // Phase 6 maxUsers is a real org-scoped count; keep both helpers spyable.
   const current =
-    feature === 'aiDraftsMonthly' ? await self.countDraftsThisMonth(orgId) : 0;
+    feature === 'aiDraftsMonthly'
+      ? await self.countDraftsThisMonth(orgId)
+      : feature === 'maxUsers'
+        ? await self.countOrgUsers(orgId)
+        : 0;
 
   return { allowed: current < limit, limit, current };
 }

@@ -1,6 +1,6 @@
 # Consultant System Map — PolicyPilot
 
-Updated: 2026-05-29 - Phase 6 Plan 06-02 complete (webhook route added; Phase 6 not shipped)
+Updated: 2026-05-29 - Phase 6 Plan 06-03 complete (maxUsers real count added; Phase 6 not shipped)
 
 ## Product Boundary
 
@@ -73,12 +73,12 @@ Phase 2 Data Layer      shipped
 Phase 3 Admin UI        shipped
 Phase 4 AI Layer        shipped
 Phase 5 Employee Portal shipped
-Phase 6 Billing         planned (06-01 foundation + 06-02 webhook complete; 06-03..06-06 pending)
+Phase 6 Billing         planned (06-01 foundation + 06-02 webhook + 06-03 tier gates complete; 06-04..06-06 pending)
 Phase 7 Crons + Email   pending
 Phase 8 Validation      pending
 ```
 
-Phase 5 shipped via PR #27 at `3344847`. Phase 6 is PLANNED (6 plans, `gsd-plan-checker` PASSED, 2026-05-29). Plans 06-01 and 06-02 are complete locally: catalog/client/mask helpers exist, the additive billing-state migration is applied to TEST DB, and the Stripe webhook route now verifies raw bodies, handles the 5 locked events, re-fetches canonical subscriptions where required, and writes idempotently. Checkout, Customer Portal, pricing UI, tier gates, and billing UAT remain pending in Plans 06-03 through 06-06. Phase 6 is not shipped.
+Phase 5 shipped via PR #27 at `3344847`. Phase 6 is PLANNED (6 plans, `gsd-plan-checker` PASSED, 2026-05-29). Plans 06-01 through 06-03 are complete locally: catalog/client/mask helpers exist, the additive billing-state migration is applied to TEST DB, the Stripe webhook route now verifies raw bodies, handles the 5 locked events, re-fetches canonical subscriptions where required, writes idempotently, and `maxUsers` now uses a real org-scoped user count. Checkout, Customer Portal, pricing UI, and billing UAT remain pending in Plans 06-04 through 06-06. Phase 6 is not shipped.
 
 ---
 

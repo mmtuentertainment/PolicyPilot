@@ -1,6 +1,6 @@
 // lib/stripe/products.test.ts — Plan 04-06 WARNING-2 closure.
 // SP-4: TIER_LIMITS + checkTierLimit + requireTierLimit 429/403 routing (D-14 + D-15 + D-16).
-// 8 GREEN tests; zero placeholder rejections (WARNING-2 mandate — all assertions concrete).
+// 16 GREEN tests; zero placeholder rejections (WARNING-2 mandate — all assertions concrete).
 //
 // Mock surface (WARNING-2 split-helper architecture): vi.spyOn the EXPORTED helpers
 // readPlanTier + countDraftsThisMonth on the `productsMod` namespace import. The Drizzle
@@ -31,6 +31,7 @@ vi.mock('@/lib/db', () => ({
 vi.mock('@/lib/db/schema', () => ({
   organizations: { __stub: 'organizations' } as unknown as Record<string, never>,
   aiGenerations: { __stub: 'aiGenerations' } as unknown as Record<string, never>,
+  users: { __stub: 'users' } as unknown as Record<string, never>,
 }));
 
 // Imports of the SUT come AFTER vi.mock calls (vitest hoists vi.mock to the top
@@ -123,6 +124,46 @@ describe('lib/stripe/products — TIER_LIMITS + checkTierLimit + requireTierLimi
     expect(result).toEqual({ allowed: true, limit: -1, current: 0 });
     // Verify the orchestrator short-circuits — no DB count call for unlimited tier.
     expect(countSpy).not.toHaveBeenCalled();
+  });
+
+  it('checkTierLimit("maxUsers") denies Starter at the real 25-user org count', async () => {
+    vi.spyOn(productsMod, 'readPlanTier').mockResolvedValue('starter');
+    const userCountSpy = vi.spyOn(productsMod, 'countOrgUsers').mockResolvedValue(25);
+
+    const result = await checkTierLimit('org_test_starter_full', 'maxUsers');
+
+    expect(result).toEqual({ allowed: false, limit: 25, current: 25 });
+    expect(userCountSpy).toHaveBeenCalledWith('org_test_starter_full');
+  });
+
+  it('checkTierLimit("maxUsers") allows Growth when the real org user count is under 100', async () => {
+    vi.spyOn(productsMod, 'readPlanTier').mockResolvedValue('growth');
+    vi.spyOn(productsMod, 'countOrgUsers').mockResolvedValue(25);
+
+    const result = await checkTierLimit('org_test_growth_users', 'maxUsers');
+    expect(result).toEqual({ allowed: true, limit: 100, current: 25 });
+  });
+
+  it('checkTierLimit("maxUsers") allows Business when the real org user count is under 500', async () => {
+    vi.spyOn(productsMod, 'readPlanTier').mockResolvedValue('business');
+    vi.spyOn(productsMod, 'countOrgUsers').mockResolvedValue(25);
+
+    const result = await checkTierLimit('org_test_business_users', 'maxUsers');
+    expect(result).toEqual({ allowed: true, limit: 500, current: 25 });
+  });
+
+  it('checkTierLimit("consistencyCheck") fails closed for a missing billing row defaulting to Starter', async () => {
+    vi.spyOn(productsMod, 'readPlanTier').mockResolvedValue('starter');
+
+    const result = await checkTierLimit('org_test_missing_billing_state', 'consistencyCheck');
+    expect(result).toEqual({ allowed: false, limit: -1, current: 0 });
+  });
+
+  it('checkTierLimit("consistencyCheck") allows Growth per the Phase 4 403/429 contract', async () => {
+    vi.spyOn(productsMod, 'readPlanTier').mockResolvedValue('growth');
+
+    const result = await checkTierLimit('org_test_growth_feature', 'consistencyCheck');
+    expect(result).toEqual({ allowed: true, limit: -1, current: 0 });
   });
 
   // SP-4 — 429 routing for usage-bound features (aiDraftsMonthly).
