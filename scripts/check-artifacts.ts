@@ -832,7 +832,9 @@ function checkServerOnlyBoundary(): Check[] {
   // Phase 2 additions (Plan 02-06): lib/db/scoped.ts is the wrapper that
   // secures the channel (OrgScope + withOrgScope per ADR-025), and
   // app/api/webhooks/clerk/route.ts is ADR-023 allow-list entry #1.
-  // Both are legitimate raw-db importers; this regex check is now
+  // Phase 6 adds app/api/webhooks/stripe/route.ts as the verified billing
+  // state writer for transaction-scoped webhook idempotency.
+  // These are legitimate raw-db importers; this regex check is now
   // superseded by scripts/check-db-imports.ts (AST-based, L-05) for
   // catching unauthorized importers — kept here as a regression
   // backstop that doesn't false-positive on the legitimate importers.
@@ -845,6 +847,8 @@ function checkServerOnlyBoundary(): Check[] {
     "./lib/db/scoped.ts",
     "app/api/webhooks/clerk/route.ts",
     "./app/api/webhooks/clerk/route.ts",
+    "app/api/webhooks/stripe/route.ts",
+    "./app/api/webhooks/stripe/route.ts",
     // 03-G1 ADR-023 allow-list entry: getOrgContext now imports the raw db
     // barrel to translate Clerk text ids → internal UUIDs per gap-closure.
     "lib/auth/context.ts",
@@ -862,13 +866,13 @@ function checkServerOnlyBoundary(): Check[] {
   if (unexpected.length === 0) {
     out.push(
       ok(
-        `@/lib/db importers limited to scripts/check-db.ts (T-03-05 / T-04-03) — ${hits.length} hit(s)`,
+        `@/lib/db importers limited to approved server-only allowlist — ${hits.length} hit(s)`,
       ),
     );
   } else {
     out.push(
       fail(
-        "@/lib/db importers limited to scripts/check-db.ts (T-03-05 / T-04-03)",
+        "@/lib/db importers limited to approved server-only allowlist",
         `unexpected importer(s): ${unexpected.join(", ")}`,
       ),
     );
