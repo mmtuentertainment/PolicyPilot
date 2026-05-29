@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: phase_6_planning_gate
-last_updated: "2026-05-28T16:55:57.088-04:00"
+status: phase_6_planned
+last_updated: "2026-05-29T03:41:12.801Z"
 progress:
   total_phases: 8
   completed_phases: 5
-  total_plans: 51
+  total_plans: 57
   completed_plans: 51
   percent: 63
 ---
@@ -24,30 +24,31 @@ GSD session state. Updated each time a phase or plan transitions. Source of trut
 - **Operator**: Matthew (MMTU Entertainment LLC) — `mmtuentertainment@gmail.com`
 - **Core value**: Replaces Google Drive / SharePoint for SMB policy management with AI drafting, append-only acknowledgment tracking, and audit-ready compliance trails — at a price an SMB can afford.
 - **Beat-manual gate**: Product must be demonstrably faster and more reliable than a Google Drive folder.
-- **Current focus**: Phase 6 planning gate after PR #30 operating-layer docs merged. Phase 5 shipped to `main` via PR #27 at commit `3344847` on 2026-05-27T22:06:16Z; PR #30 merged to `main` at `ee50880b08410ad2194b0ffe146f4de2a1f72cc2` on 2026-05-28T20:52:58Z; Phase 6 implementation has not started.
+- **Current focus**: Phase 6 Billing **PLANNED** (2026-05-29) on `gsd/phase-6-billing` (rebased onto `main` `af01f0a`). spec→discuss→research→validate→plan complete; 6 plans created and `gsd-plan-checker` PASSED (0 blockers/0 warnings, all 12 dimensions). **Ready to execute** via `/gsd:execute-phase 6`; Phase 6 implementation has NOT started. Phase 5 shipped to `main` via PR #27 at `3344847` on 2026-05-27T22:06:16Z; PR #30 merged at `ee50880` on 2026-05-28T20:52:58Z; PR #31 (state refresh) merged at `af01f0a` on 2026-05-29T02:07:21Z.
 - **Granularity**: standard (8 phases)
 
 ---
 
 ## Current Position
 
-Phase: post-Phase-5 shipped / Phase 6 planning gate
-Plan: post-PR-30 state refresh
-Branch: `main`
-Main HEAD: `ee50880b08410ad2194b0ffe146f4de2a1f72cc2`
+Phase: Phase 6 Billing — PLANNED, ready to execute (implementation not started)
+Plan: 6 plans drafted + plan-check PASSED (06-01..06-06)
+Branch: `gsd/phase-6-billing` (rebased onto `main` `af01f0a`)
+Main HEAD: `af01f0a6378ab3c38421d5d495da8a72ee7e6887` (PR #31)
 
 - **Phase 1** — Foundation **complete** (2026-05-16; 5/5 plans; PR #1 merged)
 - **Phase 2** — Data Layer **complete** (2026-05-18; 7/7 plans = 6 main + 02-07 hotfix; verify:phase-2 8/8 OK; PR #2 squash-merged to `main` @ `130b8ab` on 2026-05-19)
 - **Phase 3** — Admin UI **SHIPPED** (2026-05-20; 15/15 plans; PR #3 squash-merged to `main` @ `edebab7`; 3 fast-follows shipped PR #5/#7/#13; 3-audit cascade complete PR #8/#10/#11; closure test PR #9; state bookkeeping PR #12)
 - **Phase 4** — AI Layer **SHIPPED** (2026-05-22; 14/14 plans; PR #15 squash-merged to `main` @ `f8207f4`; post-merge cleanup PR #17 @ `eda7bb4`; 60/60 STRIDE threats CLOSED; UAT 5/5 PASS with real-key Anthropic smoke verifying SPEC R4 cache mechanics)
 - **Phase 5** — Employee Portal **SHIPPED** (2026-05-27; PR #27 "Phase 5: Employee Portal" merged to `main` at `3344847`, parent `c50b317`; `gsd/phase-5-employee-portal` branch is gone).
-- **Progress**: 5 / 8 phases shipped (63%); Phase 6 is planning-only/paused; Phases 6-8 are not complete.
+- **Phase 6** — Billing **PLANNED** (2026-05-29; 6 plans 06-01..06-06; `gsd-plan-checker` PASSED; ready to execute; implementation NOT started)
+- **Progress**: 5 / 8 phases shipped (63%); Phase 6 planned & ready-to-execute; Phases 6-8 not complete.
 
 ```text
 [#####---] 5/8 phases shipped - Foundation done / Data Layer done / Admin UI done / AI Layer done / Employee Portal shipped
 ```
 
-**Next action**: Resume Phase 6 only through the intentional GSD branch/spec/plan path when Matthew chooses. Do not treat Phase 6 implementation as started until that path is deliberately resumed.
+**Next action**: Phase 6 is planned and plan-checked on `gsd/phase-6-billing`. When Matthew chooses, `/clear` then run `/gsd:execute-phase 6` (Wave 0 has operator-gated checkpoints: `pnpm add stripe`, populate 9 Stripe env vars, create 6 Stripe products, apply the additive `0012` migration to TEST DB). Do not begin implementation before that deliberate step.
 
 **Fast-follow PR backlog** (3 sequential PRs, originally scoped from PR #3 carry-forward):
 
@@ -251,6 +252,8 @@ Surfaced by `/pr-review-toolkit:review-pr` against PR #1 head `e3689d3` (silent-
 
 - **Resume 2026-05-24 (post-CR-rereview-fix, PR #27 wait state)**: Session resumed via `/gsd-resume-work` in fresh context. No HANDOFF.json, no `.continue-here.md`, no incomplete plans, no in-flight agents. All 10 Phase 5 plan SUMMARYs present (the heuristic flag on 4 plans is a false positive — short-form `05-04-SUMMARY.md` / `05-05-SUMMARY.md` / `05-09-SUMMARY.md` / `05-10-SUMMARY.md` vs long-form `05-NN-<slug>-SUMMARY.md`). Branch `gsd/phase-5-employee-portal` @ `e997e70` (57 ahead of `main` @ `c50b317`); clean tree except untracked `Designprototypes/ookingforsomethingmoreaggressiveandcutting....html` (operator design exploration, non-GSD, leave alone). **PR #27 live state on resume**: `state=OPEN`, `mergeable=MERGEABLE`, `mergeStateStatus=UNSTABLE`, `reviewDecision=CHANGES_REQUESTED` (CR verdict on prior HEAD `44d4b16`), `statusCheckRollup` CodeRabbit `PENDING` since 2026-05-24T15:11:07Z (re-reviewing `e997e70`). CR's 3 actionable findings from 07:57Z review all addressed by the latest commit: (1) `05-01-schema-migrations-SUMMARY.md` credential-incident operational details (env-file paths / password segments / run commands) redacted; (2) `05-10-SUMMARY.md` Task 2 contradiction (line 44 pending vs line 82 approved) reconciled to approved; (3) `05-QUESTIONS.html` save targets fixed from Phase-4 `04-QUESTIONS.json` to `05-QUESTIONS.json` at lines 1277/1298/1309. Wait state — next external signal is CR's re-review verdict on `e997e70`. **Operator chose**: start Phase 6 (Billing) spec in parallel — Wave 2 candidate per ADR-029 (Phase 6 depends on Phase 4 which SHIPPED to main, NOT on Phase 5). Phase 6 branch `gsd/phase-6-billing` to be cut off `main` @ `c50b317`, independent of PR #27 lifecycle. Phase 6 SC summary per ROADMAP §144-156: 6 Stripe products in Dashboard, 5-event webhook (`checkout.session.completed` + `invoice.paid` + `invoice.payment_failed` + `customer.subscription.deleted` + `customer.subscription.updated`) with raw-body signature verify + `stripe_events` idempotency, full checkout→webhook→DB-sync→tier-gate cycle surviving simulated `invoice.paid` renewal, `checkTierLimit(orgId, feature)` returning `{allowed, limit, current}` + Starter org getting `{error:'tier_limit_exceeded', upgradeUrl:'/pricing'}` 403 on Growth-only features, Customer Portal link from admin settings. Anchoring decisions ADR-013/017/020. **Next**: `/gsd-spec-phase 6` to clarify WHAT before discuss/plan. Carry-forward unchanged: SF-WHSEC-1 (Clerk webhook secret pasted in chat during Phase 2 — rotate via Svix Dashboard before any Phase 7 webhook live-smoke).
 
+- **2026-05-29 Phase 6 plan-phase session (Claude Code, opus 4.8, xhigh; resume from paused `ready_for_planning`)**: Resumed the paused `gsd/phase-6-billing` branch (spec+discuss were already complete and operator-approved). **Rebased the branch onto `main` `af01f0a`** — conflict-free (the branch's 6 commits touched only `.planning/HANDOFF.json` + `06-billing/*`, disjoint from PR #30/#31); the branch now carries the PR #30 operating layer + PR #31 state refresh (new tips `3f3d9ea..49e2a1d`). Ran a read-only pre-plan adversarial critique first → PASS (no Critical/High; surfaced M1 checkout success/cancel URLs, M2 webhook HTTP-status matrix, M3 past_due grace, L1 null-subscription≠trialing, L2 multi-org checkout test, L3 SF-CASCADE-AUDIT stays deferred / no org-delete path, L4 ignore uncommitted session-report). **plan-phase chain**: `gsd-phase-researcher` (sonnet) → `06-RESEARCH.md` (HIGH; `stripe@22.2.0`, migration tag `0012`, all prereqs present) + `06-VALIDATION.md` (nyquist) committed `97ca202`; `gsd-planner` (opus) → 6 plans `06-01..06-06` in 5 waves; `gsd-plan-checker` (sonnet) → **VERIFICATION PASSED** (0 blockers / 0 warnings, all 12 dimensions, nyquist Dimension 8 green). Gates injected + verified present: a `<threat_model>` STRIDE block per plan, a `[BLOCKING] pnpm db:migrate:test` task, Wave-0 operator checkpoints (`pnpm add stripe` + 9 env vars + 6 Stripe products, all `autonomous:false`), and M1–M3/L1–L4. Coverage: REQ-tier-starter/growth/business in every plan; `check.decision-coverage-plan` returned `skipped — no trackable decisions` (the D-NN parser limitation seen in Phase 5; the checker already validated D-01..D-35 coverage). `roadmap.annotate-dependencies` reverted (it mangled `**Plans**` + churned whole-file whitespace) in favor of a surgical Phase-6-only ROADMAP edit. Phase 6 = **PLANNED, ready to execute; implementation NOT started.** Consultant delta `ops/deltas/2026-05-29-phase6-plan.md`. **Next**: operator `/clear` then `/gsd:execute-phase 6` (Wave 0 operator checkpoints first). No packages installed, no migration applied, no runtime/billing code written this session.
+
 ---
 
 ## Phase Roster
@@ -262,6 +265,6 @@ Surfaced by `/pr-review-toolkit:review-pr` against PR #1 head `e3689d3` (silent-
 | 3 | Admin UI | REQ-policy-library, REQ-policy-lifecycle, REQ-access-control | Shipped — PR #3 @ `edebab7` (2026-05-20). Fast-follows: PR #5 ADR-026 typed errors @ `bf65712`, PR #7 ADR-027 lookup-scoping @ `c6dca6a`. Audit cascade (security/validation/verification) complete via PR #8/#10/#11 — PR #8 SHIPPED @ `5a57000` (SECURED 67/67 STRIDE); PR #10 + #11 OPEN. VALIDATION-2.7 closure via PR #9 OPEN (10-assertion `check:policies-list-filters`). PR 3.3 ADR-028 PolicyId brand still queued. |
 | 4 | AI Layer | REQ-ai-policy-assistant, REQ-ai-usage-rules | **SHIPPED** — PR #15 squash-merged to `main` @ `f8207f4` (2026-05-22; 14/14 plans + UAT 5/5 + gsd-security-auditor 60/60 STRIDE CLOSED + real-key Anthropic smoke verifying SPEC R4 cache mechanics for ~$0.021 spend). Post-merge cleanup PR #17 @ `eda7bb4` (one-shot HANDOFF artifact deletions). Deploy-prep PR in flight (chore/phase-4-deploy-prep) — staging/prod migration infrastructure (verifier, runbook, CI workflow, Vercel hook). Phase 4.5 polish backlog tracked at GitHub issue #16 (~30 deferred items). |
 | 5 | Employee Portal | REQ-acknowledgment-tracking, REQ-acknowledgment-rules | **SHIPPED** — PR #27 merged to `main` at `3344847` on 2026-05-27T22:06:16Z; 10/10 plans complete; audit remediation gates closed before merge. |
-| 6 | Billing | REQ-tier-starter, REQ-tier-growth, REQ-tier-business | Planning-only / paused; implementation not started. |
+| 6 | Billing | REQ-tier-starter, REQ-tier-growth, REQ-tier-business | Planned 2026-05-29 — 6 plans (06-01..06-06), gsd-plan-checker PASSED, ready to execute; implementation not started. |
 | 7 | Crons + Email | REQ-notification-system | Not started |
 | 8 | Validation | REQ-compliance-dashboard, REQ-integrations, REQ-acceptance-criteria | Not started |

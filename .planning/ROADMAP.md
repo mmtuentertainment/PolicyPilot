@@ -143,7 +143,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 **UI hint**: yes
 
 ### Phase 6: Billing
-**Status**: Pending/planning-only. Do not treat Phase 6 implementation as started until the proper Phase 6 branch/spec/plan path is intentionally resumed.
+**Status**: Planned (2026-05-29) — spec + discuss + plan complete on `gsd/phase-6-billing`; `gsd-plan-checker` PASSED. Ready to execute. Implementation NOT started — do not begin until the operator runs `/gsd:execute-phase 6`.
 **Goal**: A new sign-up can pick a plan, complete Stripe Checkout, see their org's `planTier` synced from the webhook, hit tier limits with a clear 403 + upgrade prompt, and have their subscription survive the first billing-cycle renewal automatically.
 **Depends on**: Phase 4 *(amended by ADR-029 2026-05-21; was Phase 5 — `checkTierLimit` is the binding dependency per Phase 4 SC #1/#5, not the employee portal; eligible for Wave 2 parallel with Phase 7)*
 **Requirements**: REQ-tier-starter, REQ-tier-growth, REQ-tier-business
@@ -154,7 +154,19 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
   3. A full checkout → webhook → DB sync → tier-gate cycle works end-to-end without manual intervention: a Stripe test-mode subscription survives one simulated billing-cycle renewal (`invoice.paid`) and `organizations.planTier` remains correct (REQUIREMENTS.md §10 #6).
   4. `checkTierLimit(orgId, feature)` returns the correct `{allowed, limit, current}` shape; a Starter org attempting a Growth-only feature (e.g. `consistencyCheck`) receives a 403 with `{ error: 'tier_limit_exceeded', upgradeUrl: '/pricing' }`.
   5. Customer Portal link from the admin settings page allows the org admin to update payment method and view invoices via Stripe-hosted UI.
-**Plans**: TBD
+**Plans**: 6 plans (planned 2026-05-29; `gsd-plan-checker` PASSED; ready to execute — implementation NOT started)
+
+- Wave 0 (foundation — operator-gated):
+  - [ ] 06-01-foundation-catalog-migration-PLAN.md — Stripe SDK install + 9 env vars + 6 Stripe products (operator) · closed price catalog · client singleton · mask helpers · additive `0012` migration applied to TEST DB (BLOCKING `db:migrate:test`)
+- Wave 1 (parallel):
+  - [ ] 06-02-stripe-webhook-PLAN.md — `POST /api/webhooks/stripe`: raw-body signature verify · 5-event dispatch · canonical Subscription re-fetch · transaction-scoped `stripe_events` idempotency · fail-closed org mapping
+  - [ ] 06-03-tier-gates-maxusers-PLAN.md — `maxUsers` real org-scoped count in `checkTierLimit` + Phase 4 403/429 tier-contract regression guard
+- Wave 2:
+  - [ ] 06-04-checkout-pricing-PLAN.md — admin-only `createCheckoutSessionAction` (server-derived org/price/metadata · dup-subscription guard · success/cancel URLs) + pricing-page monthly/annual intent
+- Wave 3:
+  - [ ] 06-05-admin-settings-portal-PLAN.md — `/settings` billing page + Customer Portal action (DB `stripeCustomerId` only) + sidebar/middleware wiring
+- Wave 4:
+  - [ ] 06-06-verify-chain-ci-uat-PLAN.md — cumulative `verify:phase-6` + schema/artifact verifier extensions + hosted CI + secret-safe Stripe test-mode UAT checklist
 **UI hint**: yes
 
 ### Phase 7: Crons + Email
@@ -195,6 +207,6 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 | 3. Admin UI | 15/15 | Complete | 2026-05-20 |
 | 4. AI Layer | 14/14 | Complete | 2026-05-22 |
 | 5. Employee Portal | 10/10 | Complete - shipped via PR #27 at `3344847` | 2026-05-27 |
-| 6. Billing | 0/0 | Pending / planning-only; implementation not started | - |
+| 6. Billing | 0/6 | Planned — plan-check PASSED, ready to execute (impl not started) | 2026-05-29 (planned) |
 | 7. Crons + Email | 0/0 | Not started | - |
 | 8. Validation | 0/0 | Not started | - |
