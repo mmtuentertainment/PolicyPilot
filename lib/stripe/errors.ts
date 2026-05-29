@@ -38,3 +38,21 @@ export class TierLimitExceededError extends Error {
     this.name = 'TierLimitExceededError';
   }
 }
+
+export class StripeConfigError extends Error {
+  public readonly code = 'STRIPE_CONFIG_ERROR' as const;
+
+  constructor(public readonly envVar: string) {
+    super(`Stripe configuration error: required env var ${envVar} is not configured`);
+    this.name = 'StripeConfigError';
+  }
+}
+
+export class StripeCatalogConfigError extends Error {
+  public readonly code = 'STRIPE_CATALOG_CONFIG_ERROR' as const;
+
+  constructor(message: string) {
+    super(`Stripe catalog configuration error: ${message}`);
+    this.name = 'StripeCatalogConfigError';
+  }
+}

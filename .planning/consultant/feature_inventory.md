@@ -1,6 +1,6 @@
 # Consultant Feature Inventory — PolicyPilot
 
-Updated: 2026-05-29
+Updated: 2026-05-29 - Phase 6 Plan 06-01 foundation complete
 
 Use this file to keep the product surface tied to revenue, risk, and the beat-manual gate. Update it whenever a feature ships, changes scope, moves phase, or becomes intentionally deferred.
 
@@ -34,9 +34,9 @@ Scoring:
 | Employee assigned-policies dashboard | 5 | Shipped | Employee | Direct | High | High | Shipped in PR #27; future phases must preserve assignment visibility and tenant scoping. |
 | Append-only acknowledgment flow | 5 | Shipped / monitor | Employee/admin/auditor | Direct | High | High | Shipped in PR #27; future phases must preserve append-only audit integrity. |
 | Notification records | 5-7 | Partial/Pending | System/employee | Indirect | Medium | Medium | Becomes valuable once email reminders ship. |
-| Stripe Checkout | 6 | Planned | Buyer/admin | Direct | Low | Medium | Plan 06-04 plan-check PASSED; admin-only server-side checkout, dup-sub guard, success/cancel URLs. Ready to execute. |
-| Stripe 5-event webhook | 6 | Planned | System | Direct/Defensive | Medium | High | Plan 06-02: raw-body verify + transaction-scoped idempotency + canonical Subscription re-fetch; all 5 events + M2 status matrix locked. |
-| Tier gating | 6 | Planned | Admin/system | Direct | Medium | High | Plan 06-03: real `maxUsers` count; Phase-4 403/429 contract preserved. Turns AI + advanced features into monetizable packaging. |
+| Stripe Checkout | 6 | Planned | Buyer/admin | Direct | Low | Medium | Plan 06-04 plan-check PASSED; admin-only server-side checkout, dup-sub guard, success/cancel URLs. 06-01 foundation now complete; checkout itself is still pending. |
+| Stripe 5-event webhook | 6 | Planned | System | Direct/Defensive | Medium | High | Plan 06-02: raw-body verify + transaction-scoped idempotency + canonical Subscription re-fetch; all 5 events + M2 status matrix locked. 06-01 billing columns now exist in TEST DB. |
+| Tier gating | 6 | Planned | Admin/system | Direct | Medium | High | Plan 06-03: real `maxUsers` count; Phase-4 403/429 contract preserved. Turns AI + advanced features into monetizable packaging; gating remains pending after 06-01. |
 | Railway reminders worker | 7 | Pending | Employee/system | Indirect | High | Medium | Drives completion rates; must be idempotent. |
 | Resend email templates | 7 | Pending | Employee/admin | Indirect | Medium | Medium | Operational glue; avoid over-design before reminder rules are stable. |
 | Compliance dashboard | 8 | Pending | Admin/auditor | Direct | High | Medium | Important buyer-visible proof once acknowledgments exist. |

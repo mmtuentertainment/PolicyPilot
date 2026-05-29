@@ -1,6 +1,6 @@
 # Consultant Risk Register — PolicyPilot
 
-Updated: 2026-05-29 - Phase 6 plan-phase
+Updated: 2026-05-29 - Phase 6 Plan 06-01 foundation complete
 
 Scoring: Probability 1-5, Impact 1-5, Score = P × I. Keep this register focused on risks that affect launch, revenue readiness, tenant trust, or the beat-manual gate.
 
@@ -11,7 +11,7 @@ Scoring: Probability 1-5, Impact 1-5, Score = P × I. Keep this register focused
 | R-001 | Phase 5 shipped state is not reflected in live planning docs, causing future sessions to reopen closed hardening work. | Ops/Knowledge | 1 | 4 | 4 | Closed by this patch | PR #27 merge facts recorded in `STATE`, `ROADMAP`, consultant packets, and the delta report. |
 | R-002 | Tenant isolation regression through a future raw DB import, missing `org_id` filter, or RLS policy drift. | Security/Data | 2 | 5 | 10 | Controlled/Open | Preserve repository-first access, `check:db-imports`, `check:rls`, and migration verifier gates. Add review focus to every DB-touching PR. |
 | R-003 | Acknowledgment audit integrity weakened by future update/delete paths, version mismatch, or re-acknowledgment edge cases. | Product/Compliance | 2 | 5 | 10 | Controlled/Open | Phase 5 shipped with append-only gates; keep those checks active when later phases touch policy or acknowledgment surfaces. |
-| R-004 | Stripe billing implementation misses renewal/failure/cancel/update events or idempotency. | Revenue/Ops | 3 | 5 | 15 | Controlled/Planned | Phase 6 plan (06-02) locks all 5 events + transaction-scoped `stripe_events` idempotency + canonical Subscription re-fetch + M2 HTTP-status matrix; PASSED gsd-plan-checker. Score stays 15 until execution + Stripe test-clock UAT prove renewal survival (ROADMAP SC#3 / §10 #6). |
+| R-004 | Stripe billing implementation misses renewal/failure/cancel/update events or idempotency. | Revenue/Ops | 3 | 5 | 15 | Controlled/Planned | Plan 06-01 foundation is complete (catalog/client/mask + TEST DB billing columns). Phase 6 plan (06-02) still locks all 5 events + transaction-scoped `stripe_events` idempotency + canonical Subscription re-fetch + M2 HTTP-status matrix. Score stays 15 until webhook execution + Stripe test-clock UAT prove renewal survival (ROADMAP SC#3 / §10 #6). |
 | R-005 | AI costs or retries exceed assumptions if tier gates, prompt caching, Batch API, or logging drift. | Cost/Product | 3 | 4 | 12 | Controlled/Open | Keep Claude calls server-only, tier-gated, max-retry bounded, and logged to `ai_generations`. |
 | R-006 | Reminder/email jobs duplicate sends or create noisy employee experience. | Ops/Product | 3 | 4 | 12 | Pending | Phase 7 worker must use idempotency keys or send-state rows, plus safe retry semantics. |
 | R-007 | Product fails the beat-manual gate despite feature completion. | Market/Product | 3 | 5 | 15 | Open | Phase 8 must measure real workflow time: signup → draft → publish → assign → acknowledge → export. |
