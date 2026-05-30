@@ -1,11 +1,11 @@
 # PolicyPilot Phase 6 Billing Consult Brief
 
-**Produced:** 2026-05-28  
-**Audience:** ChatGPT Pro / external architecture reviewer  
-**Repo:** https://github.com/mmtuentertainment/PolicyPilot  
-**Local branch:** `gsd/phase-6-billing`  
-**Planning source commit reviewed:** `dd44278 docs(06): reconcile billing plan guardrails`  
-**Base main observed locally:** `3344847 Phase 5: Employee Portal`  
+**Produced:** 2026-05-28
+**Audience:** ChatGPT Pro / external architecture reviewer
+**Repo:** https://github.com/mmtuentertainment/PolicyPilot
+**Local branch:** `gsd/phase-6-billing`
+**Planning source commit reviewed:** `dd44278 docs(06): reconcile billing plan guardrails`
+**Base main observed locally:** `3344847 Phase 5: Employee Portal`
 **Remote branch / PR:** none observed at production time. The branch is local-only, so the GitHub repo link shows `main`, not these Phase 6 planning commits.
 
 ## Reviewer Mission

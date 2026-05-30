@@ -224,7 +224,7 @@ STRIPE_PRICE_GROWTH_ANNUAL, STRIPE_PRICE_BUSINESS_MONTHLY, STRIPE_PRICE_BUSINESS
   </read_first>
   <how-to-verify>
     1. Run `pnpm db:migrate:test` to apply 0012 to the TEST DB via forward migration (this is the established Phase 4/5 pattern — do NOT use `drizzle-kit push`). Requires `.env.local.test` DB creds (operator-held).
-    2. Confirm the migration applied: `drizzle.__drizzle_migrations` count on the TEST DB matches the journal length (13 entries: 0000..0012). 
+    2. Confirm the migration applied: `drizzle.__drizzle_migrations` count on the TEST DB matches the journal length (13 entries: 0000..0012).
     3. Confirm the 5 columns + 2 partial indexes exist on `organizations` in the TEST DB.
   </how-to-verify>
   <acceptance_criteria>
