@@ -1,7 +1,7 @@
 ---
 phase: 06-billing
 plan: 06-06
-status: verifier-green-uat-partial
+status: verifier-green-uat-complete
 completed_at: 2026-05-29
 scope: phase-6-verifier-ci-uat
 ---
@@ -11,7 +11,8 @@ scope: phase-6-verifier-ci-uat
 ## Outcome
 
 Plan 06-06 verifier wiring is complete on `gsd/phase-6-billing`, and the
-post-fix verifier state is green.
+post-fix verifier state is green. The previously open test-clock UAT rows are
+now complete.
 
 This patch adds the cumulative Phase 6 verifier script, extends schema and
 artifact gates for billing closeout, adds a hosted GitHub Actions workflow for
@@ -21,8 +22,7 @@ checklist.
 Phase 6 is not shipped. After the follow-up checkout fix and operator DB/UAT
 work, additive migration `0012_billing_state` is applied to the approved
 TEST/dev Supabase target, `pnpm db:verify` passes, and `pnpm verify:phase-6`
-passes. Live Stripe test-mode UAT has rows 1-8 and 11 PASS, row 9 PARTIAL, and
-row 10 NOT RUN live.
+passes. Live Stripe test-mode UAT now has rows 1-11 PASS.
 
 `b92a15f` fixed the launch-blocking checkout bug discovered during UAT:
 `createCheckoutSessionAction` blocked first checkout for new orgs seeded as
@@ -123,10 +123,11 @@ Vitest path filters.
   tier-gate transition, portal return, portal state-truth behavior, and
   cancel/unpaid downgrade have masked live Stripe test-mode evidence in
   `06-UAT.md`.
-- Renewal is PARTIAL: `invoice.paid` resend kept Growth/active, but true
-  next-period renewal still requires Stripe test clock.
-- Payment failure is NOT RUN live: it requires Stripe test clock plus failing
-  card; handler logic is unit-tested.
+- Renewal is PASS: a true test-clock renewal produced a fresh `invoice.paid`
+  event and kept the org Growth/active.
+- Payment failure is PASS: a test-clock failure produced
+  `invoice.payment_failed`, and the app observed Growth/`past_due` without
+  immediate downgrade at first failure.
 - No live mode and no live keys were used.
 
 ## Scans
@@ -148,9 +149,7 @@ Vitest path filters.
 
 ## Remaining
 
-- Finish Stripe test-clock UAT rows 9 and 10 with masked-only evidence.
-- Reconcile the Stripe CLI/login/webhook-secret account with the app
-  `STRIPE_SECRET_KEY` test account before more live webhook testing.
-- Push/open the Phase 6 PR only after keep-current and UAT completion.
+- Review the final UAT-complete handoff with ChatGPT before PR publication.
+- Push/open the Phase 6 PR only after Matthew explicitly chooses that path.
 - Do not mark Phase 6 shipped until UAT is complete, a PR exists, CI is green,
   and Matthew chooses the ship path.

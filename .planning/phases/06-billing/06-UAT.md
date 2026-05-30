@@ -2,7 +2,7 @@
 phase: 06-billing
 plan: 06-06
 type: uat-checklist
-status: uat-partial-9-of-11-live-verified
+status: uat-complete-11-of-11-live-verified
 created_at: 2026-05-29
 ---
 
@@ -28,11 +28,11 @@ every required row below and Matthew chooses the PR/ship path.
   Supabase target; this does not represent staging/prod migration approval.
 - `pnpm db:verify` PASSes.
 - `pnpm verify:phase-6` PASSes.
-- Live Stripe test-mode UAT verified rows 1-8 and 11.
-- Row 9 is PARTIAL: `invoice.paid` resend kept Growth/active, but a true
-  next-period renewal still requires a Stripe test clock.
-- Row 10 is NOT RUN live: it requires a Stripe test clock plus failing card;
-  handler logic is unit-tested.
+- Live Stripe test-mode UAT verified rows 1-11.
+- Row 9 PASS: a true test-clock renewal produced a fresh `invoice.paid` and
+  kept the org Growth/active.
+- Row 10 PASS: a test-clock payment failure produced `invoice.payment_failed`
+  and the app observed Growth/`past_due` without immediate downgrade.
 - No live mode and no live keys were used.
 - Launch-blocking checkout bug fixed in `b92a15f`: first checkout for new orgs
   seeded as `trialing` by Clerk `organization.created` now proceeds unless the
@@ -91,8 +91,8 @@ Notes:
 | 6 | Linked admin can create a Customer Portal session using the stored customer ID only. | PASS | Linked admin used stored customer `cus_***rYU5`; portal URL was not recorded. |
 | 7 | Portal return goes to trusted `${APP_URL}/settings`. | PASS | Return destination observed as the settings page only; no tokenized Stripe dashboard or portal URL recorded. |
 | 8 | Portal update/cancel flows do not directly mutate local subscription state outside webhook/database truth. | PASS | Portal-side action did not directly mutate app state; local billing state changed only through webhook/database truth. |
-| 9 | Simulated renewal produces `invoice.paid` and keeps plan tier correct. | PARTIAL | `invoice.paid` resend kept Growth/active for `org_***d5ff75`, customer `cus_***rYU5`, subscription `sub_***wVxy`; true next-period renewal still requires Stripe test clock. |
-| 10 | Simulated payment failure produces `invoice.payment_failed` and `past_due` without immediate downgrade. | NOT RUN live | Requires Stripe test clock plus failing card. Handler logic is unit-tested; no live test-mode payment-failure event was run. |
+| 9 | Simulated renewal produces `invoice.paid` and keeps plan tier correct. | PASS | Test-clock renewal produced fresh `invoice.paid` event `evt_***Q1PA` for org `org_***644e12`, customer `cus_***Pmjg`, subscription `sub_***3MCc`, clock `clock_***sGj8`; DB observed Growth/active and `cancelAtPeriodEnd=false`. |
+| 10 | Simulated payment failure produces `invoice.payment_failed` and `past_due` without immediate downgrade. | PASS | Test-clock payment failure produced `invoice.payment_failed` event `evt_***oOKc` for org `org_***b495c9`, customer `cus_***scf6`, subscription `sub_***4M2U`, clock `clock_***NAHe`; DB observed Growth/`past_due` and `cancelAtPeriodEnd=false` at first failure, before any later terminal retry/deletion behavior. |
 | 11 | Canceled or unpaid subscription downgrades to Starter and preserves acknowledgment and AI audit rows. | PASS | Test subscription `sub_***wVxy` cancellation/unpaid path downgraded to Starter while preserving organization, acknowledgment, and AI audit rows. |
 
 ## Deferred Or Accepted Limits
@@ -102,11 +102,13 @@ Notes:
   acknowledgments, and `ai_generations`.
 - `past_due` is an accepted MVP dunning state: the app should not immediately
   downgrade until Stripe escalates to a non-entitling subscription state.
-- Stripe account mismatch is an ops risk: the app `STRIPE_SECRET_KEY` account
-  differed from the CLI/login/webhook-secret account during local testing.
-  `.env.local` was realigned locally without reproducing any secret values in
-  tracked docs. Reconcile CLI login, webhook secret, and app test credentials
-  before more live webhook testing.
+- Stripe account mismatch reconciled for this local UAT: the default Stripe CLI
+  profile still reports a different masked account than the app test key, so
+  this run used a `STRIPE_API_KEY` environment override sourced from the app
+  test key. The app test key and CLI override targeted `acct_***ujJo`; the
+  active listener webhook secret was captured in-process, injected into the
+  local dev server process, and not printed or committed. Temporary listener
+  logs were deleted after UAT.
 - Clerk dev org provisioning without a webhook tunnel can produce
   `OrgNotProvisionedError`. Treat this as a dev ops/process gap, not a Phase 6
   code blocker.
@@ -115,5 +117,5 @@ Notes:
 
 ## Operator Sign-Off
 
-Do not mark this checklist complete until rows 9 and 10 are finished with
-masked-only evidence and all required rows are PASS.
+All rows are PASS with masked-only evidence. Phase 6 is still not shipped until
+Matthew chooses the PR/ship path after ChatGPT reviews the final handoff.
