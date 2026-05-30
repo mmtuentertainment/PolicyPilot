@@ -53,7 +53,7 @@ coverage. `b818805` added the historical forensic realignment brief on top.
 - `ops/deltas/2026-05-29-phase6-06-06-verifier-uat.md`: added the original
   verifier/UAT delta.
 - `ops/deltas/2026-05-29-phase6-uat-fix.md`: records the post-fix verifier
-  green/UAT-partial state.
+  green/intermediate UAT state.
 
 ## GSD Stage
 
@@ -84,10 +84,10 @@ Used ctx7 before verifier decisions:
 
 - Original 06-06 startup state checks - PASS: branch `gsd/phase-6-billing`,
   clean start, exact expected HEAD `0baee191a405a1bf4eead13f360d1fb6c55a40d6`,
-  no upstream, no PR, and branch descended from `ee50880`.
+  pre-publication state, and branch descended from `ee50880`.
 - Post-fix keep-current preflight - PASS: branch `gsd/phase-6-billing`, clean
   start, exact expected HEAD `b81880546576af6f41e20f99671d75efe8053e3a`,
-  parent `b92a15f610a3b848358d089c72a96176f9588da1`, no upstream, no PR.
+  parent `b92a15f610a3b848358d089c72a96176f9588da1`, pre-publication state.
 - 06-05 summary/delta/consultant consistency - PASS; 06-05 was present and
   pointed to 06-06 as the next micro-batch.
 - `pnpm vitest run "app/(admin)/settings/actions.test.ts"` - PASS, 20 tests.
@@ -149,18 +149,24 @@ Vitest path filters.
 
 ## Remaining
 
-- Review the final UAT-complete handoff with ChatGPT before PR publication.
-- Push/open the Phase 6 PR only after Matthew explicitly chooses that path.
-- Do not mark Phase 6 shipped until UAT is complete, a PR exists, CI is green,
-  and Matthew chooses the ship path.
+- Review the UAT-complete / draft-PR-open handoff with ChatGPT before ship.
+- Keep draft PR #32 open from `gsd/phase-6-stripe-uat-complete` against `main`;
+  do not mark it ready, merge it, or ship Phase 6 until Matthew chooses that
+  path.
+- Hosted `Verify Phase 6` fails closed until the required GitHub repository
+  secrets are configured by the operator. Do not weaken the gate, add dummy
+  secrets, configure secrets in code, or use live Stripe mode.
 
 ## Publication Status (2026-05-30)
 
 Draft **PR #32** ("docs(phase-6): record Stripe test-clock UAT completion") is
-now open against `main` from branch `gsd/phase-6-stripe-uat-complete` (head
-`660df0d`); it must remain **draft and unmerged** until Matthew chooses the ship
-path. The hosted `Verify` workflow is green on the PR head; the hosted
+now open against `main` from branch `gsd/phase-6-stripe-uat-complete`; current
+head is tracked by GitHub PR metadata and may advance with docs-only follow-ups.
+Initial publication head: `660df0d`. It must remain **draft and unmerged** until
+Matthew chooses the ship path. The hosted `Verify` workflow is green on the PR
+head; the hosted
 `Verify Phase 6` check fails closed because the required GitHub repository
 secrets are not yet configured — operator action, not a repo-code defect. The
-fail-closed gate must not be weakened or fed dummy secrets, and no live Stripe
-mode is to be used. See `ops/deltas/2026-05-30-phase6-pr32-draft-open.md`.
+fail-closed gate must not be weakened or fed dummy secrets, no secrets should be
+configured in code, and no live Stripe mode is to be used. See
+`ops/deltas/2026-05-30-phase6-pr32-draft-open.md`.

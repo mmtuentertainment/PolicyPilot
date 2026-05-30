@@ -13,7 +13,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 - [x] **Phase 3: Admin UI** — Policy library, TipTap editor, full lifecycle (Draft → Published → Archived). ✓ 2026-05-20 (12 main plans 03-00..03-11 + 3 gap-closure plans 03-G1/G2/G3 = 15 total; 6/6 HUMAN-UAT PASS; verify:phase-2 8/8 OK; verify:phase-3 8 gates + 270/270 artifacts + 53/53 vitest)
 - [x] **Phase 4: AI Layer** — Draft generation, TL;DR summaries, Employee Q&A, Consistency Check (Growth+). ✓ 2026-05-22
 - [x] **Phase 5: Employee Portal** — Assigned-policies dashboard + append-only acknowledgment flow. Shipped via PR #27 at `3344847` on 2026-05-27T22:06:16Z.
-- [ ] **Phase 6: Billing** — Stripe Checkout + 5-event webhook + tier gating via `TIER_LIMITS`. Verifying/UAT/ship-prep; 6/6 plans committed, verifier green, UAT partial; not shipped.
+- [ ] **Phase 6: Billing** — Stripe Checkout + 5-event webhook + tier gating via `TIER_LIMITS`. Verifying/UAT-complete/ship-prep; 6/6 plans committed, live Stripe test-mode UAT 11/11 PASS, draft PR #32 open; not shipped or merged.
 - [ ] **Phase 7: Crons + Email** — Railway worker + Resend templates + idempotent reminders.
 - [ ] **Phase 8: Validation** — Compliance dashboard + CSV export + all 8 acceptance criteria green.
 
@@ -143,7 +143,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 **UI hint**: yes
 
 ### Phase 6: Billing
-**Status**: Verifying/UAT/ship-prep (2026-05-30) — spec + discuss + research + validate + plan complete on local-only `gsd/phase-6-billing`; plans 06-01..06-06 are committed; `pnpm db:verify` and `pnpm verify:phase-6` pass; live Stripe test-mode UAT rows 1-8 and 11 PASS, row 9 PARTIAL, row 10 NOT RUN. Phase 6 is not shipped, no PR is open, and the branch has no upstream.
+**Status**: Verifying/UAT-complete/ship-prep (2026-05-30) — spec + discuss + research + validate + plan complete; plans 06-01..06-06 are committed; `pnpm db:verify` and `pnpm verify:phase-6` pass locally; live Stripe test-mode UAT rows 1-11 are PASS with masked-only evidence. Draft PR #32 is open from `gsd/phase-6-stripe-uat-complete` against `main`. Phase 6 is not shipped or merged. Hosted `Verify Phase 6` fails closed because required GitHub repository secrets are missing/unset; this is operator configuration, not a code defect. Do not weaken the gate, add dummy secrets, configure secrets in code, or use live Stripe mode.
 **Goal**: A new sign-up can pick a plan, complete Stripe Checkout, see their org's `planTier` synced from the webhook, hit tier limits with a clear 403 + upgrade prompt, and have their subscription survive the first billing-cycle renewal automatically.
 **Depends on**: Phase 4 *(amended by ADR-029 2026-05-21; was Phase 5 — `checkTierLimit` is the binding dependency per Phase 4 SC #1/#5, not the employee portal; eligible for Wave 2 parallel with Phase 7)*
 **Requirements**: REQ-tier-starter, REQ-tier-growth, REQ-tier-business
@@ -154,7 +154,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
   3. A full checkout → webhook → DB sync → tier-gate cycle works end-to-end without manual intervention: a Stripe test-mode subscription survives one simulated billing-cycle renewal (`invoice.paid`) and `organizations.planTier` remains correct (REQUIREMENTS.md §10 #6).
   4. `checkTierLimit(orgId, feature)` returns the correct `{allowed, limit, current}` shape; a Starter org attempting a Growth-only feature (e.g. `consistencyCheck`) receives a 403 with `{ error: 'tier_limit_exceeded', upgradeUrl: '/pricing' }`.
   5. Customer Portal link from the admin settings page allows the org admin to update payment method and view invoices via Stripe-hosted UI.
-**Plans**: 6 plans (planned 2026-05-29; all implemented and committed by 2026-05-30; verifier green; UAT partial; ship pending)
+**Plans**: 6 plans (planned 2026-05-29; all implemented and committed by 2026-05-30; local verifier green; UAT 11/11 PASS; draft PR #32 open; ship pending)
 
 - Wave 0 (foundation — operator-gated):
   - [x] 06-01-foundation-catalog-migration-PLAN.md — Stripe SDK install + 9 env vars + 6 Stripe products (operator) · closed price catalog · client singleton · mask helpers · additive `0012` migration applied to TEST DB (BLOCKING `db:migrate:test`)
@@ -166,7 +166,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 - Wave 3:
   - [x] 06-05-admin-settings-portal-PLAN.md — `/settings` billing page + Customer Portal action (DB `stripeCustomerId` only) + sidebar/middleware wiring
 - Wave 4:
-  - [x] 06-06-verify-chain-ci-uat-PLAN.md — cumulative `verify:phase-6` + schema/artifact verifier extensions + hosted CI + secret-safe Stripe test-mode UAT checklist; verifier is green, UAT remains partial (rows 9-10 need test-clock completion)
+  - [x] 06-06-verify-chain-ci-uat-PLAN.md — cumulative `verify:phase-6` + schema/artifact verifier extensions + hosted CI + secret-safe Stripe test-mode UAT checklist; local verifier is green, UAT rows 1-11 PASS with masked-only evidence, and hosted `Verify Phase 6` fails closed until required GitHub repository secrets are configured by the operator
 **UI hint**: yes
 
 ### Phase 7: Crons + Email
@@ -207,6 +207,6 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 | 3. Admin UI | 15/15 | Complete | 2026-05-20 |
 | 4. AI Layer | 14/14 | Complete | 2026-05-22 |
 | 5. Employee Portal | 10/10 | Complete - shipped via PR #27 at `3344847` | 2026-05-27 |
-| 6. Billing | 6/6 | Verifying/UAT/ship-prep — verifier green; live Stripe test-mode UAT 9/11 rows verified, 1 partial, 1 not run; not shipped/no PR | 2026-05-30 (verifying) |
+| 6. Billing | 6/6 | Verifying/UAT-complete/ship-prep — local verifier green; live Stripe test-mode UAT 11/11 rows PASS; draft PR #32 open; not shipped or merged; hosted Phase 6 verifier fails closed on missing repo secrets | 2026-05-30 (verifying) |
 | 7. Crons + Email | 0/0 | Not started | - |
 | 8. Validation | 0/0 | Not started | - |

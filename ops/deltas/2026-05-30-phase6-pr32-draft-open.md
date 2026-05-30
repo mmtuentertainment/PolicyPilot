@@ -18,7 +18,10 @@ not merged.
 - Draft **PR #32** "docs(phase-6): record Stripe test-clock UAT completion" is
   open against `main`.
   - Draft: yes. Merged: no. Ready-for-review: no.
-  - Head branch: `gsd/phase-6-stripe-uat-complete`; head `660df0d`.
+  - Head branch: `gsd/phase-6-stripe-uat-complete`.
+  - Initial publication head: `660df0d`.
+  - Current PR head is tracked by GitHub PR metadata and may advance with
+    docs-only follow-ups.
   - Base: `main`. `origin/main` is an ancestor of the head (cleanly mergeable);
     `mergeStateStatus` is UNSTABLE solely because of the failing hosted verifier.
 - Developed on `gsd/phase-6-billing`; published and reviewed from the
@@ -57,11 +60,14 @@ not merged.
 
 ## Files Updated
 
-- `.planning/STATE.md` — replaced stale "local-only / no upstream / no PR /
-  not pushed / not merged" wording with the draft-PR-#32 publication state and
-  the hosted-verifier secret-config blocker; bumped `last_updated`.
+- `.planning/STATE.md` — replaced obsolete pre-publication wording with the
+  draft-PR-#32 publication state and the hosted-verifier secret-config blocker;
+  bumped `last_updated`.
+- `AGENTS.md`, `CLAUDE.md`, `.planning/ROADMAP.md` — follow-up consistency
+  pass removed obsolete pre-publication operating guidance.
 - `.planning/phases/06-billing/06-06-SUMMARY.md` — added a short
-  "Publication Status (2026-05-30)" note.
+  "Publication Status (2026-05-30)" note and qualified the initial publication
+  head as historical rather than current.
 - `ops/deltas/2026-05-30-phase6-pr32-draft-open.md` — this record.
 
 ## Consultant Keep-Current
@@ -92,8 +98,11 @@ backlog are unchanged from the 2026-05-30 test-clock UAT delta.
 
 ## Commands And Results
 
-- `gh pr view 32 --json ...` — PASS; draft, OPEN, base `main`, head `660df0d`,
-  `mergeStateStatus` UNSTABLE.
+- `gh pr view 32 --json ...` — PASS at initial publication; draft, OPEN, base
+  `main`, initial publication head `660df0d`, `mergeStateStatus` UNSTABLE.
+- `gh pr view 32 --json ...` follow-up — PASS; draft, OPEN, base `main`,
+  head branch `gsd/phase-6-stripe-uat-complete`; current head tracked by GitHub
+  PR metadata, not hard-coded in living docs.
 - `gh pr checks 32` / `gh run list` — PASS; only `Phase 6 verifier` fails;
   `Verify full gate` + `Browser e2e smoke` pass; `Live full verification`
   skipped.
@@ -102,17 +111,22 @@ backlog are unchanged from the 2026-05-30 test-clock UAT delta.
 - Full PR-diff secret/PII scan (8393 added lines) — PASS; zero secret-value
   matches; zero customer emails; no `.env` files added.
 - `git diff --check` — PASS.
+- Follow-up `pnpm run typecheck` — PASS.
+- Follow-up `pnpm run check:artifacts` — PASS; 515 / 515 artifact assertions.
+- Follow-up `pnpm run test -- --run lib/stripe app/api/webhooks/stripe` — PASS;
+  47 tests across 6 files.
+- Follow-up added-line safety scan — PASS; no secret-shaped values, raw
+  evidence markers, full Stripe IDs, customer emails, controlled-data markers,
+  or official compliance claims.
 - Note: full local `pnpm verify:phase-6` was not re-run from this worktree — it
   requires the operator `.env.local` (absent here) for the credentialed
-  DB/Stripe steps, and a docs-only change cannot affect it; PR-head code health
-  is already evidenced by the green hosted `Verify` workflow.
+  DB/Stripe steps, and a docs-only change cannot affect it.
 
 ## Remaining Risks
 
 - Hosted `Verify Phase 6` stays red until the operator configures the required
   repository secrets; this is expected and must not be worked around.
-- `CLAUDE.md` (consultant overlay, ~line 78) still carries pre-publication
-  "local-only / no PR" wording; out of scope for this pass — recommend a
-  follow-up one-line update for trail consistency.
+- Root executor docs and ROADMAP now carry the draft-PR-open, UAT-complete
+  state; future docs-only follow-ups can still advance the GitHub PR head.
 - PR #32 must remain draft and unmerged until ChatGPT handoff review and
   Matthew's explicit ship decision.
