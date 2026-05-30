@@ -90,7 +90,14 @@ export async function createCheckoutSessionAction(
   }
 
   const org = await withOrgScope(ctx, readBillingOrgState);
+  // Only treat the org as already-subscribed when a real Stripe customer
+  // exists. New orgs carry the canonical seed status 'trialing' (written by the
+  // Clerk organization.created webhook, app/api/webhooks/clerk/route.ts) with no
+  // customer yet — that placeholder must NOT block the first checkout. This
+  // mirrors the settings page's stripeCustomerId gate (page.tsx) so the
+  // "Start checkout" button and this action stay consistent.
   if (
+    org.stripeCustomerId &&
     org.stripeSubscriptionStatus &&
     DUPLICATE_SUBSCRIPTION_STATUSES.has(org.stripeSubscriptionStatus)
   ) {

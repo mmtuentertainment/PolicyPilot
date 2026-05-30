@@ -257,6 +257,33 @@ describe('createCheckoutSessionAction', () => {
     expect(sessionsCreateMock).not.toHaveBeenCalled();
   });
 
+  it('creates checkout for a new org with the seed status (trialing) and no customer', async () => {
+    // Regression: the Clerk organization.created webhook seeds new orgs with
+    // stripeSubscriptionStatus 'trialing' and NO customer. That placeholder must
+    // NOT be read as an existing subscription — first checkout must proceed
+    // (mirrors the settings page's stripeCustomerId gate).
+    withOrgScopeMock.mockImplementationOnce(async (_ctx, fn) => fn({
+      ...adminCtx,
+      tx: {
+        select: () => ({
+          from: () => ({
+            where: () => ({
+              limit: async () => [{
+                stripeCustomerId: null,
+                stripeSubscriptionStatus: 'trialing',
+              }],
+            }),
+          }),
+        }),
+      },
+    }));
+
+    await expect(runAction()).rejects.toThrow(
+      'NEXT_REDIRECT:https://checkout.stripe.test/session',
+    );
+    expect(sessionsCreateMock).toHaveBeenCalledOnce();
+  });
+
   it('rejects invalid tier or interval before any Stripe call', async () => {
     await expect(runAction(form({ tier: 'enterprise', interval: 'monthly' })))
       .rejects.toThrow('Invalid checkout intent.');
