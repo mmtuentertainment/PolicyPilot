@@ -1,5 +1,7 @@
 # PolicyPilot — Forensic Realignment Brief for ChatGPT Pro
 
+> Historical note (2026-05-30): this brief is preserved as a point-in-time forensic snapshot from before the Phase 6 verifier and checkout-fix commits (`1be117a`, `b92a15f`). Use later Phase 6 state, UAT, and summary artifacts for current branch status.
+
 **Date:** 2026-05-29
 **Prepared by:** Claude Code (long-horizon repo-diagnosis agent) via `/gsd-progress --forensic`
 **Audience:** ChatGPT Pro (consultant / research / risk-review / GSD-guide layer — Max 20× subscription)
