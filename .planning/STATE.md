@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: phase_6_executing
-last_updated: "2026-05-30T14:20:52Z"
+last_updated: "2026-05-30T15:44:43Z"
 progress:
   total_phases: 8
   completed_phases: 5
@@ -24,16 +24,16 @@ GSD session state. Updated each time a phase or plan transitions. Source of trut
 - **Operator**: Matthew (MMTU Entertainment LLC) — `mmtuentertainment@gmail.com`
 - **Core value**: Replaces Google Drive / SharePoint for SMB policy management with AI drafting, append-only acknowledgment tracking, and audit-ready compliance trails — at a price an SMB can afford.
 - **Beat-manual gate**: Product must be demonstrably faster and more reliable than a Google Drive folder.
-- **Current focus**: Phase 6 Billing **VERIFYING / UAT-COMPLETE / SHIP-PREP** on local-only `gsd/phase-6-billing`. spec->discuss->research->validate->plan complete; plans 06-01..06-06 are implemented and committed (`5c9f8c5`/`ebd5708`/`5abe38c`/`f300572`/`0baee19`/`1be117a`). The DB blocker is cleared: additive migration `0012_billing_state` was applied to the approved TEST/dev Supabase target and `pnpm db:verify` plus `pnpm verify:phase-6` pass. Live Stripe test-mode UAT now has rows 1-11 PASS, including row 9 true test-clock renewal (`invoice.paid`, Growth/active) and row 10 test-clock payment failure (`invoice.payment_failed`, Growth/`past_due` at first failure). Stripe account mismatch was reconciled for local UAT by running the Stripe CLI/listener with the app test key via `STRIPE_API_KEY` override; the default CLI profile still points at a different account and must not be used for Phase 6 UAT without override or relogin. Launch-blocking checkout bug fixed in `b92a15f`: new orgs seeded as `trialing` by Clerk `organization.created` can start first checkout unless a real `stripeCustomerId` exists. `b818805` added the historical forensic realignment brief on top. Not shipped, not pushed, no upstream, no PR open. Known topology: `origin/main` is not an ancestor of this branch; expected for this local-only hygiene pass.
+- **Current focus**: Phase 6 Billing **VERIFYING / UAT-COMPLETE / SHIP-PREP**, published as **draft PR #32** from branch `gsd/phase-6-stripe-uat-complete` (developed on `gsd/phase-6-billing`). spec->discuss->research->validate->plan complete; plans 06-01..06-06 are implemented and committed (`5c9f8c5`/`ebd5708`/`5abe38c`/`f300572`/`0baee19`/`1be117a`). The DB blocker is cleared: additive migration `0012_billing_state` was applied to the approved TEST/dev Supabase target and `pnpm db:verify` plus `pnpm verify:phase-6` pass. Live Stripe test-mode UAT now has rows 1-11 PASS, including row 9 true test-clock renewal (`invoice.paid`, Growth/active) and row 10 test-clock payment failure (`invoice.payment_failed`, Growth/`past_due` at first failure). Stripe account mismatch was reconciled for local UAT by running the Stripe CLI/listener with the app test key via `STRIPE_API_KEY` override; the default CLI profile still points at a different account and must not be used for Phase 6 UAT without override or relogin. Launch-blocking checkout bug fixed in `b92a15f`: new orgs seeded as `trialing` by Clerk `organization.created` can start first checkout unless a real `stripeCustomerId` exists. `b818805` added the historical forensic realignment brief on top. Not shipped and not merged; **draft PR #32** is open against `main` (head `660df0d`) and must stay draft until Matthew chooses the ship path. The hosted `Verify` workflow is green on the PR head; the hosted `Verify Phase 6` check fails closed because the required GitHub repository secrets are not configured (operator action, not a repo-code defect). `origin/main` is an ancestor of the PR head (cleanly mergeable).
 - **Granularity**: standard (8 phases)
 
 ---
 
 ## Current Position
 
-Phase: Phase 6 Billing — VERIFYING / UAT-COMPLETE / SHIP-PREP; 06-01..06-06 committed; verifier green; UAT 11/11 PASS
-Plan: 6 / 6 plans executed + committed; ship remains blocked on ChatGPT handoff review, PR workflow, and Matthew's ship decision
-Branch: `gsd/phase-6-billing` (local-only; no upstream; no PR; diverged from `origin/main` as expected for this hygiene pass)
+Phase: Phase 6 Billing — VERIFYING / UAT-COMPLETE / SHIP-PREP / DRAFT-PR-OPEN; 06-01..06-06 committed; local verify:phase-6 + UAT 11/11 PASS; hosted Verify green, hosted Verify Phase 6 fails closed on unset repo secrets
+Plan: 6 / 6 plans executed + committed; draft PR #32 open; ship remains blocked on ChatGPT handoff review, hosted-verifier repo-secret configuration, and Matthew's ship decision
+Branch: `gsd/phase-6-stripe-uat-complete` (draft PR #32 head `660df0d`, base `main`, tracks `origin/gsd/phase-6-stripe-uat-complete`; developed on `gsd/phase-6-billing`; `origin/main` is an ancestor of the PR head — cleanly mergeable)
 Main HEAD: `25cfba7` (forensic realignment report `ops/deltas/2026-05-29-forensic-realignment.md`; prior `af01f0a` PR #31)
 
 - **Phase 1** — Foundation **complete** (2026-05-16; 5/5 plans; PR #1 merged)
@@ -41,14 +41,14 @@ Main HEAD: `25cfba7` (forensic realignment report `ops/deltas/2026-05-29-forensi
 - **Phase 3** — Admin UI **SHIPPED** (2026-05-20; 15/15 plans; PR #3 squash-merged to `main` @ `edebab7`; 3 fast-follows shipped PR #5/#7/#13; 3-audit cascade complete PR #8/#10/#11; closure test PR #9; state bookkeeping PR #12)
 - **Phase 4** — AI Layer **SHIPPED** (2026-05-22; 14/14 plans; PR #15 squash-merged to `main` @ `f8207f4`; post-merge cleanup PR #17 @ `eda7bb4`; 60/60 STRIDE threats CLOSED; UAT 5/5 PASS with real-key Anthropic smoke verifying SPEC R4 cache mechanics)
 - **Phase 5** — Employee Portal **SHIPPED** (2026-05-27; PR #27 "Phase 5: Employee Portal" merged to `main` at `3344847`, parent `c50b317`; `gsd/phase-5-employee-portal` branch is gone).
-- **Phase 6** — Billing **VERIFYING / UAT-COMPLETE / SHIP-PREP** (2026-05-30; 06-01..06-06 committed; `pnpm db:verify` and `pnpm verify:phase-6` green; live Stripe test-mode UAT 11/11 rows PASS; not merged, no PR)
+- **Phase 6** — Billing **VERIFYING / UAT-COMPLETE / SHIP-PREP / DRAFT-PR-OPEN** (2026-05-30; 06-01..06-06 committed; local `pnpm db:verify` and `pnpm verify:phase-6` green; live Stripe test-mode UAT 11/11 rows PASS; draft PR #32 open against `main`; not merged; hosted `Verify Phase 6` blocked on unset repo secrets)
 - **Progress**: 5 / 8 phases shipped (63%); Phase 6 is verifying/UAT/ship-prep but not shipped; Phases 7-8 not started.
 
 ```text
 [#####---] 5/8 phases shipped - Foundation done / Data Layer done / Admin UI done / AI Layer done / Employee Portal shipped
 ```
 
-**Next action**: Review the UAT-complete handoff with ChatGPT, then push/open the Phase 6 PR only after Matthew explicitly chooses that path. Keep Phase 6 unshipped until a PR exists, CI is green, and Matthew chooses the ship path. Future live Stripe UAT must use the app test-account CLI override or a CLI profile logged into the intended test account; the default CLI profile remains mismatched. Migration note: `0012_billing_state` is applied and verified on the approved TEST/dev target only; staging/prod remain operator-gated by the migration discipline. Open security carry-forward: **SF-WHSEC-1** (rotate Clerk webhook signing secret) before any live public-tunnel smoke.
+**Next action**: Review the UAT-complete handoff with ChatGPT. Draft PR #32 is now open against `main`; keep it draft and unmerged until Matthew chooses the ship path. To turn the hosted `Verify Phase 6` check green, the operator must configure the required GitHub repository secrets enumerated in `.github/workflows/verify-phase-6.yml` (do not weaken the gate, add dummy secrets, or use live Stripe mode). Future live Stripe UAT must use the app test-account CLI override or a CLI profile logged into the intended test account; the default CLI profile remains mismatched. Migration note: `0012_billing_state` is applied and verified on the approved TEST/dev target only; staging/prod remain operator-gated by the migration discipline. Open security carry-forward: **SF-WHSEC-1** (rotate Clerk webhook signing secret) before any live public-tunnel smoke.
 
 **Fast-follow PR backlog** (3 sequential PRs, originally scoped from PR #3 carry-forward):
 
@@ -269,6 +269,6 @@ Surfaced by `/pr-review-toolkit:review-pr` against PR #1 head `e3689d3` (silent-
 | 3 | Admin UI | REQ-policy-library, REQ-policy-lifecycle, REQ-access-control | Shipped — PR #3 @ `edebab7` (2026-05-20). Fast-follows: PR #5 ADR-026 typed errors @ `bf65712`, PR #7 ADR-027 lookup-scoping @ `c6dca6a`. Audit cascade (security/validation/verification) complete via PR #8/#10/#11 — PR #8 SHIPPED @ `5a57000` (SECURED 67/67 STRIDE); PR #10 + #11 OPEN. VALIDATION-2.7 closure via PR #9 OPEN (10-assertion `check:policies-list-filters`). PR 3.3 ADR-028 PolicyId brand still queued. |
 | 4 | AI Layer | REQ-ai-policy-assistant, REQ-ai-usage-rules | **SHIPPED** — PR #15 squash-merged to `main` @ `f8207f4` (2026-05-22; 14/14 plans + UAT 5/5 + gsd-security-auditor 60/60 STRIDE CLOSED + real-key Anthropic smoke verifying SPEC R4 cache mechanics for ~$0.021 spend). Post-merge cleanup PR #17 @ `eda7bb4` (one-shot HANDOFF artifact deletions). Deploy-prep PR in flight (chore/phase-4-deploy-prep) — staging/prod migration infrastructure (verifier, runbook, CI workflow, Vercel hook). Phase 4.5 polish backlog tracked at GitHub issue #16 (~30 deferred items). |
 | 5 | Employee Portal | REQ-acknowledgment-tracking, REQ-acknowledgment-rules | **SHIPPED** — PR #27 merged to `main` at `3344847` on 2026-05-27T22:06:16Z; 10/10 plans complete; audit remediation gates closed before merge. |
-| 6 | Billing | REQ-tier-starter, REQ-tier-growth, REQ-tier-business | Verifying/UAT-complete/ship-prep 2026-05-30 — 6/6 plans committed; `pnpm db:verify` and `pnpm verify:phase-6` green; live Stripe test-mode UAT rows 1-11 PASS; not shipped, no PR. |
+| 6 | Billing | REQ-tier-starter, REQ-tier-growth, REQ-tier-business | Verifying/UAT-complete/ship-prep/draft-PR-open 2026-05-30 — 6/6 plans committed; local `pnpm db:verify` and `pnpm verify:phase-6` green; live Stripe test-mode UAT rows 1-11 PASS; draft PR #32 open against `main` (head `660df0d`); not shipped, not merged; hosted `Verify Phase 6` blocked on unset repo secrets. |
 | 7 | Crons + Email | REQ-notification-system | Not started |
 | 8 | Validation | REQ-compliance-dashboard, REQ-integrations, REQ-acceptance-criteria | Not started |

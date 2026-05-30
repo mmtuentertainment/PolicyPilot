@@ -153,3 +153,14 @@ Vitest path filters.
 - Push/open the Phase 6 PR only after Matthew explicitly chooses that path.
 - Do not mark Phase 6 shipped until UAT is complete, a PR exists, CI is green,
   and Matthew chooses the ship path.
+
+## Publication Status (2026-05-30)
+
+Draft **PR #32** ("docs(phase-6): record Stripe test-clock UAT completion") is
+now open against `main` from branch `gsd/phase-6-stripe-uat-complete` (head
+`660df0d`); it must remain **draft and unmerged** until Matthew chooses the ship
+path. The hosted `Verify` workflow is green on the PR head; the hosted
+`Verify Phase 6` check fails closed because the required GitHub repository
+secrets are not yet configured — operator action, not a repo-code defect. The
+fail-closed gate must not be weakened or fed dummy secrets, and no live Stripe
+mode is to be used. See `ops/deltas/2026-05-30-phase6-pr32-draft-open.md`.
