@@ -75,7 +75,7 @@ Before meaningful advice or implementation, read `AGENTS.md`, `CONSULTANT.md`, `
 
 Keep-current rule: no meaningful project change is complete until the consultant file set is reviewed and either updated or explicitly marked `no-change` in `ops/deltas/<date>-<slug>.md`.
 
-Current phase state comes from `.planning/STATE.md`. As of PR #30, Phase 5 Employee Portal shipped via PR #27 at commit `3344847`; Phase 6 is pending/planning-only. Do not treat a Phase 6 branch, phase directory, or handoff as permission to start Phase 6 implementation.
+Current phase state comes from `.planning/STATE.md`. As of 2026-05-30, Phase 5 Employee Portal is shipped and Phase 6 Billing is in verifying/UAT/ship-prep on local-only `gsd/phase-6-billing`: plans 06-01..06-06 are committed, `pnpm verify:phase-6` is green, live Stripe test-mode UAT is partial, and no PR is open. Do not treat Phase 6 as shipped or start Phase 7 until Matthew intentionally completes UAT, opens/ships the Phase 6 PR, and refreshes local `main`.
 
 ---
 

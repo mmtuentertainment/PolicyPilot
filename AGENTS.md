@@ -142,11 +142,13 @@ fallback in the handoff.
 
 ## Phase Constraint
 
-`.planning/STATE.md` is the source of truth for current phase state. As of PR
-`#30`, Phase 5 Employee Portal shipped via PR `#27` at commit `3344847` on
-2026-05-27, and Phase 6 is pending/planning-only. Do not start Phase 6
-implementation until Matthew intentionally resumes the proper Phase 6 GSD
-branch/spec/plan path. A Phase 6 branch or handoff is not enough by itself.
+`.planning/STATE.md` is the source of truth for current phase state. As of
+2026-05-30, Phase 5 Employee Portal is shipped and Phase 6 Billing is in
+verifying/UAT/ship-prep on local-only `gsd/phase-6-billing`: plans 06-01..06-06
+are committed, `pnpm verify:phase-6` is green, live Stripe test-mode UAT is
+partial, and no PR is open. Do not treat Phase 6 as shipped or start Phase 7
+until Matthew intentionally completes UAT, opens/ships the Phase 6 PR, and
+refreshes local `main`.
 
 ## Stack
 

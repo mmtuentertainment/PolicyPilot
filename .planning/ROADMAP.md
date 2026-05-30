@@ -13,7 +13,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 - [x] **Phase 3: Admin UI** — Policy library, TipTap editor, full lifecycle (Draft → Published → Archived). ✓ 2026-05-20 (12 main plans 03-00..03-11 + 3 gap-closure plans 03-G1/G2/G3 = 15 total; 6/6 HUMAN-UAT PASS; verify:phase-2 8/8 OK; verify:phase-3 8 gates + 270/270 artifacts + 53/53 vitest)
 - [x] **Phase 4: AI Layer** — Draft generation, TL;DR summaries, Employee Q&A, Consistency Check (Growth+). ✓ 2026-05-22
 - [x] **Phase 5: Employee Portal** — Assigned-policies dashboard + append-only acknowledgment flow. Shipped via PR #27 at `3344847` on 2026-05-27T22:06:16Z.
-- [ ] **Phase 6: Billing** — Stripe Checkout + 5-event webhook + tier gating via `TIER_LIMITS`. Pending/planning-only; implementation not started.
+- [ ] **Phase 6: Billing** — Stripe Checkout + 5-event webhook + tier gating via `TIER_LIMITS`. Verifying/UAT/ship-prep; 6/6 plans committed, verifier green, UAT partial; not shipped.
 - [ ] **Phase 7: Crons + Email** — Railway worker + Resend templates + idempotent reminders.
 - [ ] **Phase 8: Validation** — Compliance dashboard + CSV export + all 8 acceptance criteria green.
 
@@ -143,7 +143,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 **UI hint**: yes
 
 ### Phase 6: Billing
-**Status**: Planned (2026-05-29) — spec + discuss + plan complete on `gsd/phase-6-billing`; `gsd-plan-checker` PASSED. Ready to execute. Implementation NOT started — do not begin until the operator runs `/gsd:execute-phase 6`.
+**Status**: Verifying/UAT/ship-prep (2026-05-30) — spec + discuss + research + validate + plan complete on local-only `gsd/phase-6-billing`; plans 06-01..06-06 are committed; `pnpm db:verify` and `pnpm verify:phase-6` pass; live Stripe test-mode UAT rows 1-8 and 11 PASS, row 9 PARTIAL, row 10 NOT RUN. Phase 6 is not shipped, no PR is open, and the branch has no upstream.
 **Goal**: A new sign-up can pick a plan, complete Stripe Checkout, see their org's `planTier` synced from the webhook, hit tier limits with a clear 403 + upgrade prompt, and have their subscription survive the first billing-cycle renewal automatically.
 **Depends on**: Phase 4 *(amended by ADR-029 2026-05-21; was Phase 5 — `checkTierLimit` is the binding dependency per Phase 4 SC #1/#5, not the employee portal; eligible for Wave 2 parallel with Phase 7)*
 **Requirements**: REQ-tier-starter, REQ-tier-growth, REQ-tier-business
@@ -154,19 +154,19 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
   3. A full checkout → webhook → DB sync → tier-gate cycle works end-to-end without manual intervention: a Stripe test-mode subscription survives one simulated billing-cycle renewal (`invoice.paid`) and `organizations.planTier` remains correct (REQUIREMENTS.md §10 #6).
   4. `checkTierLimit(orgId, feature)` returns the correct `{allowed, limit, current}` shape; a Starter org attempting a Growth-only feature (e.g. `consistencyCheck`) receives a 403 with `{ error: 'tier_limit_exceeded', upgradeUrl: '/pricing' }`.
   5. Customer Portal link from the admin settings page allows the org admin to update payment method and view invoices via Stripe-hosted UI.
-**Plans**: 6 plans (planned 2026-05-29; `gsd-plan-checker` PASSED; ready to execute — implementation NOT started)
+**Plans**: 6 plans (planned 2026-05-29; all implemented and committed by 2026-05-30; verifier green; UAT partial; ship pending)
 
 - Wave 0 (foundation — operator-gated):
-  - [ ] 06-01-foundation-catalog-migration-PLAN.md — Stripe SDK install + 9 env vars + 6 Stripe products (operator) · closed price catalog · client singleton · mask helpers · additive `0012` migration applied to TEST DB (BLOCKING `db:migrate:test`)
+  - [x] 06-01-foundation-catalog-migration-PLAN.md — Stripe SDK install + 9 env vars + 6 Stripe products (operator) · closed price catalog · client singleton · mask helpers · additive `0012` migration applied to TEST DB (BLOCKING `db:migrate:test`)
 - Wave 1 (parallel):
-  - [ ] 06-02-stripe-webhook-PLAN.md — `POST /api/webhooks/stripe`: raw-body signature verify · 5-event dispatch · canonical Subscription re-fetch · transaction-scoped `stripe_events` idempotency · fail-closed org mapping
-  - [ ] 06-03-tier-gates-maxusers-PLAN.md — `maxUsers` real org-scoped count in `checkTierLimit` + Phase 4 403/429 tier-contract regression guard
+  - [x] 06-02-stripe-webhook-PLAN.md — `POST /api/webhooks/stripe`: raw-body signature verify · 5-event dispatch · canonical Subscription re-fetch · transaction-scoped `stripe_events` idempotency · fail-closed org mapping
+  - [x] 06-03-tier-gates-maxusers-PLAN.md — `maxUsers` real org-scoped count in `checkTierLimit` + Phase 4 403/429 tier-contract regression guard
 - Wave 2:
-  - [ ] 06-04-checkout-pricing-PLAN.md — admin-only `createCheckoutSessionAction` (server-derived org/price/metadata · dup-subscription guard · success/cancel URLs) + pricing-page monthly/annual intent
+  - [x] 06-04-checkout-pricing-PLAN.md — admin-only `createCheckoutSessionAction` (server-derived org/price/metadata · dup-subscription guard · success/cancel URLs) + pricing-page monthly/annual intent; `b92a15f` fixed the first-checkout guard for new orgs seeded as `trialing` without a real `stripeCustomerId`
 - Wave 3:
-  - [ ] 06-05-admin-settings-portal-PLAN.md — `/settings` billing page + Customer Portal action (DB `stripeCustomerId` only) + sidebar/middleware wiring
+  - [x] 06-05-admin-settings-portal-PLAN.md — `/settings` billing page + Customer Portal action (DB `stripeCustomerId` only) + sidebar/middleware wiring
 - Wave 4:
-  - [ ] 06-06-verify-chain-ci-uat-PLAN.md — cumulative `verify:phase-6` + schema/artifact verifier extensions + hosted CI + secret-safe Stripe test-mode UAT checklist
+  - [x] 06-06-verify-chain-ci-uat-PLAN.md — cumulative `verify:phase-6` + schema/artifact verifier extensions + hosted CI + secret-safe Stripe test-mode UAT checklist; verifier is green, UAT remains partial (rows 9-10 need test-clock completion)
 **UI hint**: yes
 
 ### Phase 7: Crons + Email
@@ -207,6 +207,6 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 | 3. Admin UI | 15/15 | Complete | 2026-05-20 |
 | 4. AI Layer | 14/14 | Complete | 2026-05-22 |
 | 5. Employee Portal | 10/10 | Complete - shipped via PR #27 at `3344847` | 2026-05-27 |
-| 6. Billing | 0/6 | Planned — plan-check PASSED, ready to execute (impl not started) | 2026-05-29 (planned) |
+| 6. Billing | 6/6 | Verifying/UAT/ship-prep — verifier green; live Stripe test-mode UAT 9/11 rows verified, 1 partial, 1 not run; not shipped/no PR | 2026-05-30 (verifying) |
 | 7. Crons + Email | 0/0 | Not started | - |
 | 8. Validation | 0/0 | Not started | - |

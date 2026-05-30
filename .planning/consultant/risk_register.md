@@ -1,6 +1,6 @@
 # Consultant Risk Register — PolicyPilot
 
-Updated: 2026-05-29 - Phase 6 Plan 06-06 verifier wiring complete; UAT/db gate pending
+Updated: 2026-05-30 - Phase 6 verifier green; UAT partial; Stripe account mismatch tracked
 
 Scoring: Probability 1-5, Impact 1-5, Score = P × I. Keep this register focused on risks that affect launch, revenue readiness, tenant trust, or the beat-manual gate.
 
@@ -11,13 +11,15 @@ Scoring: Probability 1-5, Impact 1-5, Score = P × I. Keep this register focused
 | R-001 | Phase 5 shipped state is not reflected in live planning docs, causing future sessions to reopen closed hardening work. | Ops/Knowledge | 1 | 4 | 4 | Closed by this patch | PR #27 merge facts recorded in `STATE`, `ROADMAP`, consultant packets, and the delta report. |
 | R-002 | Tenant isolation regression through a future raw DB import, missing `org_id` filter, or RLS policy drift. | Security/Data | 2 | 5 | 10 | Controlled/Open | Preserve repository-first access, `check:db-imports`, `check:rls`, and migration verifier gates. Add review focus to every DB-touching PR. |
 | R-003 | Acknowledgment audit integrity weakened by future update/delete paths, version mismatch, or re-acknowledgment edge cases. | Product/Compliance | 2 | 5 | 10 | Controlled/Open | Phase 5 shipped with append-only gates; keep those checks active when later phases touch policy or acknowledgment surfaces. |
-| R-004 | Stripe billing implementation misses renewal/failure/cancel/update events or idempotency. | Revenue/Ops | 3 | 5 | 15 | Controlled/Active | Plans 06-01 through 06-06 verifier wiring are complete locally: foundation schema/helpers, 5-event webhook with canonical re-fetch + transaction-scoped idempotency, real `maxUsers` tier predicate, admin-only checkout/pricing intent, Stripe Customer Portal/settings, and cumulative verifier/UAT checklist. Score stays 15 until the configured `db:verify` target has `0012_billing_state` and Stripe sandbox/test-clock UAT proves the full billing loop (ROADMAP SC#3 / section 10 #6). |
+| R-004 | Stripe billing implementation misses renewal/failure/cancel/update events or idempotency. | Revenue/Ops | 3 | 5 | 15 | Controlled/Active | Plans 06-01 through 06-06 are complete and verifier-green; rows 1-8 and 11 PASS in live Stripe test mode. Score stays 15 until test-clock row 9 proves true next-period renewal and row 10 proves `invoice.payment_failed`/`past_due` with a failing card. |
 | R-005 | AI costs or retries exceed assumptions if tier gates, prompt caching, Batch API, or logging drift. | Cost/Product | 3 | 4 | 12 | Controlled/Open | Keep Claude calls server-only, tier-gated, max-retry bounded, and logged to `ai_generations`; Plan 06-03 preserved the Phase 4 403/429 contract while adding real `maxUsers` counting. |
 | R-006 | Reminder/email jobs duplicate sends or create noisy employee experience. | Ops/Product | 3 | 4 | 12 | Pending | Phase 7 worker must use idempotency keys or send-state rows, plus safe retry semantics. |
 | R-007 | Product fails the beat-manual gate despite feature completion. | Market/Product | 3 | 5 | 15 | Open | Phase 8 must measure real workflow time: signup → draft → publish → assign → acknowledge → export. |
-| R-008 | Migration/deploy order drift causes runtime 503s against staging/prod. | Ops/Infra | 3 | 4 | 12 | Controlled/Active | Plan 06-06 surfaced drift: `pnpm db:verify` against the configured `.env.local` deploy-verifier DB found 12/13 migrations and missing `0012_billing_state` columns/indexes, while the TEST sibling schema verifier passed. Apply/verify the existing migration on the intended target before Phase 6 ship or deployment. |
+| R-008 | Migration/deploy order drift causes runtime 503s against staging/prod. | Ops/Infra | 2 | 4 | 8 | Controlled/Open | The immediate TEST/dev blocker is cleared: `0012_billing_state` is applied to the approved TEST/dev target and `pnpm db:verify` passes. Staging/prod remain operator-gated by migration discipline before any deploy that depends on Phase 6 schema. |
 | R-009 | Consultant/project files become stale and start misleading future AI sessions. | Ops/Knowledge | 4 | 3 | 12 | Open | Enforce keep-current rule: update or mark no-change in every meaningful delta. |
 | R-010 | Scope expands into generic compliance platform before revenue loop is proven. | Strategy/Product | 3 | 4 | 12 | Open | Reject non-MVP integrations/features unless they shorten time-to-paid or close a launch blocker. |
+| R-011 | Stripe CLI/login/webhook-secret account differs from the app `STRIPE_SECRET_KEY` test account, causing webhook evidence to target the wrong account. | Ops/Billing | 3 | 4 | 12 | Active | Local `.env.local` webhook secret was realigned without reproducing secrets. Before more live webhook testing, reconcile Stripe CLI login, webhook secret, and app test credentials to the same intended test account. |
+| R-012 | Dev-created Clerk orgs without an active webhook tunnel can hit `OrgNotProvisionedError`. | Dev/Ops | 3 | 2 | 6 | Accepted/Process | Treat as a dev ops/process gap, not a Phase 6 code defect. Keep webhook tunnel/provisioning expectations explicit for local UAT. |
 
 ---
 

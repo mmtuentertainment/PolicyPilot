@@ -1,6 +1,6 @@
 # Consultant Feature Inventory — PolicyPilot
 
-Updated: 2026-05-29 - Phase 6 Plan 06-06 verifier wiring complete; UAT/db gate pending
+Updated: 2026-05-30 - Phase 6 verifier green; UAT partial; checkout fix recorded
 
 Use this file to keep the product surface tied to revenue, risk, and the beat-manual gate. Update it whenever a feature ships, changes scope, moves phase, or becomes intentionally deferred.
 
@@ -34,11 +34,11 @@ Scoring:
 | Employee assigned-policies dashboard | 5 | Shipped | Employee | Direct | High | High | Shipped in PR #27; future phases must preserve assignment visibility and tenant scoping. |
 | Append-only acknowledgment flow | 5 | Shipped / monitor | Employee/admin/auditor | Direct | High | High | Shipped in PR #27; future phases must preserve append-only audit integrity. |
 | Notification records | 5-7 | Partial/Pending | System/employee | Indirect | Medium | Medium | Becomes valuable once email reminders ship. |
-| Stripe Checkout | 6 | Hardening | Buyer/admin | Direct | Low | Medium | Plan 06-04 complete locally: admin-only Server Action creates Checkout Sessions using server-derived org, catalog price, safe metadata, duplicate-subscription guard, and trusted success/cancel URLs. Live UAT still pending. |
-| Stripe 5-event webhook | 6 | Hardening | System | Direct/Defensive | Medium | High | Plan 06-02 complete locally: raw-body verify, all 5 events, canonical Subscription re-fetch, transaction-scoped idempotency, and M2 status matrix have unit + phase-gate coverage. Still pending Stripe test-clock/UAT and full Phase 6 ship. |
-| Tier gating | 6 | Hardening | Admin/system | Direct | Medium | High | Plan 06-03 complete locally: `maxUsers` uses a real org-scoped user count and the Phase-4 403/429 contract is preserved. Full tier-gate proof still depends on Stripe sandbox/test-clock UAT in Plan 06-06. |
-| Admin billing settings + Customer Portal | 6 | Hardening | Admin | Direct/Defensive | Medium | Medium | Plan 06-05 complete locally: `/settings` is admin-gated, shows minimal DB-sourced billing status, and creates Stripe Customer Portal sessions using only the stored customer ID. Live portal/UAT proof remains in Plan 06-06. |
-| Phase 6 verifier + Stripe UAT checklist | 6 | Hardening | Operator/system | Defensive | Medium | Low | Plan 06-06 verifier wiring is complete locally: `verify:phase-6`, schema/artifact gates, hosted workflow, and masked UAT checklist exist. Phase closeout is blocked until `db:verify` target has `0012_billing_state` and Stripe sandbox/test-clock evidence is recorded. |
+| Stripe Checkout | 6 | Hardening - verifier green / UAT partial | Buyer/admin | Direct | Low | Medium | Plan 06-04 complete locally: admin-only Server Action creates Checkout Sessions using server-derived org, catalog price, safe metadata, duplicate-subscription guard, and trusted success/cancel URLs. `b92a15f` fixed the first-checkout bug for new orgs seeded as `trialing` without a real `stripeCustomerId`; rows 1-3 PASS in test-mode UAT. |
+| Stripe 5-event webhook | 6 | Hardening - verifier green / UAT partial | System | Direct/Defensive | Medium | High | Plan 06-02 complete locally: raw-body verify, all 5 events, canonical Subscription re-fetch, transaction-scoped idempotency, and M2 status matrix have unit + phase-gate coverage. Rows 4, 8, and 11 PASS; row 9 remains PARTIAL and row 10 NOT RUN until test-clock renewal/payment-failure proof is complete. |
+| Tier gating | 6 | Hardening - verifier green / UAT partial | Admin/system | Direct | Medium | High | Plan 06-03 complete locally: `maxUsers` uses a real org-scoped user count and the Phase-4 403/429 contract is preserved. Tier-gate transition proof PASSed through row 5; final renewal/failure confidence still depends on rows 9-10. |
+| Admin billing settings + Customer Portal | 6 | Hardening - verifier green / UAT partial | Admin | Direct/Defensive | Medium | Medium | Plan 06-05 complete locally: `/settings` is admin-gated, shows minimal DB-sourced billing status, and creates Stripe Customer Portal sessions using only the stored customer ID. Rows 6-8 PASS with masked evidence. |
+| Phase 6 verifier + Stripe UAT checklist | 6 | Hardening - verifier green / UAT partial | Operator/system | Defensive | Medium | Low | Plan 06-06 verifier wiring is complete locally: `verify:phase-6`, schema/artifact gates, hosted workflow, and masked UAT checklist exist. `pnpm db:verify` and `pnpm verify:phase-6` pass; closeout remains blocked on Stripe test-clock rows 9-10 and Stripe account reconciliation. |
 | Railway reminders worker | 7 | Pending | Employee/system | Indirect | High | Medium | Drives completion rates; must be idempotent. |
 | Resend email templates | 7 | Pending | Employee/admin | Indirect | Medium | Medium | Operational glue; avoid over-design before reminder rules are stable. |
 | Compliance dashboard | 8 | Pending | Admin/auditor | Direct | High | Medium | Important buyer-visible proof once acknowledgments exist. |

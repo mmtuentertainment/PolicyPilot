@@ -1,7 +1,7 @@
 ---
 phase: 06-billing
 plan: 06-06
-status: verifier-wired-db-uat-blocked
+status: verifier-green-uat-partial
 completed_at: 2026-05-29
 scope: phase-6-verifier-ci-uat
 ---
@@ -10,17 +10,26 @@ scope: phase-6-verifier-ci-uat
 
 ## Outcome
 
-Plan 06-06 verifier wiring is complete on `gsd/phase-6-billing`.
+Plan 06-06 verifier wiring is complete on `gsd/phase-6-billing`, and the
+post-fix verifier state is green.
 
 This patch adds the cumulative Phase 6 verifier script, extends schema and
 artifact gates for billing closeout, adds a hosted GitHub Actions workflow for
 `verify:phase-6`, and creates the secret-safe Stripe sandbox/test-clock UAT
 checklist.
 
-Phase 6 is not shipped. `pnpm verify:phase-6` currently fails at
-`pnpm db:verify` because the configured `.env.local` deploy-verifier database
-has 12 migrations applied while the repo journal has 13 through
-`0012_billing_state`. Codex did not apply migrations or run live Stripe UAT.
+Phase 6 is not shipped. After the follow-up checkout fix and operator DB/UAT
+work, additive migration `0012_billing_state` is applied to the approved
+TEST/dev Supabase target, `pnpm db:verify` passes, and `pnpm verify:phase-6`
+passes. Live Stripe test-mode UAT has rows 1-8 and 11 PASS, row 9 PARTIAL, and
+row 10 NOT RUN live.
+
+`b92a15f` fixed the launch-blocking checkout bug discovered during UAT:
+`createCheckoutSessionAction` blocked first checkout for new orgs seeded as
+`trialing` by Clerk `organization.created` because the duplicate-subscription
+guard did not also require a real `stripeCustomerId`. The fix gates on
+`stripeCustomerId`, aligned with the settings page, and includes regression
+coverage. `b818805` added the historical forensic realignment brief on top.
 
 ## Files
 
@@ -41,7 +50,10 @@ has 12 migrations applied while the repo journal has 13 through
   failure, and cancel/unpaid flows.
 - `.planning/consultant/*.md`: refreshed the consultant overlay to mark
   verifier wiring complete while keeping Phase 6 unshipped.
-- `ops/deltas/2026-05-29-phase6-06-06-verifier-uat.md`: added this delta.
+- `ops/deltas/2026-05-29-phase6-06-06-verifier-uat.md`: added the original
+  verifier/UAT delta.
+- `ops/deltas/2026-05-29-phase6-uat-fix.md`: records the post-fix verifier
+  green/UAT-partial state.
 
 ## GSD Stage
 
@@ -70,9 +82,12 @@ Used ctx7 before verifier decisions:
 
 ## Verification
 
-- Startup state checks - PASS: branch `gsd/phase-6-billing`, clean start,
-  exact expected HEAD `0baee191a405a1bf4eead13f360d1fb6c55a40d6`, no upstream,
-  no PR, and branch descended from `ee50880`.
+- Original 06-06 startup state checks - PASS: branch `gsd/phase-6-billing`,
+  clean start, exact expected HEAD `0baee191a405a1bf4eead13f360d1fb6c55a40d6`,
+  no upstream, no PR, and branch descended from `ee50880`.
+- Post-fix keep-current preflight - PASS: branch `gsd/phase-6-billing`, clean
+  start, exact expected HEAD `b81880546576af6f41e20f99671d75efe8053e3a`,
+  parent `b92a15f610a3b848358d089c72a96176f9588da1`, no upstream, no PR.
 - 06-05 summary/delta/consultant consistency - PASS; 06-05 was present and
   pointed to 06-06 as the next micro-batch.
 - `pnpm vitest run "app/(admin)/settings/actions.test.ts"` - PASS, 20 tests.
@@ -86,11 +101,9 @@ Used ctx7 before verifier decisions:
 - `pnpm exec tsx --env-file=.env.local scripts/check-schema.ts` - PASS,
   including Phase 6 billing column/index assertions against the TEST sibling
   schema.
-- `pnpm db:verify` - FAIL/BLOCKED: configured `.env.local` deploy-verifier DB
-  has 12/13 migrations applied and is missing the five Phase 6 billing columns
-  plus both partial unique Stripe indexes.
-- `pnpm verify:phase-6` - FAIL/BLOCKED at `pnpm db:verify` for the same 12/13
-  migration drift.
+- `pnpm db:verify` - PASS after `0012_billing_state` was applied to the
+  approved TEST/dev Supabase target.
+- `pnpm verify:phase-6` - PASS.
 - `git diff --check` - PASS.
 - `pnpm ls stripe` - PASS, `stripe 22.2.0`.
 
@@ -105,11 +118,16 @@ Vitest path filters.
 
 - Vercel CLI exists locally (`54.6.0` native), but no push/PR/deployment was
   requested or performed.
-- Stripe CLI exists locally (`1.42.0`), but no Stripe API/dashboard/test-clock
-  access was used and no live/test objects were created.
+- Stripe CLI exists locally (`1.42.0`).
 - Hosted `/settings`, linked/unlinked org portal behavior, checkout, webhook,
-  tier-gate transition, portal return, renewal, payment-failure, and cancel
-  flows are BLOCKED pending operator-run Stripe sandbox/test-clock UAT.
+  tier-gate transition, portal return, portal state-truth behavior, and
+  cancel/unpaid downgrade have masked live Stripe test-mode evidence in
+  `06-UAT.md`.
+- Renewal is PARTIAL: `invoice.paid` resend kept Growth/active, but true
+  next-period renewal still requires Stripe test clock.
+- Payment failure is NOT RUN live: it requires Stripe test clock plus failing
+  card; handler logic is unit-tested.
+- No live mode and no live keys were used.
 
 ## Scans
 
@@ -130,9 +148,9 @@ Vitest path filters.
 
 ## Remaining
 
-- Apply or verify existing migration `0012_billing_state` on the configured
-  `.env.local` deploy-verifier DB target, then rerun `pnpm db:verify` and
-  `pnpm verify:phase-6`.
-- Run Stripe sandbox/test-clock UAT and record masked PASS evidence in
-  `.planning/phases/06-billing/06-UAT.md`.
-- Do not mark Phase 6 shipped until both are complete.
+- Finish Stripe test-clock UAT rows 9 and 10 with masked-only evidence.
+- Reconcile the Stripe CLI/login/webhook-secret account with the app
+  `STRIPE_SECRET_KEY` test account before more live webhook testing.
+- Push/open the Phase 6 PR only after keep-current and UAT completion.
+- Do not mark Phase 6 shipped until UAT is complete, a PR exists, CI is green,
+  and Matthew chooses the ship path.
