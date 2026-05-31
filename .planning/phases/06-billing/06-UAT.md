@@ -65,6 +65,12 @@ Evidence MUST NOT include:
 
 Use only Stripe test mode/sandbox objects. Do not use live mode.
 
+Security sequencing for future hosted or public-tunnel proof: Matthew/operator
+must rotate SF-WHSEC-1 first, then configure/reconfigure the required GitHub
+repository secrets if hosted verification uses `CLERK_WEBHOOK_SECRET`, then
+rerun hosted checks. Codex must not inspect, print, configure, or rotate
+secrets.
+
 ## Masked Evidence Template
 
 ```text

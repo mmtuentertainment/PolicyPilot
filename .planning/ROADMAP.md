@@ -143,7 +143,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 **UI hint**: yes
 
 ### Phase 6: Billing
-**Status**: Verifying/UAT-complete/ship-prep (2026-05-30) — spec + discuss + research + validate + plan complete; plans 06-01..06-06 are committed; `pnpm db:verify` and `pnpm verify:phase-6` pass locally; live Stripe test-mode UAT rows 1-11 are PASS with masked-only evidence. Draft PR #32 is open from `gsd/phase-6-stripe-uat-complete` against `main`. Phase 6 is not shipped or merged. Hosted `Verify Phase 6` fails closed because required GitHub repository secrets are missing/unset; this is operator configuration, not a code defect. Do not weaken the gate, add dummy secrets, configure secrets in code, or use live Stripe mode.
+**Status**: Verifying/UAT-complete/ship-prep (2026-05-31) — spec + discuss + research + validate + plan complete; plans 06-01..06-06 are committed; `pnpm db:verify` and `pnpm verify:phase-6` pass locally; live Stripe test-mode UAT rows 1-11 are PASS with masked-only evidence. Draft PR #32 is open from `gsd/phase-6-stripe-uat-complete` against `main`. Phase 6 is not shipped or merged. Hosted `Verify Phase 6` fails closed because required GitHub repository secrets are missing/unset; this is operator configuration, not a code defect. Operator sequencing: rotate SF-WHSEC-1 first, then configure/reconfigure required GitHub repository secrets if the hosted verifier uses `CLERK_WEBHOOK_SECRET`, then rerun hosted checks. Do not weaken the gate, add dummy secrets, configure secrets in code, inspect/print secrets, or use live Stripe mode.
 **Goal**: A new sign-up can pick a plan, complete Stripe Checkout, see their org's `planTier` synced from the webhook, hit tier limits with a clear 403 + upgrade prompt, and have their subscription survive the first billing-cycle renewal automatically.
 **Depends on**: Phase 4 *(amended by ADR-029 2026-05-21; was Phase 5 — `checkTierLimit` is the binding dependency per Phase 4 SC #1/#5, not the employee portal; eligible for Wave 2 parallel with Phase 7)*
 **Requirements**: REQ-tier-starter, REQ-tier-growth, REQ-tier-business
@@ -166,7 +166,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 - Wave 3:
   - [x] 06-05-admin-settings-portal-PLAN.md — `/settings` billing page + Customer Portal action (DB `stripeCustomerId` only) + sidebar/middleware wiring
 - Wave 4:
-  - [x] 06-06-verify-chain-ci-uat-PLAN.md — cumulative `verify:phase-6` + schema/artifact verifier extensions + hosted CI + secret-safe Stripe test-mode UAT checklist; local verifier is green, UAT rows 1-11 PASS with masked-only evidence, and hosted `Verify Phase 6` fails closed until required GitHub repository secrets are configured by the operator
+  - [x] 06-06-verify-chain-ci-uat-PLAN.md — cumulative `verify:phase-6` + schema/artifact verifier extensions + hosted CI + secret-safe Stripe test-mode UAT checklist; local verifier is green, UAT rows 1-11 PASS with masked-only evidence, and hosted `Verify Phase 6` fails closed until required GitHub repository secrets are configured by the operator after the SF-WHSEC-1 rotation decision
 **UI hint**: yes
 
 ### Phase 7: Crons + Email

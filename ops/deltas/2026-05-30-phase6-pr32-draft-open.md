@@ -53,10 +53,12 @@ not merged.
     `STRIPE_PRICE_STARTER_ANNUAL`, `STRIPE_PRICE_GROWTH_MONTHLY`,
     `STRIPE_PRICE_GROWTH_ANNUAL`, `STRIPE_PRICE_BUSINESS_MONTHLY`,
     `STRIPE_PRICE_BUSINESS_ANNUAL`.
-  - Remediation is operator-only: configure these as GitHub repository (or
-    environment) secrets pointing at the approved Stripe TEST account and the
-    approved TEST/dev Supabase target. Do NOT weaken the gate, add dummy
-    secrets, or enable live Stripe mode to force CI green.
+  - Remediation is operator-only: rotate SF-WHSEC-1 first, then configure or
+    reconfigure these as GitHub repository (or environment) secrets pointing at
+    the approved Stripe TEST account and the approved TEST/dev Supabase target
+    if hosted verification uses `CLERK_WEBHOOK_SECRET`. Then rerun hosted
+    checks. Do NOT weaken the gate, add dummy secrets, inspect/print secrets, or
+    enable live Stripe mode to force CI green.
 
 ## Files Updated
 
@@ -68,18 +70,30 @@ not merged.
 - `.planning/phases/06-billing/06-06-SUMMARY.md` — added a short
   "Publication Status (2026-05-30)" note and qualified the initial publication
   head as historical rather than current.
+- 2026-05-31 follow-up: `.planning/codebase/*.md` and
+  `ops/deltas/2026-05-30-codebase-map-refresh.md` were carried forward from the
+  local billing branch after product/security scoped branch diffs were checked
+  empty; `.planning/STATE.md`, `.planning/ROADMAP.md`,
+  `.planning/phases/06-billing/06-UAT.md`, and
+  `.planning/phases/06-billing/06-06-SUMMARY.md` were refreshed for the
+  SF-WHSEC-first operator sequence.
 - `ops/deltas/2026-05-30-phase6-pr32-draft-open.md` — this record.
 
 ## Consultant Keep-Current
 
-- `.planning/consultant/working_context.md` — no-change
-- `.planning/consultant/system_map.md` — no-change
-- `.planning/consultant/feature_inventory.md` — no-change
-- `.planning/consultant/risk_register.md` — no-change
-- `.planning/consultant/backlog.md` — no-change
-
-Rationale: this is publication-state bookkeeping; product surface, risks, and
-backlog are unchanged from the 2026-05-30 test-clock UAT delta.
+- `.planning/consultant/working_context.md` — updated 2026-05-31 for UAT
+  complete, draft PR #32, branch topology, hosted secret gate, and
+  SF-WHSEC-first operator sequencing.
+- `.planning/consultant/system_map.md` — updated 2026-05-31 for draft PR #32,
+  UAT-complete state, and branch-topology carry-forward.
+- `.planning/consultant/feature_inventory.md` — updated 2026-05-31 so Phase 6
+  features no longer imply UAT rows 9-10 are pending.
+- `.planning/consultant/risk_register.md` — updated 2026-05-31 to lower the
+  renewal/failure implementation risk after UAT completion and add the
+  SF-WHSEC/repo-secret sequencing risk.
+- `.planning/consultant/backlog.md` — updated 2026-05-31 to close the
+  test-clock UAT backlog item and point the next slice at operator-only hosted
+  check readiness.
 
 ## Boundary Check
 

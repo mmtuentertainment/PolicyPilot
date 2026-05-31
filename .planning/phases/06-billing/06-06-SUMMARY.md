@@ -156,6 +156,9 @@ Vitest path filters.
 - Hosted `Verify Phase 6` fails closed until the required GitHub repository
   secrets are configured by the operator. Do not weaken the gate, add dummy
   secrets, configure secrets in code, or use live Stripe mode.
+- Security sequencing is operator-only: rotate SF-WHSEC-1 first, then
+  configure/reconfigure required GitHub repository secrets if hosted
+  verification uses `CLERK_WEBHOOK_SECRET`, then rerun hosted checks.
 
 ## Publication Status (2026-05-30)
 
@@ -170,3 +173,9 @@ secrets are not yet configured — operator action, not a repo-code defect. The
 fail-closed gate must not be weakened or fed dummy secrets, no secrets should be
 configured in code, and no live Stripe mode is to be used. See
 `ops/deltas/2026-05-30-phase6-pr32-draft-open.md`.
+
+Follow-up topology reconciliation on 2026-05-31 carried the safe codebase-map
+docs and Phase 5 concern carry-forwards from `gsd/phase-6-billing` into the PR
+branch after proving the product/security scoped diff between the two Phase 6
+branches was empty. `gsd/phase-6-billing` should be retired only after Matthew
+approves branch deletion.

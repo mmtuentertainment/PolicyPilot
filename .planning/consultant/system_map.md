@@ -1,6 +1,6 @@
 # Consultant System Map — PolicyPilot
 
-Updated: 2026-05-30 - Phase 6 verifier green; UAT partial; Phase 6 not shipped
+Updated: 2026-05-31 - Phase 6 UAT complete; draft PR #32 ship-prep; branch topology reconciled
 
 ## Product Boundary
 
@@ -73,12 +73,14 @@ Phase 2 Data Layer      shipped
 Phase 3 Admin UI        shipped
 Phase 4 AI Layer        shipped
 Phase 5 Employee Portal shipped
-Phase 6 Billing         verifying/UAT/ship-prep (06-01 foundation + 06-02 webhook + 06-03 tier gates + 06-04 checkout/pricing + 06-05 Customer Portal/settings + 06-06 verifier complete; db:verify green; UAT partial)
+Phase 6 Billing         verifying/UAT-complete/ship-prep (06-01 foundation + 06-02 webhook + 06-03 tier gates + 06-04 checkout/pricing + 06-05 Customer Portal/settings + 06-06 verifier complete; db:verify green; local UAT 11/11 PASS; draft PR #32 open)
 Phase 7 Crons + Email   pending
 Phase 8 Validation      pending
 ```
 
-Phase 5 shipped via PR #27 at `3344847`. Phase 6 is verifying/UAT/ship-prep on local-only `gsd/phase-6-billing` with no upstream and no PR. Plans 06-01 through 06-06 are complete locally: catalog/client/mask helpers exist, the additive billing-state migration is applied to the approved TEST/dev Supabase target, the Stripe webhook route verifies raw bodies, handles the 5 locked events, re-fetches canonical subscriptions where required, writes idempotently, `maxUsers` uses a real org-scoped user count, the admin checkout Server Action creates Stripe Checkout Sessions from server-derived org/price/metadata, public pricing carries only non-authoritative tier/interval intent, `/settings` is admin-gated, the admin billing page opens Stripe Customer Portal sessions from the DB-stored customer ID only, and `verify:phase-6` plus the hosted workflow/UAT checklist are wired. Phase 6 is not shipped: `pnpm db:verify` and `pnpm verify:phase-6` pass, but Stripe test-clock UAT remains partial (rows 9-10).
+Phase 5 shipped via PR #27 at `3344847`. Phase 6 is verifying/UAT-complete/ship-prep on draft PR #32 from `gsd/phase-6-stripe-uat-complete` against `main`; it is not shipped and not merged. Plans 06-01 through 06-06 are complete locally: catalog/client/mask helpers exist, the additive billing-state migration is applied to the approved TEST/dev Supabase target, the Stripe webhook route verifies raw bodies, handles the 5 locked events, re-fetches canonical subscriptions where required, writes idempotently, `maxUsers` uses a real org-scoped user count, the admin checkout Server Action creates Stripe Checkout Sessions from server-derived org/price/metadata, public pricing carries only non-authoritative tier/interval intent, `/settings` is admin-gated, the admin billing page opens Stripe Customer Portal sessions from the DB-stored customer ID only, and `verify:phase-6` plus the hosted workflow/UAT checklist are wired. Local `pnpm db:verify`, `pnpm verify:phase-6`, and Stripe test-mode UAT rows 1-11 are green; hosted `Verify Phase 6` fails closed until Matthew/operator configures the required GitHub repository secrets.
+
+Ship-prep topology note: `gsd/phase-6-billing` contained local docs/topology work after the PR branch was published. The product/security scoped diff between that branch and `gsd/phase-6-stripe-uat-complete` was checked empty on 2026-05-31 before carrying over only safe docs. Retire `gsd/phase-6-billing` only after Matthew approves branch deletion.
 
 ---
 
