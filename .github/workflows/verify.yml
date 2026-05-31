@@ -3,9 +3,10 @@ name: Verify
 on:
   pull_request:
   push:
+    # Only main: PR branches are covered by the pull_request trigger above
+    # (avoids a redundant second full-gate run per PR commit).
     branches:
       - main
-      - 'gsd/**'
   workflow_dispatch:
   schedule:
     # Nightly safety net for verification drift.

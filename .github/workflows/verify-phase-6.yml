@@ -3,9 +3,11 @@ name: Verify Phase 6
 on:
   pull_request:
   push:
+    # Only main: PR branches are covered by the pull_request trigger above. Running
+    # both push (gsd/**) and pull_request spawned two concurrent verifier jobs against
+    # the shared Supabase verification DB, deadlocking on TRUNCATE in the integration tests.
     branches:
       - main
-      - 'gsd/**'
   workflow_dispatch:
 
 concurrency:
