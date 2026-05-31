@@ -17,14 +17,16 @@ async function importCatalog() {
 function stubCompleteCatalogEnv(
   overrides: Partial<Record<keyof typeof PRICE_ENV, string | undefined>> = {},
 ): void {
+  // Reset any prior stubs so each setup is hermetic.
+  vi.unstubAllEnvs();
   for (const [name, value] of Object.entries({ ...PRICE_ENV, ...overrides })) {
     if (value === undefined) {
-      vi.unstubAllEnvs();
-      for (const [resetName, resetValue] of Object.entries({ ...PRICE_ENV, ...overrides })) {
-        if (resetName !== name && resetValue !== undefined) {
-          vi.stubEnv(resetName, resetValue);
-        }
-      }
+      // A `undefined` override means "this price env var is missing". Refusing to
+      // stub it is not enough: CI injects STRIPE_PRICE_* into process.env via the
+      // verify-phase-6 workflow `env:` block, so an ambient real value would survive
+      // and the catalog would build instead of failing closed. Delete it explicitly
+      // so the missing-var case is deterministic on both local and CI.
+      delete process.env[name];
       continue;
     }
     vi.stubEnv(name, value);
