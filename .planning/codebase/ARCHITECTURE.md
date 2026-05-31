@@ -1,304 +1,347 @@
-<!-- refreshed: 2026-05-24 -->
+<!-- refreshed: 2026-05-30 -->
 # Architecture
 
-**Analysis Date:** 2026-05-24
+**Analysis Date:** 2026-05-30
 
 ## System Overview
 
 ```text
-┌──────────────────────────────────────────────────────────────────────┐
-│                      Browser / Clerk Session                          │
-└────────────────────────────────┬─────────────────────────────────────┘
-                                 │
-                                 ▼
-┌──────────────────────────────────────────────────────────────────────┐
-│                   middleware.ts  (single chokepoint)                  │
-│  - clerkMiddleware                                                    │
-│  - x-pathname injection (clobbers client header)                      │
-│  - webhook + cron bypass (verify own credentials in-route)            │
-│  - public route allow-list                                            │
-│  - admin URL gate (D-10 "advertise nothing" → 404 not 401/403)        │
-└────────────────────────────────┬─────────────────────────────────────┘
-                                 │
-        ┌────────────────────────┼────────────────────────┐
-        ▼                        ▼                        ▼
-┌───────────────┐      ┌─────────────────┐      ┌────────────────────┐
-│  (admin)      │      │  (employee)     │      │  api/webhooks      │
-│  layout.tsx   │      │  layout.tsx     │      │  /clerk, /stripe   │
-│  requireAdmin │      │  getOrgContext  │      │  signature-verified│
-│  `app/(admin)`│      │  `app/(employee)│      │  `app/api/webhooks`│
-└───────┬───────┘      └────────┬────────┘      └─────────┬──────────┘
-        │                       │                          │
-        ▼                       ▼                          ▼
-┌──────────────────────────────────────────────────────────────────────┐
-│  lib/auth/context.ts → getOrgContext()                                │
-│  Clerk text-id → internal UUID (organizations.id, users.id)           │
-│  + role narrowing via asRole()                                        │
-│  `lib/auth/context.ts`                                                │
-└────────────────────────────────┬─────────────────────────────────────┘
-                                 │  OrgContext { orgId, userId, role }
-                                 ▼
-┌──────────────────────────────────────────────────────────────────────┐
-│  lib/db/scoped.ts → withOrgScope(ctx, async (s) => { ... })           │
-│  - db.transaction(...)                                                │
-│  - SET LOCAL ROLE authenticated   ← MUST come first                   │
-│  - set_config('request.jwt.claims', {...}, true)   ← is_local=true    │
-│  `lib/db/scoped.ts`                                                   │
-└────────────────────────────────┬─────────────────────────────────────┘
-                                 │  OrgScope = OrgContext & { tx }
-                                 ▼
-┌──────────────────────────────────────────────────────────────────────┐
-│  Per-aggregate repositories (ADR-023)                                 │
-│  `lib/db/repositories/*.ts`  (9 repos — one per aggregate root)       │
-│  Every query: where(eq(table.orgId, scope.orgId), ...)                │
-└────────────────────────────────┬─────────────────────────────────────┘
-                                 │
-                                 ▼
-┌──────────────────────────────────────────────────────────────────────┐
-│  Supabase Postgres + RLS                                              │
-│  USING (org_id = (auth.jwt()->>'org_id')::uuid)                       │
-│  Last line of defense — RLS fires on every user-facing query.         │
-└──────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                         Next.js 15 App Router (Vercel)                       │
+│                                                                              │
+│  (marketing)/   (auth)/   (onboarding)/   (admin)/   (employee)/            │
+│  Public pages   Clerk UI  Create org      Admin UI   Employee UI            │
+│  `app/(marketing)` `app/(auth)` `app/(onboarding)` `app/(admin)` `app/(employee)` │
+└──────────┬───────────────────────────────────────────────────┬──────────────┘
+           │  Server Actions / API Route Handlers              │
+           ▼                                                   ▼
+┌──────────────────────────────┐    ┌─────────────────────────────────────────┐
+│  app/api/                    │    │  lib/                                   │
+│  ├── ai/draft                │    │  ├── auth/context.ts  (getOrgContext)   │
+│  ├── ai/summary              │    │  ├── auth/require-admin.ts             │
+│  ├── ai/qa                   │    │  ├── db/scoped.ts     (withOrgScope)   │
+│  ├── ai/consistency/[batchId]│    │  ├── db/repositories/                  │
+│  ├── webhooks/clerk          │    │  ├── policies/state-machine.ts         │
+│  └── webhooks/stripe         │    │  ├── stripe/products.ts (tier gating)  │
+└──────────┬───────────────────┘    │  ├── stripe/client.ts                  │
+           │                        │  ├── stripe/catalog.ts                 │
+           ▼                        │  ├── stripe/normalize.ts               │
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  Data Layer                                                                  │
+│  Drizzle ORM  →  Supabase PostgreSQL (port 6543, Transaction pooler)        │
+│  14 tables (12 tenant-scoped + stripe_events + clerk_events)                │
+│  RLS: USING (org_id = auth.jwt()->>'org_id')                                │
+└──────────────────────────────────────────────────────────────────────────────┘
+           │                                          │
+           ▼                                          ▼
+┌─────────────────────┐                   ┌───────────────────────────────────┐
+│  Anthropic API      │                   │  Stripe API                       │
+│  claude-sonnet-4-6  │                   │  Checkout / Portal / Webhooks     │
+│  claude-haiku-4-5   │                   │  Subscription state written to    │
+│  Prompt caching     │                   │  organizations table via webhook  │
+└─────────────────────┘                   └───────────────────────────────────┘
 ```
 
 ## Component Responsibilities
 
 | Component | Responsibility | File |
 |-----------|----------------|------|
-| `middleware` | Single chokepoint: route gating, x-pathname injection, admin-gate, webhook/cron bypass | `middleware.ts` |
-| `getOrgContext` | Resolve Clerk session → internal UUIDs + role | `lib/auth/context.ts` |
-| `withOrgScope` | Per-request tx with RLS JWT-claims injection | `lib/db/scoped.ts` |
-| Repositories | Per-aggregate queries; all filter by `orgId` | `lib/db/repositories/*.ts` |
-| State machine | Pure DAG of allowed policy transitions | `lib/policies/state-machine.ts` |
-| Orchestrators | 7 transition functions (submit/approve/reject/publish/archive/restore/editPublished) | `lib/policies/transitions.ts` |
-| Acknowledgment | Plan 05-04 orchestrator (append-only insert) | `lib/policies/acknowledgment.ts` |
-| AI Q&A | askQuestion orchestrator + parser + grants | `lib/ai/qa.ts`, `lib/ai/qa-parser.ts` |
-| Drizzle schema | Source of truth for table shape | `lib/db/schema.ts` |
+| `ClerkProvider` | Root auth context, session tokens | `app/layout.tsx` |
+| `middleware.ts` | Auth chokepoint — public/webhook/admin/employee routing, role gate | `middleware.ts` |
+| `getOrgContext()` | Resolve session → internal `orgId`/`userId` UUIDs + role | `lib/auth/context.ts` |
+| `withOrgScope()` | Open Drizzle transaction, inject JWT claims for RLS | `lib/db/scoped.ts` |
+| `requireAdmin()` | Admin page gate — calls `notFound()` (404) on non-admin | `lib/auth/require-admin.ts` |
+| `requireAdminFromCtx()` | Admin API gate — throws `ForbiddenError` (403) on non-admin | `lib/auth/require-admin.ts` |
+| Repositories | Tenant-scoped DB reads/writes using `OrgScope.tx` | `lib/db/repositories/` |
+| Policy state machine | Pure DAG: `draft → under_review → published → archived` | `lib/policies/state-machine.ts` |
+| Policy transitions | Server-only orchestrators wrapping state machine + DB writes | `lib/policies/transitions.ts` |
+| `requireTierLimit()` | Throw-based tier/feature gate before Anthropic calls | `lib/stripe/products.ts` |
+| `normalizeSubscription()` | Map Stripe subscription → billing kind + planTier | `lib/stripe/normalize.ts` |
+| Stripe webhook | Signature verify → idempotency → org resolution → DB update | `app/api/webhooks/stripe/route.ts` |
+| Clerk webhook | Svix verify → idempotency → org/user provisioning | `app/api/webhooks/clerk/route.ts` |
+| AI routes | Draft / summary / Q&A / consistency — admin-only, tier-gated | `app/api/ai/` |
 
 ## Pattern Overview
 
-**Overall:** Layered, server-only Next.js 15 App Router with defense-in-depth multi-tenancy (RLS + app-layer scope + per-aggregate repos).
+**Overall:** Multi-tenant SaaS — Next.js 15 App Router with route groups as access-control boundaries, a two-layer tenant isolation guarantee (app-layer `org_id` scoping + Supabase RLS), and webhook-driven billing state.
 
 **Key Characteristics:**
-- All DB access is server-only (`'server-only'` directive at top of `lib/db/scoped.ts`, `lib/auth/context.ts`, `lib/policies/transitions.ts`, etc.)
-- Multi-tenancy is a layered invariant — three concurrent enforcement points (app where-clause + RLS + per-aggregate repos)
-- Append-only audit trails for acknowledgments and policy_versions enforced by 3-layer defense (compile-time + CI gate + DB GRANT asymmetry)
-- All AI calls server-side only (CLAUDE.md NEVER #2); routed through `lib/ai/client.ts` and persisted to `ai_generations`
-- Typed-error hierarchies (`BootstrapError` for auth, `PolicyDomainError` for policy domain) with stable `code` discriminants
-- ts-morph CI gates enforce architectural invariants that compile-time types cannot (DB import allow-list, error-discipline, brand preservation)
+- Every authenticated server request begins with `getOrgContext()` → `withOrgScope()`, injecting JWT claims into a Drizzle transaction so RLS fires on every query.
+- Subscription state is never trusted from the client — `organizations.plan_tier` is the single source of truth, written only by the Stripe webhook handler.
+- Typed error hierarchy (`BootstrapError` subclasses, `TierLimitExceededError`, `IllegalTransitionError`) propagates from domain layer to Next.js error boundary; catch sites discriminate by class, never by string.
+- `server-only` guard on all lib/ modules that touch DB, AI, or Stripe — prevents accidental client-side import.
 
 ## Layers
 
-**Routing + Auth Boundary (`middleware.ts`):**
-- Purpose: Single auth chokepoint per ADR-009 / D-10. Webhook + cron bypass before Clerk runs.
-- Location: `middleware.ts`
-- Contains: Public-route matcher, admin URL gate (404 not 401/403), `x-pathname` header injection
+**Middleware (Auth Chokepoint):**
+- Purpose: Single gate before any route renders. Routes requests to public, webhook, admin, or employee branches. Verifies Clerk session and role for admin URLs.
+- Location: `middleware.ts` (root)
+- Admin URLs (patterns in `ADMIN_URL_PATTERNS`): `/dashboard`, `/policies`, `/settings` — non-admins get 404 per "advertise nothing" (D-10).
+- Webhooks bypass Clerk: `/api/webhooks/stripe`, `/api/webhooks/clerk` — each verifies its own signature in-route.
 - Depends on: `@clerk/nextjs/server`
-- Used by: Every request matching `matcher` config
+- Used by: Every non-static request
 
-**Server Components / Route Handlers (`app/`):**
-- Purpose: Per-route pages and API handlers; admin and employee surfaces
-- Location: `app/(admin)/`, `app/(employee)/`, `app/api/`
-- Contains: `page.tsx` Server Components, `actions.ts` Server Actions, `route.ts` API handlers
-- Depends on: `lib/auth/context.ts`, `lib/db/scoped.ts`, repositories, `components/`
-- Used by: Browser + middleware
+**Route Groups (UI Layer):**
+- Purpose: URL-segment-free layout boundaries; each has its own auth gate in its layout.
+- `app/(marketing)/` — public, no auth. `app/layout.tsx`, `app/(marketing)/layout.tsx`
+- `app/(auth)/` — Clerk-hosted sign-in/sign-up flows. `app/(auth)/layout.tsx`
+- `app/(onboarding)/` — auth required, role NOT required. `app/(onboarding)/layout.tsx`
+- `app/(admin)/` — `requireAdmin()` in layout; all admin pages are admin-only. `app/(admin)/layout.tsx`
+- `app/(employee)/` — `getOrgContext()` in layout; any authenticated role. `app/(employee)/layout.tsx`
+- Depends on: `lib/auth/context.ts`, `lib/auth/require-admin.ts`
 
-**Domain Orchestrators (`lib/policies/`, `lib/ai/`):**
-- Purpose: Cross-repository business logic (state transitions, AI Q&A, acknowledgments)
-- Location: `lib/policies/transitions.ts`, `lib/policies/acknowledgment.ts`, `lib/ai/qa.ts`, `lib/ai/summary.ts`
-- Contains: Transactional orchestrators that compose multiple repository calls + AI client + state validation
-- Depends on: `lib/db/scoped.ts`, `lib/db/repositories/*`, `lib/ai/client.ts`
-- Used by: Server Actions, API route handlers
+**API Route Handlers:**
+- Purpose: REST endpoints for AI operations and webhook ingestion.
+- AI routes (`app/api/ai/`): admin-only, tier-gated via `requireTierLimit()`, write to `ai_generations`.
+- Webhook routes (`app/api/webhooks/`): bypass Clerk middleware, verify their own credentials.
+- Pattern (AI routes): auth outside `try` → tier check → AI call → DB write → return. Auth errors propagate to Next.js boundary; AI errors return 503 envelope with `Retry-After: 30`.
 
-**Data Access (`lib/db/`):**
-- Purpose: Single source of truth for `orgId`-scoped DB access
-- Location: `lib/db/scoped.ts`, `lib/db/repositories/*.ts`, `lib/db/schema.ts`
-- Contains: `withOrgScope` per-request transaction bridge + 9 per-aggregate repositories
-- Depends on: `drizzle-orm`, `postgres`
-- Used by: All orchestrators and Server Actions
+**Server Actions:**
+- Purpose: Thin form-submission handlers under route pages.
+- Pattern: `'use server'` directive, call `getOrgContext()` + `requireAdminFromCtx()`, delegate to lib orchestrators.
+- Billing actions: `app/(admin)/settings/actions.ts` — `createCheckoutSessionAction`, `createPortalSessionAction`
+- Policy actions: `app/(admin)/policies/[id]/actions.ts`, `app/(admin)/policies/new/actions.ts`
+- Employee actions: `app/(employee)/my-policies/[id]/actions.ts`, `app/(employee)/my-policies/ask/actions.ts`
 
-**External Integrations (`lib/ai/`, webhook handlers):**
-- Purpose: Anthropic Claude API client + Clerk webhook + (future) Stripe webhook
-- Location: `lib/ai/client.ts`, `app/api/webhooks/clerk/route.ts`
-- Contains: Signature verification, idempotency, audit logging
-- Depends on: `@anthropic-ai/sdk`, `svix`
+**Auth Context Layer:**
+- Purpose: Per-request identity resolution — Clerk text IDs → internal UUIDs.
+- Location: `lib/auth/context.ts`
+- `OrgContext` carries: `orgId` (internal UUID), `userId` (internal UUID), `clerkOrgId`, `clerkUserId`, `role`.
+- Sequential lookup: org row first (by `clerk_org_id`), then user row scoped by `eq(users.orgId, orgRow.id)` (ADR-027 — prevents multi-org mismatch silently producing wrong attribution).
+- Error hierarchy: `NotAuthenticatedError`, `NoActiveOrganizationError`, `InvalidRoleError`, `OrgNotProvisionedError`, `UserNotProvisionedError` — all subtypes of `BootstrapError` except `ClerkAuthFailedError` (infra, not bootstrap).
+
+**Data Access Layer (OrgScope + Repositories):**
+- Purpose: Tenant-scoped, transactional DB access with RLS enforcement.
+- `lib/db/scoped.ts` — `withOrgScope(ctx, fn)` opens Drizzle transaction, executes `SET LOCAL ROLE authenticated` and `set_config('request.jwt.claims', claims, true)` inside the transaction so RLS predicates evaluate against `ctx.orgId`.
+- `lib/db/repositories/` — per-aggregate modules (`Policies`, `PolicyVersions`, `Acknowledgments`, `PolicyAssignments`, etc.). All take `OrgScope` first. None import raw `db` (enforced by `scripts/check-db-imports.ts`).
+- Exception allow-list for raw `db`: `lib/db/index.ts`, `app/api/webhooks/clerk/route.ts` (service-role provisioning), `lib/db/scoped.ts`, `lib/stripe/products.ts` (tier-check runs before `withOrgScope` opens).
+
+**Billing Layer:**
+- Purpose: Stripe subscription lifecycle management and tier-feature gating.
+- Location: `lib/stripe/`
+- `client.ts` — lazy singleton `getStripeClient()` from `STRIPE_SECRET_KEY`.
+- `catalog.ts` — `PRICE_CATALOG` built from 6 env vars at startup (`STRIPE_PRICE_{TIER}_{INTERVAL}`). Maps price IDs ↔ tier + interval.
+- `normalize.ts` — `normalizeSubscription()` maps a Stripe `Subscription` to a discriminated union: `entitled` (active/trialing → write `planTier`), `preserve-tier` (past_due → keep existing tier), `downgrade` (canceled/unpaid → set `starter`), `link-only` (incomplete → store IDs only).
+- `products.ts` — `TIER_LIMITS` constant, `checkTierLimit()`, `requireTierLimit()`. Reads `organizations.plan_tier` from DB via `readPlanTier()` helper (spyable for tests via self-namespace import pattern).
+- `errors.ts` — `TierLimitExceededError` (statusCode 429 for usage-bound, 403 for tier-bound), `StripeConfigError`, `StripeCatalogConfigError`.
+- `mask.ts` — `maskCustomerId()`, `maskSubscriptionId()` for log safety.
+
+**Policy Domain Layer:**
+- Purpose: Policy lifecycle business rules.
+- `lib/policies/state-machine.ts` — pure DAG, no DB import. `ALLOWED_TRANSITIONS`, `canTransition()`, `IllegalTransitionError`.
+- `lib/policies/transitions.ts` — server-only orchestrators (`publishPolicy`, `submitForReview`, `approvePolicy`, `archivePolicy`, `restorePolicy`, `editPublished`). Each calls `getOrgContext()` + `requireAdminFromCtx()` + `withOrgScope()` + validates transition + writes version snapshot + status update atomically.
+- `lib/policies/acknowledgment.ts` — server-only acknowledgment write orchestrator. Wraps 4 DB operations in one transaction: policy read, assignment check, version lookup, `INSERT ON CONFLICT DO NOTHING`.
+
+**AI Layer:**
+- Purpose: Anthropic Claude API integration for draft generation, summarization, Q&A, consistency check.
+- `lib/ai/client.ts` — lazy singleton `getAnthropicClient()`, `maxRetries: 0`, `timeout: 25_000ms`.
+- `lib/ai/models.ts` — `MODEL_SONNET = 'claude-sonnet-4-6'`, `MODEL_HAIKU = 'claude-haiku-4-5-20251001'`.
+- `lib/ai/cache.ts` — `EPHEMERAL_CACHE` (5min TTL), `LONG_CACHE` (1h TTL). Q&A builds system array with LONG_CACHE first, EPHEMERAL_CACHE second (Anthropic ordering requirement).
+- `lib/ai/prompts.ts` — all system prompt templates.
 
 ## Data Flow
 
-### Primary Request Path (admin Server Action — e.g. publish policy)
+### Admin Request Lifecycle (e.g., policy draft)
 
-1. Browser submits form → Next.js routes to `app/(admin)/policies/[id]/actions.ts` (`actions.ts`)
-2. `middleware.ts` matches admin URL → verifies session → narrows role to "admin" via `publicMetadata.role` → injects `x-pathname` (`middleware.ts:93-154`)
-3. `(admin)/layout.tsx` calls `requireAdmin()` (`lib/auth/require-admin.ts`)
-4. Server Action invokes orchestrator → `lib/policies/transitions.ts:publish()` (`lib/policies/transitions.ts:156`)
-5. Orchestrator calls `getOrgContext()` → Clerk text-id → internal UUIDs (`lib/auth/context.ts:93`)
-6. Orchestrator opens `withOrgScope(ctx, ...)` → `db.transaction` + `SET LOCAL ROLE authenticated` + `set_config('request.jwt.claims', ..., true)` (`lib/db/scoped.ts:41`)
-7. Inside tx: `Policies.findById(s, policyId)` → `canTransition(from, to)` → `PolicyVersions.create(s, ...)` snapshot → `update(policies).set({status:'published'})` (`lib/policies/transitions.ts:156-176`)
-8. Post-commit: `generateSummaryForPolicy(policyId, ctx)` outside the tx; `Anthropic.APIError` swallowed per D-19 graceful-degrade; all other errors re-thrown
-9. Server Action returns typed `ActionState`; UI revalidates
+1. Browser POST → `middleware.ts` intercepts — verifies Clerk session, checks role = `admin`, attaches `x-pathname` header, passes to App Router. (`middleware.ts`)
+2. `app/(admin)/layout.tsx` calls `requireAdmin()` → `getOrgContext()` → Clerk `auth()` → DB lookups to translate Clerk IDs to internal UUIDs. (`lib/auth/context.ts`)
+3. Server Action (e.g., `app/(admin)/policies/new/actions.ts`) calls `getOrgContext()` + `requireAdminFromCtx(ctx)`.
+4. `await requireTierLimit(ctx.orgId, 'aiDraftsMonthly')` — reads `organizations.plan_tier` from DB, counts AI draft rows this month, throws `TierLimitExceededError` if over. (`lib/stripe/products.ts`)
+5. `withOrgScope(ctx, async (s) => { ... })` — opens Drizzle transaction, injects JWT claims via `SET LOCAL ROLE authenticated` + `set_config('request.jwt.claims', ...)`. (`lib/db/scoped.ts`)
+6. Repository call (e.g., `Policies.create(s, input)`) executes with `s.tx` — both app-layer `where(eq(policies.orgId, s.orgId))` and Supabase RLS fire on the query. (`lib/db/repositories/policies.ts`)
+7. Response returned to browser.
 
-### Employee Acknowledge Flow (`/my-policies/[id]`)
+### Stripe Webhook → Subscription State Update
 
-1. Server Component loads — `getOrgContext()` resolves user
-2. Inside ONE `withOrgScope` closure, 3-branch access check runs (`app/(employee)/my-policies/[id]/page.tsx:81-133`):
-   - **Branch A (assigned)** → `Policies.listAssignedAndPublishedForUser(s, userId)` hit → full `PolicyView` + `AcknowledgeButton`
-   - **Branch B (cited-but-not-assigned)** → `QaCitationGrants.hasGrant(s, userId, policyId)` true → TL;DR-only with amber banner (D-27 exact copy)
-   - **Branch C (else)** → `notFound()` (404 per D-10)
-3. User clicks Acknowledge → Server Action → `lib/policies/acknowledgment.ts:createAcknowledgment(...)` (`lib/policies/acknowledgment.ts`)
-4. Orchestrator: verifies assignment + policy.status === 'published' + maps Drizzle 23505 unique-violation to silent success (idempotent ack)
+1. Stripe delivers event to `POST /api/webhooks/stripe`. (`app/api/webhooks/stripe/route.ts`)
+2. `request.text()` reads raw body before any JSON parse (required for HMAC verification).
+3. `stripe.webhooks.constructEvent(rawBody, signature, webhookSecret)` — validates `stripe-signature` header. 400 on missing signature, 400 on bad signature.
+4. `dispatchEvent()` routes to handler by event type: `checkout.session.completed`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.deleted`, `customer.subscription.updated`.
+5. For subscription events: retrieve canonical subscription from Stripe API (not event snapshot) → `normalizeSubscription()` → determine kind (`entitled`/`preserve-tier`/`downgrade`/`link-only`).
+6. `resolveOrg()` — matches org by `org_id` metadata hint, `stripe_customer_id`, or `stripe_subscription_id`. Requires exactly one matching row; logs no-op if ambiguous.
+7. `commitProcessedEvent()` — DB transaction: INSERT into `stripe_events` with `ON CONFLICT DO NOTHING` (idempotency), then UPDATE `organizations` billing columns. If event already in `stripe_events`, returns `{ status: 'duplicate' }` and skips update.
+8. `planTier` is updated only when `normalized.kind === 'entitled'` or `'downgrade'`; `preserve-tier` (past_due) keeps existing tier.
 
-### Employee Q&A Flow (`/my-policies/ask`)
+### Post-Sign-In Routing (Trampoline)
 
-1. Server Action submits question → `app/(employee)/my-policies/ask/actions.ts`
-2. Orchestrator: `lib/ai/qa.ts:askQuestion(ctx, question)` (D-25 extraction from HTTP route per Plan 05-04)
-3. Loads published policies via `Policies.listPublishedForOrg` → builds `validIds` Set → calls Anthropic via `lib/ai/client.ts`
-4. Parses cited IDs from response — D-41 same-closure validation drops any citation not in `validIds` (defense vs prompt injection)
-5. Persists `ai_generations` row + writes `qa_citation_grants` rows (D-26 server-tracked) → grants Branch B access in `/my-policies/[id]`
+1. Clerk redirects to `GET /post-sign-in` after authentication. (`app/(auth)/post-sign-in/page.tsx`)
+2. `getOrgContext()` called — throws one of the `BootstrapError` subclasses if session is incomplete.
+3. `NotAuthenticatedError | InvalidRoleError | NoActiveOrganizationError` → redirect to `/onboarding/create-org`.
+4. `OrgNotProvisionedError | UserNotProvisionedError` (provisioning race) → rethrow → 500 (not onboarding).
+5. `ctx.role === 'admin'` → redirect to `/dashboard`; else → redirect to `/my-policies`.
 
-**State Management:**
-- Browser-side: React 19 form state via Server Action `useFormState`
-- Server-side: Stateless; every request resolves a fresh `OrgContext`
-- DB: Source of truth for ack state, policy status, subscription tier
+### Clerk Webhook → User/Org Provisioning
+
+1. Clerk delivers event to `POST /api/webhooks/clerk`. (`app/api/webhooks/clerk/route.ts`)
+2. `request.text()` → Svix signature verification using `CLERK_WEBHOOK_SECRET`.
+3. Idempotency: INSERT into `clerk_events` with `ON CONFLICT DO NOTHING`. If duplicate, return 200.
+4. `organization.created` → INSERT into `organizations` with `planTier: 'starter'`, `stripeSubscriptionStatus: 'trialing'`.
+5. `user.created` → INSERT into `users` with `orgId: null` (nullable window per D-03a), then `mirrorRoleToClerk('employee')`.
+6. `organizationMembership.created` → lookup internal org UUID by `clerk_org_id`, UPDATE `users.orgId` + `users.role`, mirror role to Clerk publicMetadata.
+7. On prerequisite-missing race (org/user row not yet present): delete the idempotency row before returning 409, so Clerk's retry re-fires.
 
 ## Key Abstractions
 
-**`OrgContext` / `OrgScope`:**
-- Purpose: Tenant-scoped identity + per-request DB transaction handle
-- Location: `lib/auth/context.ts:36-46`, `lib/db/scoped.ts:26`
-- Pattern: Constructor at one trust boundary (`getOrgContext`), consumed via typed wrapper (`withOrgScope`)
+**OrgContext:**
+- Purpose: Per-request tenant identity — internal UUIDs for `orgId` and `userId` translated from Clerk text IDs.
+- Location: `lib/auth/context.ts`
+- Fields: `orgId` (UUID), `userId` (UUID), `clerkOrgId` (Clerk text), `clerkUserId` (Clerk text), `role`.
+- Never carry `stripeCustomerId` or `planTier` — always re-read billing state from DB.
 
-**Branded `PolicyId` (ADR-028):**
-- Purpose: Prevent cross-confusion between `policies.id` and other UUIDs (`users.id`, `organizations.id`)
-- Examples: `lib/policies/types.ts:39`, threaded through 7 transition orchestrators + 5 repository methods + 7 Server Actions
-- Pattern: `z.string().uuid().brand<'PolicyId'>()` — CI gate `scripts/check-policy-id-brand.ts` pins signature surface
-- Slippery-slope policy: only `PolicyId` branded; `UserId`/`OrgId` opportunistic (well-contained in `OrgContext`)
+**OrgScope:**
+- Purpose: Extends OrgContext with a live Drizzle transaction handle (`tx`) and injected JWT claims for RLS.
+- Location: `lib/db/scoped.ts`
+- Pattern: `await withOrgScope(ctx, async (scope) => { await Policies.create(scope, ...) })`.
+- All repository calls take `OrgScope` as first argument, use `scope.tx` for queries. Never import raw `db`.
 
-**Repository pattern (ADR-023):**
-- Purpose: One module per aggregate root; static class exports
-- Location: `lib/db/repositories/*.ts` (9 files)
-- Pattern: All methods take `(scope: OrgScope, ...)` as first arg; all queries filter by `scope.orgId`
-- Raw `db` import is allow-listed to 2 paths only (`lib/db/index.ts`, `lib/db/scoped.ts`) — enforced by `scripts/check-db-imports.ts`
-
-**State machine (D-03):**
-- Purpose: Pure DAG of allowed policy lifecycle transitions
+**Policy State Machine:**
+- Purpose: Single source of truth for allowed policy status transitions.
 - Location: `lib/policies/state-machine.ts`
-- Pattern: Single `ALLOWED_TRANSITIONS` table as `satisfies Record<PolicyStatus, readonly PolicyStatus[]>`; pure module, no DB import, no `'server-only'`
+- Transitions: `draft → [under_review, published]`, `under_review → [published, draft]`, `published → [archived, draft]`, `archived → [draft]`.
+- Tier gating for `approvalWorkflows` (Growth+) is layered on top in `lib/policies/transitions.ts` via `requireTierLimit()`.
 
-**Typed-error hierarchies:**
-- Auth domain: `BootstrapError` abstract base with `code: BootstrapErrorCode` (ADR-026) at `lib/auth/errors.ts`
-- Policy domain: `PolicyDomainError` abstract base with `code: PolicyDomainErrorCode` at `lib/policies/errors.ts`
-- Pattern: Abstract base + literal `code` field + explicit `this.name = 'ClassName'` + `public readonly` diagnostic params
-- CI gate `scripts/check-error-discipline.ts` (ts-morph) forbids built-in `Error`/`TypeError`/`RangeError` in `lib/auth/**`, `lib/stripe/**`, `lib/policies/**`
+**NormalizedSubscription:**
+- Purpose: Discriminated union translating Stripe subscription state to billing intent.
+- Location: `lib/stripe/normalize.ts`
+- Kinds: `entitled` (write planTier), `preserve-tier` (past_due, keep tier), `downgrade` (write `starter`), `link-only` (incomplete, store IDs only).
+
+**TIER_LIMITS:**
+- Purpose: Single source of truth for feature flags and usage caps per plan.
+- Location: `lib/stripe/products.ts`
+- Tiers: `starter` (25 users, 50 AI drafts/mo, no approvals/consistency/SSO), `growth` (100 users, 200 drafts, approvals+consistency+slack), `business` (500 users, unlimited drafts, all features).
 
 ## Entry Points
 
+**Root Layout:**
+- Location: `app/layout.tsx`
+- Wraps entire app in `<ClerkProvider>`.
+
 **Middleware:**
 - Location: `middleware.ts`
-- Triggers: Every request matching `matcher` config (everything except static + Next internals)
-- Responsibilities: Route gating, x-pathname injection, admin-gate, webhook/cron bypass
+- Triggers: Every non-static request.
+- Pattern matching: static asset exclusions + API routes always run.
 
-**Admin Server Components:**
-- Location: `app/(admin)/dashboard/page.tsx`, `app/(admin)/policies/page.tsx`, `app/(admin)/policies/[id]/page.tsx`, `app/(admin)/policies/new/page.tsx`
-- Triggers: Authenticated admin navigation
-- Responsibilities: List/detail/create views; render PolicyView + transition menus
+**Post-Sign-In Trampoline:**
+- Location: `app/(auth)/post-sign-in/page.tsx`
+- Triggers: Clerk "After sign-in URL" redirect.
+- Dispatches to `/onboarding/create-org`, `/dashboard`, or `/my-policies`.
 
-**Employee Server Components:**
-- Location: `app/(employee)/my-policies/page.tsx`, `app/(employee)/my-policies/[id]/page.tsx`, `app/(employee)/my-policies/ask/page.tsx`
-- Triggers: Authenticated employee navigation
-- Responsibilities: My-policies list, D-27 3-branch detail page, Q&A surface
+**Stripe Webhook:**
+- Location: `app/api/webhooks/stripe/route.ts`
+- Triggers: Stripe event delivery.
+- `export const runtime = 'nodejs'` (required for raw body access via `request.text()`).
 
-**Server Actions:**
-- Location: `app/(admin)/policies/[id]/actions.ts`, `app/(employee)/my-policies/[id]/actions.ts`, `app/(employee)/my-policies/ask/actions.ts`
-- Triggers: Form submission from client component
-- Responsibilities: Thin wrappers over `lib/policies/transitions.ts` and `lib/ai/qa.ts` orchestrators
-
-**Webhook Handlers:**
+**Clerk Webhook:**
 - Location: `app/api/webhooks/clerk/route.ts`
-- Triggers: Clerk org/user lifecycle events
-- Responsibilities: Mirror Clerk identities → `organizations` + `users` tables; svix signature verification
-
-**AI Route Handlers:**
-- Location: `app/api/ai/draft/route.ts`, `app/api/ai/summary/route.ts`, `app/api/ai/qa/route.ts`, `app/api/ai/consistency/route.ts`
-- Triggers: Authenticated admin/employee surfaces
-- Responsibilities: Tier-limit check → AI call → persist `ai_generations` row
+- Triggers: Clerk organization/user/membership events.
+- Only file in `app/` allowed to import raw `db` directly (service-role provisioning).
 
 ## Architectural Constraints
 
-- **Threading:** Single-threaded Next.js request handler; per-request `db.transaction` opens one Postgres connection from the pool. `withOrgScope` MUST set `SET LOCAL ROLE authenticated` before `set_config` (Pitfall 1) and MUST pass `is_local=true` to `set_config` (Pitfall 2 — leaks claims across pooled connections otherwise).
-- **Global state:** None tolerated. `lib/db/index.ts` exports the singleton `db` client; only allow-listed paths import it raw (`lib/db/scoped.ts`, webhook + cron + test harness). All other code imports via `withOrgScope` → `scope.tx`.
-- **Circular imports:** Avoided. `lib/policies/state-machine.ts` is a pure leaf (no `'server-only'`); orchestrators import it but not vice versa.
-- **Server-only enforcement:** All DB-touching modules carry `import 'server-only'` at the top — a build-time error if any client component transitively imports them.
-- **Admin gate hardcoded to URL patterns:** `ADMIN_URL_PATTERNS` in `middleware.ts:45` lists the literal admin URLs (`/dashboard`, `/policies`) — NOT route-group catch-alls (which never appear in URLs). Adding a new admin URL requires updating both patterns AND `app/(admin)/layout.tsx` `requireAdmin()`.
+- **Threading:** Single-threaded Node.js event loop on Vercel serverless functions. Anthropic client configured with `maxRetries: 0` and `timeout: 25_000ms` to prevent function monopolization.
+- **Global state:** Module-level singletons for `stripeClient` (`lib/stripe/client.ts`), `anthropicClient` (`lib/ai/client.ts`), and `db` (`lib/db/index.ts`). All lazy-initialized.
+- **RLS + SET LOCAL ordering:** `SET LOCAL ROLE authenticated` MUST precede `set_config('request.jwt.claims', ..., true)` within the transaction. `is_local = true` is required to prevent claim leakage across pooled connections. (`lib/db/scoped.ts:61-66`)
+- **Raw body requirement:** Both webhook routes call `request.text()` before any `request.json()` — body streams are readable only once. (`app/api/webhooks/stripe/route.ts:453`, `app/api/webhooks/clerk/route.ts:161`)
+- **Circular imports:** `lib/stripe/products.ts` uses a self-namespace import (`import * as self from './products'`) so `vi.spyOn` can intercept exported helper calls made inside the module. This is the one intentional self-reference in the codebase.
+- **Drizzle raw-db allow-list:** Enforced by `scripts/check-db-imports.ts`. Allowed: `lib/db/index.ts`, `lib/db/scoped.ts`, `app/api/webhooks/clerk/route.ts`, `lib/stripe/products.ts`. All other modules must use `scope.tx`.
 
 ## Anti-Patterns
 
-### Raw `db` import outside the allow-list
+### Reading planTier from Client or Session Claims
 
-**What happens:** A new file imports `db` from `@/lib/db` directly and runs `db.select().from(table)` without `withOrgScope`.
-**Why it's wrong:** Skips both the app-layer `where(eq(table.orgId, ctx.orgId))` AND the RLS JWT-claims injection. RLS would still fire from the connection-string `postgres` user perspective — but `postgres` user has `BYPASSRLS`, so cross-org rows leak (RESEARCH Pitfall 1).
-**Do this instead:** Import a repository (`@/lib/db/repositories/policies`); call from inside `withOrgScope(ctx, async (s) => { ... })`. CI gate `scripts/check-db-imports.ts` catches the violation; the only allow-listed raw importers are `lib/db/index.ts`, `lib/db/scoped.ts`, the Clerk webhook, the cron handler, and the test harness.
+**What happens:** Some SaaS apps store subscription tier in session claims or pass it as a prop.
+**Why it's wrong:** Stripe webhook events can be delayed; client-supplied tier cannot be verified.
+**Do this instead:** Always read `organizations.plan_tier` from the DB via `readPlanTier(orgId)` inside `checkTierLimit()` or `requireTierLimit()`. (`lib/stripe/products.ts:120-128`)
 
-### Throwing a built-in `Error` from `lib/auth/`, `lib/stripe/`, or `lib/policies/`
+### Calling Drizzle from a Repository Without OrgScope
 
-**What happens:** Code throws `throw new Error('policy not found')`.
-**Why it's wrong:** Loses the stable `code` discriminant that downstream Server Actions narrow on; structured logging in Phase 7+ has to parse prose message strings.
-**Do this instead:** Throw a typed subclass — `throw new PolicyNotFoundError(policyId)` (`lib/policies/errors.ts:78`). CI gate `scripts/check-error-discipline.ts` (ts-morph) fails the build if any `lib/{auth,stripe,policies}/**` file emits a built-in `Error`/`TypeError`/`RangeError`.
+**What happens:** Importing `db` directly from `@/lib/db` inside a repository module.
+**Why it's wrong:** Bypasses the `SET LOCAL ROLE authenticated` and JWT injection — RLS never fires because the connection-string user is `BYPASSRLS`. Also runs outside the transaction.
+**Do this instead:** Accept `OrgScope` as first argument, use `scope.tx` for all queries. (`lib/db/repositories/policies.ts:1-10`)
 
-### Modifying or deleting an `acknowledgments` row (CLAUDE.md NEVER #5)
+### Idempotency-Before-Dispatch in Clerk Webhook
 
-**What happens:** Code calls `db.update(acknowledgments)...` or `db.delete(acknowledgments)...`.
-**Why it's wrong:** Acknowledgment is the audit trail — append-only is a regulatory requirement (REQ-acknowledgment-audit).
-**Do this instead:** Use `Acknowledgments.create(s, ...)` only. Defended by ALL THREE of: (a) compile-time at `tests/types.ts` D-07 (no `update`/`delete` export from the repository), (b) ts-morph CI gate `scripts/check-acknowledgment-immutability.ts`, (c) Postgres GRANT asymmetry — `authenticated` role has INSERT but NOT UPDATE/DELETE on `acknowledgments`.
+**What happens:** The `clerk_events` row is written BEFORE the event is dispatched (current implementation).
+**Why it's wrong:** A dispatch failure (FK violation, DB error) leaves the event marked processed. Clerk's retry short-circuits on idempotency and the event is silently lost. The interim fix deletes the idempotency row on dispatch error so Clerk retries, but the ordering is still inverted.
+**Do this instead (Phase 7+):** Write the `clerk_events` row only after successful dispatch. (`app/api/webhooks/clerk/route.ts:386-409`)
 
-### Passing a raw `string` where a `PolicyId` is expected
+### Trusting Event Snapshot for Subscription State
 
-**What happens:** `await publish(rawString)` (where `publish: (policyId: PolicyId) => Promise<void>`).
-**Why it's wrong:** Branded types defend against cross-confusion (e.g. accidentally passing `users.id` UUID into a policies position).
-**Do this instead:** Lift at the trust boundary — `const id = PolicyIdSchema.parse(rawString)` (`lib/policies/types.ts:39`) or `policyIdFromString(rawString)`. CI gate `scripts/check-policy-id-brand.ts` pins the signature surface.
+**What happens:** Using `event.data.object` subscription fields directly in `checkout.session.completed` or `customer.subscription.updated`.
+**Why it's wrong:** Snapshot data may be stale if events arrive out of order.
+**Do this instead:** Always re-fetch the canonical subscription with `stripe.subscriptions.retrieve(subscriptionId)` then pass it through `normalizeSubscription()`. (`app/api/webhooks/stripe/route.ts:303-313, 415-425`)
 
-### Editing a Drizzle migration after it lands in `_journal.json`
+## Phase 6 Billing: Subscription State Machine
 
-**What happens:** Operator modifies `drizzle/0007_*.sql` after it's been applied to staging/prod.
-**Why it's wrong:** Migrations are immutable — only forward migrations allowed. The journal is the source of truth for "which migrations must be applied to every environment."
-**Do this instead:** Write a NEW migration. Destructive migrations (DROP COLUMN, DROP TABLE, NOT NULL on existing column) require operator ASK-FIRST approval — header must document rationale + timestamp + decision ID. Example: `drizzle/0007_ai_generations_audit_extensions.sql` documents the 2026-05-21 approval per `.planning/phases/04-ai-layer/04-CONTEXT.md` D-44.
+### Organization Billing Columns (`organizations` table, migration `drizzle/0012_billing_state.sql`)
 
-### Calling Anthropic without persisting to `ai_generations`
+| Column | Type | Purpose |
+|--------|------|---------|
+| `plan_tier` | `text` default `'starter'` | Active tier: `starter \| growth \| business` |
+| `stripe_customer_id` | `text` nullable | Stripe `cus_...` — set on first checkout/webhook |
+| `stripe_subscription_id` | `text` nullable | Stripe `sub_...` — set when subscription creates |
+| `stripe_subscription_status` | `text` default `'trialing'` | Stripe status: `trialing \| active \| past_due \| canceled \| ...` |
+| `stripe_price_id` | `text` nullable | Current price ID — maps back to tier via `PRICE_CATALOG` |
+| `stripe_subscription_item_id` | `text` nullable | For future quantity/usage updates |
+| `stripe_current_period_end` | `timestamptz` nullable | Next renewal date |
+| `stripe_cancel_at_period_end` | `boolean` default `false` | Pending cancellation flag |
+| `stripe_last_event_created` | `timestamptz` nullable | Timestamp of most-recent processed event (for ordering) |
 
-**What happens:** Code calls `anthropic.messages.create({...})` and returns the result directly.
-**Why it's wrong:** Audit trail is incomplete (CLAUDE.md ALWAYS #5); tier-limit accounting breaks (CLAUDE.md ALWAYS #6).
-**Do this instead:** Route through `lib/ai/client.ts` which (a) checks tier limit via `reference/TIER-LIMITS.md` enforcer, (b) calls Anthropic, (c) persists `ai_generations` row, (d) returns parsed response.
+Seed state for new orgs (set by `organization.created` Clerk webhook):
+- `plan_tier = 'starter'`, `stripe_subscription_status = 'trialing'`, all Stripe ID columns `null`.
+- A new org with `stripeCustomerId = null` and `stripeSubscriptionStatus = 'trialing'` is NOT blocked from checkout — the settings page and `createCheckoutSessionAction` gate on `stripeCustomerId` presence, not status.
+
+### Subscription Status → planTier Mapping (`normalizeSubscription`, `lib/stripe/normalize.ts`)
+
+| Stripe Status | kind | planTier written |
+|---------------|------|-----------------|
+| `active` / `trialing` | `entitled` | mapped from price ID |
+| `past_due` | `preserve-tier` | unchanged |
+| `canceled` / `incomplete_expired` / `paused` / `unpaid` | `downgrade` | `starter` |
+| `incomplete` | `link-only` | unchanged |
+
+### Tier Gating Flow (API routes)
+
+1. `const ctx = await getOrgContext()` — resolves org (outside try/catch per D-37)
+2. `requireAdminFromCtx(ctx)` — throws `ForbiddenError` (403) if not admin (outside try/catch)
+3. Inside try: `await requireTierLimit(ctx.orgId, 'aiDraftsMonthly')` (or other feature)
+4. `requireTierLimit` → `checkTierLimit` → `readPlanTier(orgId)` → DB read of `organizations.plan_tier`
+5. For usage features: count rows in `ai_generations` / `users` for the month
+6. If over limit: throw `TierLimitExceededError` with `statusCode: 429` (usage) or `403` (tier-bound feature)
+7. Catch site: `if (err instanceof TierLimitExceededError) return NextResponse.json({...}, { status: err.statusCode })`
+
+### Checkout + Customer Portal Flow
+
+- **Start checkout:** Admin submits form on `/settings` → `createCheckoutSessionAction` → validates no active subscription (guards by `stripeCustomerId` presence + active-ish status) → `stripe.checkout.sessions.create()` with `client_reference_id: ctx.orgId` and `metadata.policyPilotOrgId` → redirect to Stripe-hosted checkout.
+- **After checkout:** Stripe delivers `checkout.session.completed` → webhook handler retrieves canonical subscription → `normalizeSubscription()` → updates `organizations` billing columns.
+- **Customer portal:** `createPortalSessionAction` → `stripe.billingPortal.sessions.create({ customer: org.stripeCustomerId })` → redirect to Stripe-hosted portal.
+- **Plan changes / renewals / cancellations:** Handled by `invoice.paid`, `customer.subscription.updated`, `customer.subscription.deleted` webhook events.
 
 ## Error Handling
 
-**Strategy:** Typed error hierarchies with stable `code` discriminants; Server Actions catch domain errors and map to typed `ActionState` for UI recovery copy.
+**Strategy:** Typed error class hierarchy. Domain errors carry a `code` constant and `statusCode` (where applicable). Auth errors propagate to Next.js error boundary; AI errors return structured 503 envelope.
 
 **Patterns:**
-- **Auth boundary:** `getOrgContext()` throws `ClerkAuthFailedError` / `NotAuthenticatedError` / `NoActiveOrganizationError` / `InvalidRoleError` / `OrgNotProvisionedError` / `UserNotProvisionedError` (with `subCode` discriminant for the multi-org Clerk lockout case per ADR-027/028).
-- **Policy domain:** `PolicyNotFoundError` (D-10 advertise-nothing union of RLS-deny + truly-missing), `PolicyArchivedError`, `PolicyNotAssignedError`. All extend `PolicyDomainError` abstract base with literal `code: PolicyDomainErrorCode`.
-- **State-machine:** `IllegalTransitionError` (not in a hierarchy — pure module).
-- **AI graceful-degrade:** `publish()` post-commit summary call narrows on `Anthropic.APIError` only and swallows; ALL other errors re-thrown to surface in error monitoring (`lib/policies/transitions.ts:197-218`).
-- **Middleware fail-closed:** `auth()` call wrapped in try/catch (SF-M4 fold); 404 on admin gate (advertise nothing), redirect-to-/sign-in on default chokepoint.
-- **D-10 "advertise nothing":** Admin gate returns 404 for unauthenticated, wrong-role, AND malformed-URL cases — never 401/403/redirect — to avoid confirming route existence.
+- Auth bootstrap errors (`BootstrapError` subclasses): thrown by `getOrgContext()`, caught by page layouts and the post-sign-in trampoline.
+- `ForbiddenError` (403): thrown by `requireAdminFromCtx()` — API routes only. Page routes use `notFound()` (404 per D-10 "advertise nothing").
+- `TierLimitExceededError`: thrown by `requireTierLimit()` — statusCode 429 (usage) or 403 (feature). Caught in API route try/catch.
+- `IllegalTransitionError`: thrown by `canTransition()` validation in transition orchestrators.
+- Anthropic errors: logged with PII-safe truncation, returned as 503 + `Retry-After: 30`.
+- Stripe webhook errors: bad signature → 400; processing failure → 500 (Stripe retries).
+- `ClerkAuthFailedError`: NOT a BootstrapError — represents infra failure, must not be caught by onboarding-redirect handlers.
 
 ## Cross-Cutting Concerns
 
-**Logging:** `console.error` with structured object payloads (`{name, status, code}`) — PII-safe sanitization for Anthropic errors (D-36). No external logger yet; Phase 7+ will add structured-logging routing on `err.code` discriminants.
+**Logging:** `console.log` / `console.error` with structured object literals. Sensitive IDs masked via `maskClerkId`, `maskClerkOrgId`, `maskCustomerId`, `maskSubscriptionId` helpers. Phase 7+ will add pino structured logging.
 
-**Validation:** Zod at trust boundaries (`PolicyIdSchema.safeParse` at URL-param ingress; `safeParse` over `parse` so malformed input becomes a typed `notFound()` rather than a 500). Schema files at `lib/ai/schemas.ts` for AI response shapes.
+**Validation:** Zod at API route boundaries (`DraftSchema`, `CheckoutIntentSchema`). Strict schema: `.strict()` to reject unknown keys.
 
-**Authentication:** Clerk (`@clerk/nextjs`) handles sessions, org switching, sign-in/up flows. NEVER roll custom auth (CLAUDE.md NEVER #1). `OrgContext` is the single server-side identity primitive — every server module that touches DB resolves it.
+**Authentication:** Clerk for session management. Internal `getOrgContext()` translates Clerk text IDs to internal UUIDs per request.
 
-**Database migrations:** Immutable + ordered. Pre-deploy gate: `pnpm db:migrate:<env> && pnpm db:verify:<env>` (both exit 0) BEFORE shipping code that depends on a new migration. Destructive migrations are ASK-FIRST with operator-approval timestamp in the migration header.
+**Idempotency:** `clerk_events` and `stripe_events` tables store processed event IDs. Both use `ON CONFLICT DO NOTHING` with a transaction wrapping the idempotency insert + state update atomically.
 
-**Verify chain (cumulative composition):**
-- `verify:phase-1` → foundation + artifacts
-- `verify:phase-2` → data-layer integration test
-- `verify:phase-3` → typecheck + db-imports + rls + auth-context + policies-list-filters + admin-routes + error-discipline + policy-id-brand + artifacts + vitest + svix cleanup
-- `verify:phase-4` → phase-3 + ai-prompts + ai-layer integration test
-- `verify:phase-5` → phase-4 + acknowledgment-immutability + acknowledgment-immutability self-test + employee-portal integration test
-
-Each phase's verify command runs ALL prior phases' checks plus its own — adding a phase widens the gate but never narrows it.
+**Prompt caching:** All AI calls use `buildCachedSystem()` (EPHEMERAL, 5min) or `buildLongCachedSystem()` (LONG, 1h). Q&A orders LONG_CACHE block first, EPHEMERAL block second (Anthropic requirement).
 
 ---
 
-*Architecture analysis: 2026-05-24*
+*Architecture analysis: 2026-05-30*

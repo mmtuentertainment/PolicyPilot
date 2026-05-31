@@ -1,129 +1,135 @@
 # Technology Stack
 
-**Analysis Date:** 2026-05-24
+**Analysis Date:** 2026-05-30
 
 ## Languages
 
 **Primary:**
-- TypeScript ^5 (strict mode + `noUncheckedIndexedAccess`) — All app, lib, scripts, and tests. `any` is forbidden by project convention (`CLAUDE.md` NEVER rule #4).
+- TypeScript 5.x — all application code, API routes, lib modules, scripts, tests
+- SQL — Drizzle migrations in `drizzle/*.sql` (hand-authored for RLS and partial indexes)
 
 **Secondary:**
-- SQL — Hand-written Drizzle migrations under `drizzle/` (11 numbered migrations + 1 RLS subquery rewrite); PL/pgSQL only inside RLS predicates.
-- PowerShell (`scripts/with-deploy-creds.ps1`) — staging/prod migration credential wrapper.
+- JavaScript (MJS) — `scripts/run-react-server-check.mjs`, `postcss.config.mjs`, `eslint.config.mjs`
 
 ## Runtime
 
-**Node.js:** `>=22.0.0 <23.0.0` (pinned via `package.json` `engines`).
+**Environment:**
+- Node.js `>=22.0.0 <23.0.0` (pinned via `engines` in `package.json`)
 
-**Package Manager:** `pnpm@9.15.9` (locked via `packageManager` field; pnpm `overrides` pin `postcss >=8.5.10`).
-
-**Lockfile:** `pnpm-lock.yaml` (present).
+**Package Manager:**
+- pnpm 9.15.9 (pinned via `packageManager` in `package.json`)
+- Lockfile: `pnpm-lock.yaml` — present, frozen-lockfile enforced in CI
 
 ## Frameworks
 
 **Core:**
-- `next@15.5.18` (App Router ONLY — no Pages Router code permitted). React Server Components + Server Actions.
-- `react@19.1.0` + `react-dom@19.1.0` — React 19 `useActionState` is the canonical form-state pattern (Phase 5 RESEARCH Pitfall 5).
-- Tailwind CSS `^4` (next-gen plugin via `@tailwindcss/postcss`); `tw-animate-css` for animation utilities; `tailwind-merge` + `class-variance-authority` + `clsx` for class composition.
+- Next.js 15.5.18 — App Router only; pages/API Routes pattern NOT used
+- React 19.1.0 — co-shipped with Next.js 15; Server Components, Server Actions
+- Tailwind CSS 4.x — utility-first CSS; configured via `@tailwindcss/postcss` in `postcss.config.mjs`
 
-**UI / shadcn:**
-- `shadcn@^4.7.0` (CLI; components copied into `components/ui/` — Button, Input, Card, Dialog, Sheet, Sidebar, Select, Form, Table, Dropdown, Tooltip, Skeleton, Badge, Label, Separator, Textarea).
-- `@base-ui/react@^1.4.1` — primitive layer beneath shadcn.
-- `lucide-react@^1.16.0` — icon set.
+**Rich Text:**
+- TipTap 2.27.2 — policy document editor (`@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/extension-link`, `@tiptap/html`)
 
-**Editor:**
-- `@tiptap/react@2.27.2` + `@tiptap/starter-kit@2.27.2` + `@tiptap/extension-link@2.27.2` + `@tiptap/html@2.27.2` — rich-text policy editor (`components/policy/PolicyEditor.tsx`).
-
-**Validation:**
-- `zod@^3.23.5` — request-body validation at trust boundaries (Server Actions + Route Handlers).
+**UI Primitives:**
+- Base UI React `^1.4.1` — headless primitives
+- shadcn (CLI `^4.7.0`) — component scaffolding; components live in `components/ui/`
+- Lucide React `^1.16.0` — icon set
+- clsx + tailwind-merge — conditional className utilities
+- class-variance-authority — variant-based component styling
 
 **Testing:**
-- `vitest@^1.6.0` (`jsdom@^24` environment) + `@testing-library/react@^16` + `@testing-library/jest-dom@^6.4.0` + `@vitejs/plugin-react@^4`.
-- 228 tests across 28 files (172 baseline + 56 Phase 5).
-- Custom verifier suites in `scripts/check-*.ts` (CI gates — see Tooling).
+- Vitest `^1.6.0` — unit + integration test runner; config at `vitest.config.ts`
+- `@testing-library/react ^16` + `@testing-library/jest-dom ^6.4.0` — component testing
+- jsdom `^24` — DOM environment for unit tests
+- Playwright `^1.60.0` — E2E browser testing; config at `playwright.config.ts`
 
-**Build / Dev:**
-- `tsx@^4.22.0` — TS execution for scripts, migrations, env-aware verifiers (`tsx --env-file=.env.local ...`).
-- `drizzle-kit@^0.31.10` — migration generator + applier (`db:generate`, `db:migrate`).
-- `eslint@^9` + `eslint-config-next@15.5.18` + `@eslint/eslintrc@^3`.
-- `ts-morph@28.0.0` — AST-walking enforced by CI gates (`scripts/check-acknowledgment-immutability.ts`, `scripts/check-db-imports.ts`, `scripts/check-auth-context.ts`, `scripts/check-policy-id-brand.ts`, etc.).
-- `ajv@^8.20.0` + `js-yaml@^4.1.1` (+ `@types/js-yaml`) — artifact + CodeRabbit config validation.
+**Build/Dev:**
+- tsx `^4.22.0` — TypeScript execution for scripts and drizzle-kit invocations
+- drizzle-kit `^0.31.10` — migration generation and apply tooling
+- ESLint 9.x + `eslint-config-next 15.5.18` — linting; flat config at `eslint.config.mjs`
+- ts-morph 28.0.0 — TypeScript AST analysis for custom verify scripts
+- js-yaml / ajv — YAML parsing + JSON schema validation used in artifact checks
 
 ## Key Dependencies
 
-**Critical (server runtime):**
+**Critical:**
+- `drizzle-orm ^0.45.2` — ORM over Supabase Postgres; repository pattern enforced
+- `postgres ^3.4.9` — Postgres driver; `prepare: false` required for Supabase Transaction pooler
+- `@anthropic-ai/sdk 0.97.1` — Anthropic Claude API (pinned exact); `maxRetries: 0`, `timeout: 25_000ms`
+- `@clerk/nextjs ^7.3.4` — Auth + organization management; middleware at `middleware.ts`
+- `stripe ^22.2.0` — Stripe Checkout, Customer Portal, Webhooks (Phase 6)
+- `svix 1.93.0` — Svix webhook verification for Clerk events (pinned exact)
+- `@supabase/supabase-js ^2.105.4` — Supabase client (primarily used for RLS JWT injection; runtime queries go through Drizzle)
+- `zod ^3.23.5` — Input validation at API and Server Action boundaries
 
-| Package | Version | Role |
-|---|---|---|
-| `@clerk/nextjs` | `^7.3.4` | Auth, Organizations, session claims (`publicMetadata.role`), webhook types. |
-| `@supabase/supabase-js` | `^2.105.4` | Supabase client (RLS verification path; runtime queries go through Drizzle). |
-| `drizzle-orm` | `^0.45.2` | ORM (zero codegen step). All repository queries in `lib/db/repositories/`. |
-| `postgres` | `^3.4.9` | `postgres-js` driver — Drizzle's underlying Postgres client. |
-| `@anthropic-ai/sdk` | `0.97.1` | Claude API (Sonnet 4.6 + Haiku 4.5 + Batch API). Pinned EXACT (no `^`). |
-| `svix` | `1.93.0` | Clerk webhook signature verification. Pinned EXACT. |
-
-**Infrastructure / utilities:**
-- `class-variance-authority@^0.7.1`, `clsx@^2.1.1`, `tailwind-merge@^3.6.0` — `cn()` class composition.
-
-**NOT yet installed (planned but not in `package.json`):**
-- Stripe SDK (`stripe`) — Phase 6 placeholder; env vars present but no client.
-- Resend SDK (`resend`) + React Email — Phase 7.
-- Sentry SDK — env var `SENTRY_DSN` declared but no client wired.
-- PostHog SDK — env vars `NEXT_PUBLIC_POSTHOG_*` declared but no client wired.
-- Railway-side cron worker — Phase 7 dedicated process; not in this repo yet.
+**Infrastructure:**
+- `@vitejs/plugin-react ^4` — React plugin for Vitest
+- `@tailwindcss/postcss ^4` — Tailwind v4 PostCSS integration
 
 ## Configuration
 
-**Environment:**
-- `.env.local` (gitignored; template at `.env.local.example` — all values intentionally blank per project convention).
-- `.env.local.test` — second Supabase project for RLS cross-org property test (`DATABASE_URL_TEST`, `DIRECT_URL_TEST`).
-- `secrets/staging.env` + `secrets/prod.env` (gitignored) — staging + prod `DATABASE_URL` / `DIRECT_URL`. Loaded by `scripts/with-deploy-creds.ps1`.
-- Vercel deploy-time gate: `pnpm deploy:preflight` (`scripts/deploy-preflight.ts`) runs `vercel.json`-driven schema check before build.
+**TypeScript (`tsconfig.json`):**
+- `strict: true` — full strict mode
+- `noUncheckedIndexedAccess: true` — array/object index access returns `T | undefined`
+- `noImplicitOverride: true` — explicit `override` keyword required
+- `noEmit: true` — type-check only, Next.js handles emit
+- `moduleResolution: bundler` — Next.js 15 bundler resolution
+- `paths: { "@/*": ["./*"] }` — root alias; used throughout as `@/lib/...`, `@/components/...`, `@/app/...`
 
-**Required env vars (high-signal subset):**
+**Build (`vercel.json`):**
+- `buildCommand: "pnpm deploy:preflight && pnpm build"` — pre-deploy schema gate fires before every Vercel build
+- `framework: nextjs`
 
-| Var | Surface | Notes |
-|---|---|---|
-| `DATABASE_URL` | Drizzle runtime | Supabase pooler `:6543` (transaction mode). |
-| `DIRECT_URL` | Drizzle migrations | Supabase pooler `:5432` (session mode — DDL-safe). |
-| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser | Reserved for client-side Supabase calls (none today). |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server only | RLS-bypass paths (webhooks, deploy checks). |
-| `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Server + client | `@clerk/nextjs` SDK. |
-| `CLERK_WEBHOOK_SECRET` | Webhook handler | Svix HMAC. Hard-fail with 500 if missing. |
-| `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` | Embedded auth | MUST = `/post-sign-in`. Asserted by `scripts/check-foundation.ts`. |
-| `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL` | Embedded auth | MUST = `/post-sign-in`. |
-| `ANTHROPIC_API_KEY` | Server only | Claude SDK. NEVER expose client-side (CLAUDE.md NEVER #2). |
-| `CRON_SECRET` | Cron route handlers | Reserved for Phase 7 Railway → Next.js cron callbacks. |
+**Drizzle (`drizzle.config.ts`):**
+- Schema: `lib/db/schema.ts`
+- Migrations output: `drizzle/`
+- Dialect: PostgreSQL
+- Prefers `DIRECT_URL` (port 5432) for migrations; falls back to `DATABASE_URL` (port 6543 pooler) with a warning
+- `verbose: true`, `strict: true`
 
-**Build:** `next.config.ts` (Next 15 conventions), `tsconfig.json`, `eslint.config.mjs`, `postcss.config.mjs`, `vitest.config.ts`, `drizzle.config.ts`.
+**Linting (`eslint.config.mjs`):**
+- Extends `next/core-web-vitals` + `next/typescript` via `@eslint/eslintrc` FlatCompat
+- Ignores: `node_modules/**`, `.next/**`, `.tmp/**`, `Designprototypes/**`, `out/**`, `build/**`
+
+**PostCSS (`postcss.config.mjs`):**
+- Single plugin: `@tailwindcss/postcss` (Tailwind v4 form)
+- Vitest overrides this to empty plugin list so unit tests skip CSS compilation
+
+## Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `dev` | Next.js dev server |
+| `build` | Next.js production build |
+| `lint` | ESLint |
+| `typecheck` | `tsc --noEmit` — zero type errors required |
+| `test` | Vitest unit/component tests |
+| `test:e2e` | Playwright E2E tests |
+| `db:generate` | Drizzle migration generation |
+| `db:migrate` / `db:migrate:staging` / `db:migrate:prod` | Apply migrations to target env |
+| `db:verify` / `db:verify:staging` / `db:verify:prod` | Schema state verification |
+| `deploy:preflight` | Build-time gate: verifies schema before Vercel deploy |
+| `verify:phase-N` | Cumulative phase verification chains |
+| `verify:phase-6` | Phase 6 gate: `tsc --noEmit`, verify:phase-5, Stripe unit tests, webhook tests, db:verify, artifact checks |
+| `check:rls` | RLS policy presence check |
+| `check:ai-layer` | Vitest integration harness against live DB |
+| `check:acknowledgment-immutability` | Append-only audit trail invariant |
 
 ## Platform Requirements
 
 **Development:**
-- Windows 11 supported (PowerShell wrappers handle staging/prod credential loading: `scripts/with-deploy-creds.ps1`).
-- Node 22 + pnpm 9.15.9.
-- Local Postgres NOT required — dev hits Supabase project `kdoahaxhmaftxaiwbtdw` directly.
+- Node.js 22.x (no other minor accepted)
+- pnpm 9.15.9
+- `.env.local` populated from `.env.local.example`
+- Supabase project for dev DB (port 6543 for runtime, 5432 for migrations)
+- Stripe CLI for local webhook forwarding
 
 **Production:**
-- Hosting: Vercel (Next.js frontend + API routes).
-- Database: Supabase (managed Postgres 17.6) — pooler endpoint `aws-1-us-east-1.pooler.supabase.com`.
-- Workers (Phase 7+): Railway (persistent containers for cron + bulk email — not deployed yet).
-
-## CI Verification Gates (per-phase)
-
-| Script | Gate enforced |
-|---|---|
-| `pnpm typecheck` | `tsc --noEmit` zero errors (always — CLAUDE.md ALWAYS #1). |
-| `pnpm verify:phase-1` | Foundation env vars + artifacts present. |
-| `pnpm verify:phase-2` | Data layer (RLS, journal sync, FK shape). |
-| `pnpm verify:phase-3` | Phase 2 + db-imports allow-list + RLS predicates + auth-context shape + policy-list filters + admin routes + error discipline + policy-id brand + tests + artifacts. |
-| `pnpm verify:phase-4` | Phase 3 + AI prompt structure (`check:ai-prompts`) + AI layer test suite. |
-| `pnpm verify:phase-5` | Phase 4 + acknowledgment immutability (ts-morph AST scan) + employee portal test suite. |
-| `pnpm check:db` | Live DB ping + schema parity. |
-| `pnpm db:verify[:staging|:prod]` | All migrations applied + RLS + GRANTs + Phase 4 column shape OK (exit 0 gates code deploy). |
-
-Phase 6 (Billing), Phase 7 (Crons+Email), Phase 8 (Validation) verifiers do not yet exist.
+- Vercel (frontend + API routes; `nodejs` runtime for webhook handlers)
+- Railway worker service (planned Phase 7 — cron reminders; not yet deployed)
+- Supabase for staging + production Postgres
+- GitHub Actions for CI (`.github/workflows/verify.yml`, `.github/workflows/verify-phase-6.yml`, `.github/workflows/migrate.yml`)
 
 ---
 
-*Stack analysis: 2026-05-24 — Phase 5 (Employee Portal) shipped via PR #27.*
+*Stack analysis: 2026-05-30*

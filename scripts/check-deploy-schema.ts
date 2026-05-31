@@ -85,6 +85,30 @@ const QA_CITATION_GRANTS_INDEXES = [
   'qa_citation_grants_user_policy_idx',
 ] as const;
 
+const PHASE_6_ORGANIZATION_BILLING_COLUMNS = [
+  { column_name: 'stripe_price_id', data_type: 'text', is_nullable: 'YES' },
+  { column_name: 'stripe_subscription_item_id', data_type: 'text', is_nullable: 'YES' },
+  { column_name: 'stripe_current_period_end', data_type: 'timestamp with time zone', is_nullable: 'YES' },
+  {
+    column_name: 'stripe_cancel_at_period_end',
+    data_type: 'boolean',
+    is_nullable: 'NO',
+    defaultIncludes: 'false',
+  },
+  { column_name: 'stripe_last_event_created', data_type: 'timestamp with time zone', is_nullable: 'YES' },
+] as const;
+
+const PHASE_6_ORGANIZATION_BILLING_INDEXES = [
+  {
+    indexname: 'organizations_stripe_customer_id_unique_idx',
+    columnName: 'stripe_customer_id',
+  },
+  {
+    indexname: 'organizations_stripe_subscription_id_unique_idx',
+    columnName: 'stripe_subscription_id',
+  },
+] as const;
+
 interface JournalEntry {
   idx: number;
   tag: string;
@@ -391,6 +415,71 @@ async function main(): Promise<void> {
           `(got: ${grantIdx.map((r) => r.indexname).join(', ') || '(none)'})`,
       });
     }
+
+    // 13. Phase 6 D-13: organizations billing column shape from 0012.
+    const billingCols = await sql<{
+      column_name: string;
+      data_type: string;
+      is_nullable: string;
+      column_default: string | null;
+    }[]>`
+      SELECT column_name, data_type, is_nullable, column_default
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'organizations'
+        AND column_name IN ${sql(PHASE_6_ORGANIZATION_BILLING_COLUMNS.map((c) => c.column_name))}
+    `;
+    const billingColsByName = new Map(billingCols.map((col) => [col.column_name, col]));
+    for (const want of PHASE_6_ORGANIZATION_BILLING_COLUMNS) {
+      const got = billingColsByName.get(want.column_name);
+      if (!got) {
+        failures.push({
+          check: `organizations.${want.column_name}`,
+          detail: 'column missing - drizzle/0012_billing_state.sql not applied?',
+        });
+        continue;
+      }
+      if (
+        got.data_type !== want.data_type ||
+        got.is_nullable !== want.is_nullable ||
+        ('defaultIncludes' in want &&
+          !((got.column_default ?? '').includes(want.defaultIncludes)))
+      ) {
+        failures.push({
+          check: `organizations.${want.column_name} shape`,
+          detail: `got ${JSON.stringify(got)}, expected ${JSON.stringify(want)}`,
+        });
+      }
+    }
+
+    // 14. Phase 6 D-13: nullable Stripe IDs have partial unique indexes.
+    const billingIdx = await sql<{ indexname: string; indexdef: string }[]>`
+      SELECT indexname, indexdef FROM pg_indexes
+      WHERE schemaname = 'public'
+        AND tablename = 'organizations'
+        AND indexname IN ${sql(PHASE_6_ORGANIZATION_BILLING_INDEXES.map((i) => i.indexname))}
+    `;
+    const billingIdxByName = new Map(billingIdx.map((idx) => [idx.indexname, idx.indexdef]));
+    for (const want of PHASE_6_ORGANIZATION_BILLING_INDEXES) {
+      const indexdef = billingIdxByName.get(want.indexname);
+      if (!indexdef) {
+        failures.push({
+          check: `organizations ${want.indexname}`,
+          detail: 'missing partial unique index - drizzle/0012_billing_state.sql not applied?',
+        });
+        continue;
+      }
+      if (
+        !indexdef.includes('UNIQUE') ||
+        !indexdef.includes(want.columnName) ||
+        !indexdef.includes('WHERE')
+      ) {
+        failures.push({
+          check: `organizations ${want.indexname} shape`,
+          detail: `indexdef=${indexdef}`,
+        });
+      }
+    }
     } // end if (!dbIsEmpty)
   } finally {
     await sql.end();
@@ -403,7 +492,8 @@ async function main(): Promise<void> {
         `${SERVICE_ROLE_TABLES.length} service-role tables (no RLS), ` +
         `Phase 4 column shape + partial-unique index present, ` +
         `Phase 3 G3 + Phase 4/5 unique constraints present, ` +
-        `qa_citation_grants columns + wrapped RLS + indexes present.`,
+        `qa_citation_grants columns + wrapped RLS + indexes present, ` +
+        `Phase 6 billing columns + partial unique indexes present.`,
     );
     process.exit(0);
   }

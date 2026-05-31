@@ -1,259 +1,296 @@
 # External Integrations
 
-**Analysis Date:** 2026-05-24
+**Analysis Date:** 2026-05-30
 
-## APIs & External Services
+---
 
-### Clerk (Auth + Organizations) — ACTIVE
+## Clerk — Authentication & Organizations
 
-**SDK:** `@clerk/nextjs@^7.3.4`.
+**Purpose:** Auth provider; manages users, organizations, session JWTs, role claims.
+
+**SDK:** `@clerk/nextjs ^7.3.4`
 
 **Surface:**
-- Embedded sign-in/sign-up components at `app/(auth)/sign-in/[[...sign-in]]/page.tsx` + `app/(auth)/sign-up/[[...sign-up]]/page.tsx`. Both honor `NEXT_PUBLIC_CLERK_SIGN_{IN,UP}_FALLBACK_REDIRECT_URL=/post-sign-in` env vars (asserted in `scripts/check-foundation.ts`).
-- Server-side session resolution: `lib/auth/context.ts:getOrgContext()` — wraps `auth()` in try/catch (SF-M4 fold), narrows `sessionClaims.publicMetadata.role` to `Role` union (`'admin' | 'reviewer' | 'employee'`), and translates Clerk text IDs → internal UUIDs sequentially per ADR-027 (state-consistency over latency).
-- Middleware admin gate: `middleware.ts` (Clerk session claim path).
-- `<OrganizationSwitcher />` redirect path for users without active org membership.
+- `middleware.ts` — `clerkMiddleware` / `createRouteMatcher`; protects all non-public routes; role gate for admin URLs returns 404 (not 401) to avoid advertising route existence
+- `lib/auth/context.ts` — `getOrgContext()`: reads `auth()` session, resolves Clerk text IDs to internal UUIDs, validates role from `publicMetadata.role`
+- `lib/auth/require-admin.ts` — convenience wrapper around `getOrgContext()` for admin-only endpoints
+- `app/api/webhooks/clerk/route.ts` — Svix-verified webhook handler; creates `organizations` + `users` rows and mirrors roles to `publicMetadata`
+- `app/(auth)/sign-in/[[...sign-in]]/page.tsx`, `app/(auth)/sign-up/[[...sign-up]]/page.tsx` — embedded Clerk components
 
-**Role model:** Org Roles (`org:admin`, `org:reviewer`, `org:employee`) → mirrored to `publicMetadata.role` (string union) by webhook handler. `clerkClient().users.updateUserMetadata()` keeps Clerk + DB enum in sync per CR-01 (Plan 02-07) / D-04.
+**Webhook Events Handled (`app/api/webhooks/clerk/route.ts`):**
 
-**Multi-org behavior:** PolicyPilot data model is one-user-one-org. ADR-027/028 surface multi-org Clerk membership as `UserNotProvisionedError` with subCode discrimination (`CLERK_USER_NOT_IN_DB` vs `USER_ORG_MISMATCH`) — intentional lockout, not bug.
+| Event | Action |
+|-------|--------|
+| `organization.created` | Inserts `organizations` row with `planTier: 'starter'`, `stripeSubscriptionStatus: 'trialing'` |
+| `user.created` | Inserts `users` row; mirrors `employee` role to `publicMetadata` |
+| `organizationMembership.created` | Backfills `users.orgId` + `users.role`; mirrors role to `publicMetadata` |
+| `organizationMembership.updated` | Updates `users.role`; mirrors role to `publicMetadata` |
+| `user.deleted`, `organization.deleted`, `organizationMembership.deleted` | Log-only (Phase 7+ retention TODO) |
 
-#### Clerk webhooks
+**Idempotency:** `clerk_events` table; `ON CONFLICT DO NOTHING`; idempotency row deleted on prerequisite-missing 409 so Clerk retries can re-fire.
 
-**Handler:** `app/api/webhooks/clerk/route.ts` (single Allow-List Entry #1 for raw `db` import per ADR-023).
+**Signature Verification:** `svix 1.93.0` — verifies `svix-id`, `svix-timestamp`, `svix-signature` headers; raw `request.text()` read before any JSON parse.
 
-**Verification:** `svix@1.93.0` `Webhook.verify()` — handles 5-minute timestamp tolerance, constant-time HMAC compare, multi-signature key rotation. Hand-rolled HMAC explicitly forbidden.
+**Auth Data Flow:**
+1. Clerk session JWT carries `publicMetadata.role` (mirrored by webhook handler)
+2. `getOrgContext()` translates Clerk text IDs (`org_xxx`, `user_xxx`) → internal UUIDs via indexed lookups on `organizations.clerkOrgId` + `users.clerkUserId`
+3. `withOrgScope()` (`lib/db/scoped.ts`) injects `request.jwt.claims` into Postgres via `SET LOCAL ROLE authenticated` + `set_config` so RLS policies evaluate correctly
 
-**Body-stream discipline:** `await req.text()` MUST come BEFORE any JSON parse (RESEARCH Pitfall 4 — stream is single-read).
-
-**Idempotency:** `clerk_events` table (service-role, NO `org_id`). `INSERT ... ON CONFLICT DO NOTHING` on `svix-id`; empty `returning()` → return 200 short-circuit (Clerk stops retrying).
-
-**Active events (4 — D-03):**
-
-| Event | DB effect | Side effect |
-|---|---|---|
-| `organization.created` | `INSERT organizations` with `planTier='starter'`, `stripeSubscriptionStatus='trialing'`. | — |
-| `user.created` | `INSERT users` with `role='employee'`, `org_id=NULL`. | Mirror `employee` → `publicMetadata.role`. |
-| `organizationMembership.created` | Lookup org by `clerkOrgId`, then `UPDATE users SET org_id, role` for matching `clerkUserId`. | Mirror role → `publicMetadata.role`. |
-| `organizationMembership.updated` | `UPDATE users SET role`. | Mirror role → `publicMetadata.role`. |
-
-**Log-only events (3 — D-03c):** `user.deleted`, `organization.deleted`, `organizationMembership.deleted`. Retention design + ADR-018 cascade reconciliation deferred to Phase 7+.
-
-**Race-recovery (SF-W5 fix, 03-G3 T7):** `deleteIdempotencyRow()` is called before EVERY non-2xx return AND from the dispatch-error catch path — so Clerk's exponential retry re-fires this exact event when prerequisites haven't yet arrived. Without this, the `clerk_events` row would block the retry from re-running on the same `svix-id` and silently lose the event.
-
-**Logging:** All Clerk IDs masked via `maskClerkId()` / `maskClerkOrgId()` (last 4 chars + `***`) — never log raw `svix` payload (PII risk, T-05-04).
+**Required Env Vars:**
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+- `CLERK_SECRET_KEY`
+- `CLERK_WEBHOOK_SECRET`
+- `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` (must be `/post-sign-in`)
+- `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL` (must be `/post-sign-in`)
 
 ---
 
-### Anthropic Claude API — ACTIVE
+## Supabase / PostgreSQL + Drizzle ORM
 
-**SDK:** `@anthropic-ai/sdk@0.97.1` (pinned EXACT). Direct API (NOT via Vercel AI Gateway).
+**Purpose:** Primary data store; Row-Level Security enforces tenant isolation at DB layer.
 
-**Client:** `lib/ai/client.ts:getAnthropicClient()` — lazy singleton with `maxRetries: 0` (SPEC R7 — no auto-retry; 503 envelope surfaces failure cleanly) and `timeout: 25_000ms` (well under Vercel's 300s function ceiling).
+**SDK:** `@supabase/supabase-js ^2.105.4` (client-side + service-role); `drizzle-orm ^0.45.2` (primary query interface); `postgres ^3.4.9` (driver)
 
-**Models:** `lib/ai/models.ts` is the single grep target for model migration:
-- `MODEL_SONNET = 'claude-sonnet-4-6'` — draft generation, employee Q&A, consistency check (locked per ADR-005 / ADR-006 / ADR-015).
-- `MODEL_HAIKU = 'claude-haiku-4-5-20251001'` — TL;DR summaries only.
+**Surface:**
+- `lib/db/index.ts` — Drizzle singleton over `postgres` driver; `prepare: false` required for Supabase Transaction pooler
+- `lib/db/schema.ts` — all 14 tables defined with Drizzle table builders
+- `lib/db/scoped.ts` — `withOrgScope()`: wraps every user-facing query in a transaction with JWT claims injected for RLS
+- `lib/db/repositories/` — repository objects (one per table aggregate); only way to access DB outside webhook/cron allow-list
+- `drizzle/` — 13 migrations (`0000` → `0012`) + meta snapshots
 
-**Prompt caching (D-03 + D-33):** `lib/ai/cache.ts` exposes two TTL tiers via `cache_control: { type: 'ephemeral', ... }`:
-- `EPHEMERAL_CACHE` — 5-min default. Used for static system prompts (Draft + Summary + Consistency).
-- `LONG_CACHE` — 1h TTL (GA since SDK 0.60.0). Used for Q&A per-org policy library block.
+**Schema — 14 Tables:**
 
-**D-33c ordering invariant:** Q&A `system: [...]` array MUST place `LONG_CACHE` block FIRST (per-org library) and `EPHEMERAL_CACHE` block SECOND (static `QA_SYSTEM_PROMPT_TEMPLATE`). Anthropic returns HTTP 400 on inverse order. Enforced inline at `lib/ai/qa.ts:113-116`.
+| Table | Tenant-Scoped | Notes |
+|-------|--------------|-------|
+| `acknowledgments` | Yes | Append-only audit trail; unique constraint on `(userId, policyId, policyVersionId)` |
+| `ai_generations` | Yes | Every successful Anthropic call; idempotency key support; 4 token-cost columns |
+| `batch_jobs` | Yes | Anthropic batch status tracking for Consistency Check |
+| `clerk_events` | No (service-role) | Webhook idempotency table; no `org_id` |
+| `departments` | Yes | Composite FK target for `users(org_id, department_id)` |
+| `notifications` | Yes | `policy_assigned`, `policy_updated`, `review_due`, `ack_reminder` types |
+| `organizations` | Parent | Billing state columns added Phase 6 (see below) |
+| `policies` | Yes | Policy state machine; `status`: `draft` → `pending_review` → `published` → `archived` |
+| `policy_assignments` | Yes | `assigneeType`: `user` \| `department`; unique on `(policyId, assigneeType, assigneeId)` |
+| `policy_versions` | Yes | Unique on `(policyId, versionNumber)`; append-only version history |
+| `qa_citation_grants` | Yes | Q&A cross-policy citation access grants; unique on `(orgId, userId, policyId)` |
+| `stripe_events` | No (service-role) | Webhook idempotency table; no `org_id` |
+| `users` | Yes | `org_id` nullable for Clerk webhook race window; composite FK to `departments` |
+| `workflow_stages` | Yes | Approval workflow steps per policy |
 
-**D-40 cold-miss observability:** `lib/ai/qa.ts:127` emits `console.warn('[ai/qa] cache miss likely', {...})` when both `cache_creation_input_tokens` and `cache_read_input_tokens` are 0 (library < 1024 Sonnet tokens silently bypasses cache).
+**Phase 6 Schema Delta (`drizzle/0012_billing_state.sql`):**
+- Added to `organizations`: `stripe_price_id`, `stripe_subscription_item_id`, `stripe_current_period_end` (timestamptz), `stripe_cancel_at_period_end` (boolean, default false), `stripe_last_event_created` (timestamptz)
+- Partial unique indexes: `organizations_stripe_customer_id_unique_idx WHERE stripe_customer_id IS NOT NULL`, `organizations_stripe_subscription_id_unique_idx WHERE stripe_subscription_id IS NOT NULL`
+- Existing columns already in schema: `stripe_customer_id`, `stripe_subscription_id`, `stripe_subscription_status` (default `'trialing'`), `plan_tier` (default `'starter'`)
 
-**Usage telemetry (D-35):** All four Anthropic `Usage` fields persisted to `ai_generations` (`input_tokens`, `output_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens`). Phase 8 weighted-cost formula documented inline in `lib/db/schema.ts:84-86`.
+**RLS Pattern:** All tenant tables use `org_id = auth.jwt()->>'org_id'`; post-migration 0008 uses the subquery-wrapped form `(SELECT auth.jwt()->>'org_id')`. Application layer also filters `WHERE org_id = scope.orgId` as defense-in-depth.
 
-**Batch API (D-29 / D-34):** Consistency check is async, 50% cost reduction. SDK `processing_status` enum (`'in_progress'|'canceling'|'ended'` + `request_counts`) translated to app `status` enum at `app/api/ai/consistency/[batchId]/route.ts` before persisting to `batch_jobs`. Row written ON COMPLETION ONLY, not at submission (preserves SUCCESS-ONLY `ai_generations` semantic per D-06).
+**Connection Strings:**
+- Runtime: `DATABASE_URL` — Supabase Transaction pooler (port 6543); `prepare: false` mandatory
+- Migrations: `DIRECT_URL` — Supabase direct connection (port 5432); required for DDL; falls back to `DATABASE_URL` with warning
 
-**Cross-org isolation (D-41 / SP-1 defense — Q&A):** `validIds` Set MUST be constructed inside the SAME `withOrgScope` closure that builds `libraryXml`. Citation-strip in `lib/ai/qa-parser.ts:54` (`.filter(c => validIds.has(c.id))`) is the only barrier between model hallucinations and cross-tenant `policyId` disclosure. Grant UPSERTs iterate the post-filter list (RESEARCH gap-3), NOT the raw fence.
+**Required Env Vars:**
+- `DATABASE_URL` (pooler URI, port 6543)
+- `DIRECT_URL` (direct URI, port 5432, migrations only)
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
 
-**Audit trail:** `ai_generations.result` stores RAW Claude output including citation fence (WARNING-4 — DO NOT change to parsed `answer` without new ADR; Phase 8 telemetry depends on raw form). Type marker = one of `'draft' | 'summary' | 'qa' | 'consistency'`.
-
-**Idempotency (D-32):** Optional client-supplied `Idempotency-Key` header on `/api/ai/draft` only (Phase 4). Partial-unique index on `(org_id, idempotency_key) WHERE idempotency_key IS NOT NULL` ships in `drizzle/0007_ai_generations_audit_extensions.sql` (Drizzle does NOT emit partial indexes from `.unique()`, so hand-written SQL).
-
-**Route surface:**
-- `app/api/ai/draft/route.ts` — Sonnet, draft generation.
-- `app/api/ai/summary/route.ts` — Haiku, TL;DR.
-- `app/api/ai/qa/route.ts` + `lib/ai/qa.ts` orchestrator — Sonnet + per-org cache. Phase 5 Server Action wrapper at `app/(employee)/my-policies/ask/page.tsx`.
-- `app/api/ai/consistency/route.ts` + `app/api/ai/consistency/[batchId]/route.ts` — Batch submission + poll.
-
----
-
-## Data Storage
-
-### Supabase (PostgreSQL 17.6) — ACTIVE
-
-**Topology (pooler):** `aws-1-us-east-1.pooler.supabase.com`
-- Port `6543` — transaction-mode pooler. `DATABASE_URL` (runtime; Drizzle queries).
-- Port `5432` — session-mode pooler. `DIRECT_URL` (migrations; DDL-safe; pooler `6543` chokes on some DDL per D-05).
-
-**Projects (2):**
-- DEV: `kdoahaxhmaftxaiwbtdw` — `.env.local`.
-- TEST/STAGING: `qwtbbbjbxffioeeazxrw` — `.env.local.test` (RLS cross-org property test per L-06; also reused for staging by `secrets/staging.env`).
-- Production: separate Supabase project, credentials in `secrets/prod.env` (gitignored).
-
-**Driver:** `postgres@^3.4.9` (postgres-js) under `drizzle-orm@^0.45.2`.
-
-**Schema:** 13 tables defined in `lib/db/schema.ts`:
-- **11 tenant-scoped (every row carries `org_id` with `ON DELETE CASCADE` to `organizations`):** `acknowledgments`, `ai_generations`, `batch_jobs`, `departments`, `notifications`, `organizations`, `policies`, `policy_assignments`, `policy_versions`, `qa_citation_grants`, `users` (special: `org_id` NULLABLE for the 5-min `user.created` → `organizationMembership.created` window per D-03a + CHECK constraint).
-- **2 service-role only (NO `org_id`):** `clerk_events`, `stripe_events` — webhook idempotency.
-
-**Total:** 13 tables (DOC NOTE: header in `lib/db/schema.ts` says "13 tables: 11 tenant-scoped + 2 service-role"; some legacy docs say 12 — `qa_citation_grants` was added by migration `0011`. Tenant tables = 11 once you count `users` as tenant-scoped with NULLABLE bootstrap window.).
-
-**Multi-tenancy invariants (CLAUDE.md):**
-1. Every DB query must include `org_id` in `WHERE` (RLS is defense-in-depth, NOT the only line).
-2. Clerk Organization ID = `organizations.clerk_org_id` (unique).
-3. Never query across orgs.
-4. RLS pattern on every tenant table: `CREATE POLICY "org_isolation" ... USING (org_id = auth.jwt()->>'org_id')` — rewrapped post-migration 0008 to `(SELECT auth.jwt()->>'org_id')` for query-plan optimization (gap-1 fix); `qa_citation_grants` (migration 0011) uses the wrapped form natively.
-5. Application boundary: `lib/auth/context.ts:getOrgContext()` → `lib/db/scoped.ts:withOrgScope()` injects internal UUID `org_id` into the per-tx GUC; repository methods take an `OrgScope` (NOT raw `db`). Only `app/api/webhooks/clerk/route.ts` is allowed to import raw `db` (enforced by `scripts/check-db-imports.ts`).
-
-**Migrations (12 applied — `drizzle/meta/_journal.json`):**
-
-| Tag | Purpose |
-|---|---|
-| `0000_initial` | Initial 11-table baseline. |
-| `0001_rls_policies` | RLS + `users.org_id` nullable CHECK constraint (5-min window). |
-| `0002_users_department_fk` | Composite FK `users(org_id, department_id) → departments(org_id, id)` — cross-org dept assignment rejected by Postgres, not just RLS. |
-| `0003_fk_hardening` | FK ON DELETE CASCADE across tenant tables. |
-| `0004_policy_versions_unique` | UNIQUE`(policy_id, version_number)` backstop (03-G3 T2). |
-| `0005_initial_batch_jobs` | Phase 4 — `batch_jobs` table. |
-| `0006_rls_batch_jobs` | RLS for `batch_jobs` (4-statement hand-written block per D-29). |
-| `0007_ai_generations_audit_extensions` | D-35 Anthropic Usage columns (4 token columns); drops legacy `tokens_used`; partial-unique on `(org_id, idempotency_key) WHERE idempotency_key IS NOT NULL`. **Destructive** — header documents 2026-05-21 operator approval per Phase 4 D-44. |
-| `0008_rls_subquery_wrap` | Rewrites all RLS predicates to `(SELECT auth.jwt()->>'org_id')` form for query-plan optimization. |
-| `0009_org_id_indexes` | btree indexes on every tenant `org_id` column (RLS predicate + repo `listForOrg` paths). |
-| `0010_phase5_uniques` | Phase 5 D-28 — UNIQUE`(user_id, policy_id, policy_version_id)` on `acknowledgments` (drives ON CONFLICT DO NOTHING silent-success per D-10); UNIQUE`(policy_id, assignee_type, assignee_id)` on `policy_assignments` (D-15). |
-| `0011_qa_citation_grants` | Phase 5 D-29 — new `qa_citation_grants` table + UNIQUE`(org_id, user_id, policy_id)` + RLS in post-0008 wrapped form. |
-
-**Migration discipline (CLAUDE.md):** Immutable + ordered. Pre-deploy gate = `pnpm db:migrate:<env>` then `pnpm db:verify:<env>` (exits 0 ⇔ all migrations + RLS + GRANTs + Phase 4 column shape OK); code deploy only after `verify` exits 0. Destructive migrations require ASK-FIRST + header rationale + approval timestamp. Procedure: `docs/runbooks/deploy-migrations.md`.
-
-**File Storage:** None — no Supabase Storage / S3 in use.
-
-**Caching:** None — no Redis / Upstash. Prompt caching is server-side at the Anthropic API layer.
+**Test DB:**
+- `DATABASE_URL_TEST` / `DIRECT_URL_TEST` — second Supabase project for RLS cross-org property test; keeps test fixtures from polluting dev data
 
 ---
 
-## Authentication & Identity
+## Stripe — Billing (Phase 6)
 
-**Provider:** Clerk (see Clerk section above). NEVER roll custom auth (CLAUDE.md NEVER #1).
+**Purpose:** Subscription billing; Checkout for new subscriptions, Customer Portal for plan management, Webhooks for billing state machine.
 
-**Org mirror:** `organizations.clerk_org_id` (unique text) ↔ Clerk Organization ID. `users.clerk_user_id` (unique text) ↔ Clerk User ID. Translation table = `lib/auth/context.ts:getOrgContext()`.
+**SDK:** `stripe ^22.2.0`
 
-**Server-only boundary:** `lib/ai/*.ts` files all import `'server-only'` (build-time fail if reached from a Client Component). Anthropic key + Drizzle handle NEVER exposed to browser.
+**Surface:**
+- `lib/stripe/client.ts` — lazy singleton `getStripeClient()`; reads `STRIPE_SECRET_KEY`
+- `lib/stripe/catalog.ts` — `PRICE_CATALOG` built from 6 price ID env vars at module load; `priceIdToTier()`, `tierAndIntervalToPriceId()` lookups
+- `lib/stripe/normalize.ts` — `normalizeSubscription()`: maps Stripe subscription status → billing state machine kind (`entitled` | `preserve-tier` | `downgrade` | `link-only`)
+- `lib/stripe/products.ts` — `TIER_LIMITS` constant; `checkTierLimit()` / `requireTierLimit()` gate functions; `readPlanTier()`, `countDraftsThisMonth()`, `countOrgUsers()` DB helpers
+- `lib/stripe/errors.ts` — `TierLimitExceededError` (429 for usage-bound, 403 for tier-bound), `StripeConfigError`, `StripeCatalogConfigError`
+- `lib/stripe/mask.ts` — `maskCustomerId()` / `maskSubscriptionId()` for log safety
+- `app/api/webhooks/stripe/route.ts` — Stripe webhook handler (see events below)
+- `app/(admin)/settings/actions.ts` — `createCheckoutSessionAction()`, `createPortalSessionAction()` Server Actions
+- `app/(admin)/settings/page.tsx` — Billing settings UI; reads live billing state from DB
 
----
+**Webhook Handler (`app/api/webhooks/stripe/route.ts`):**
 
-## Monitoring & Observability
+| Event | Handler | Action |
+|-------|---------|--------|
+| `checkout.session.completed` | `handleCheckoutCompleted()` | Retrieves canonical subscription from Stripe API; calls `normalizeSubscription()`; updates `organizations` billing columns |
+| `invoice.paid` | `handleInvoicePaid()` | Retrieves canonical subscription; normalizes and updates org billing state (covers renewal cycle — critical) |
+| `invoice.payment_failed` | `handlePaymentFailed()` | Sets `stripeSubscriptionStatus = 'past_due'`; does NOT downgrade tier |
+| `customer.subscription.deleted` | `handleSubscriptionDeleted()` | Downgrades `planTier → 'starter'`; sets `stripeSubscriptionStatus = 'canceled'` |
+| `customer.subscription.updated` | `handleSubscriptionUpdated()` | Retrieves canonical subscription; normalizes; updates org billing state |
 
-**Error Tracking:** None wired. `SENTRY_DSN` env var declared in `.env.local.example` but no SDK installed.
+All 5 events from CLAUDE.md Stripe Rules are handled. No gaps.
 
-**Analytics:** None wired. `NEXT_PUBLIC_POSTHOG_KEY` + `NEXT_PUBLIC_POSTHOG_HOST` env vars declared but no client.
+**Webhook Security:**
+- Raw body read via `request.text()` before any parsing
+- `stripe.webhooks.constructEvent(rawBody, signature, webhookSecret)` — HMAC signature verification
+- Idempotency via `stripe_events` table; `ON CONFLICT DO NOTHING` inside a DB transaction
 
-**Logs:** `console.log` / `console.warn` / `console.error` with structured prefixes (`[clerk-webhook]`, `[ai/qa]`). PII redacted via `maskClerkId()` / `maskClerkOrgId()`. Phase 7+ planned: replace with structured logging (pino + redaction filter).
+**Billing State Machine — `normalizeSubscription()` Kinds:**
 
-**Verifier output:** `pnpm verify:phase-N` scripts emit pass/fail per-check; exit-code-driven CI signal.
+| Stripe Status | Kind | planTier Update |
+|--------------|------|----------------|
+| `active`, `trialing` | `entitled` | Set to tier from price ID |
+| `past_due` | `preserve-tier` | No change |
+| `canceled`, `incomplete_expired`, `paused`, `unpaid` | `downgrade` | Force to `'starter'` |
+| `incomplete` | `link-only` | No change |
 
----
+**Tier Gating (`lib/stripe/products.ts`):**
+- Three tiers: `starter` | `growth` | `business`
+- `TIER_LIMITS` object defines per-tier limits; `maxUsers`: 25 / 100 / 500; `aiDraftsMonthly`: 50 / 200 / unlimited
+- Boolean features gated to Growth+: `approvalWorkflows`, `slackIntegration`, `consistencyCheck`
+- Boolean features gated to Business: `customBranding`, `sso`, `apiAccess`
+- `requireTierLimit(orgId, feature)` — throws `TierLimitExceededError`; status 429 for usage-bound, 403 for tier-bound
+- All AI API routes call `requireTierLimit` before Anthropic call
 
-## CI/CD & Deployment
+**Checkout Flow:**
+- `createCheckoutSessionAction()` — creates `stripe.checkout.sessions.create` with `mode: 'subscription'`; sets `client_reference_id: ctx.orgId`, `metadata.policyPilotOrgId`, `subscription_data.metadata.policyPilotOrgId`; blocks duplicate subscription if `stripeCustomerId` exists with active/trialing/past_due status
+- `createPortalSessionAction()` — creates `stripe.billingPortal.sessions.create`; requires existing `stripeCustomerId`
+- Redirect return URLs: `NEXT_PUBLIC_APP_URL/settings?billing=success|canceled`
 
-**Hosting:**
-- Frontend + API routes: Vercel (Next.js 15 — same team).
-- Database: Supabase managed.
-- Background workers (Phase 7+): Railway (persistent containers; not deployed yet).
+**Price Catalog Env Vars:**
+- `STRIPE_PRICE_STARTER_MONTHLY`, `STRIPE_PRICE_STARTER_ANNUAL`
+- `STRIPE_PRICE_GROWTH_MONTHLY`, `STRIPE_PRICE_GROWTH_ANNUAL`
+- `STRIPE_PRICE_BUSINESS_MONTHLY`, `STRIPE_PRICE_BUSINESS_ANNUAL`
+- All 6 required at module load; `StripeCatalogConfigError` thrown on missing or duplicate values
 
-**CI Pipeline:** GitHub Actions
-- `.github/workflows/migrate.yml` — migration apply workflow.
-- Per-phase verifier scripts run locally + in CI before squash-merge to `main`.
+**Required Env Vars:**
+- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- 6 price ID vars above
 
-**Vercel build-time gate:** `vercel.json` → `pnpm deploy:preflight` → `scripts/deploy-preflight.ts` runs `scripts/check-deploy-schema.ts` against the target environment before allowing build to proceed. Code-deploy → schema-state ordering enforced at build time.
-
-**Branch model (CLAUDE.md Git Workflow):**
-- One feature branch per phase (`gsd/phase-N-<slug>`); one PR per phase squash-merged to `main` with `--delete-branch`.
-- Phase boundaries must remain green on `main` (per-phase `verify:phase-N` + `tsc --noEmit` both exit 0).
-- In-flight phases may run on parallel branches off a common `main` ancestor (ADR-029 amendment 2026-05-21).
-
-**Active branch:** `gsd/phase-5-employee-portal` (PR #27 merged 2026-05-23).
-
----
-
-## Stripe (Phase 6 — NOT YET IMPLEMENTED)
-
-**Status:** Placeholder.
-
-**Schema reservations (Phase 2 / migration `0000`):**
-- `organizations.stripe_customer_id` (text, nullable).
-- `organizations.stripe_subscription_id` (text, nullable).
-- `organizations.stripe_subscription_status` (text, default `'trialing'`).
-- `stripe_events` table (service-role idempotency).
-
-**Env vars reserved (`.env.local.example` lines 36-47):**
-- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`.
-- 6 price IDs (`STRIPE_PRICE_{STARTER,GROWTH,BUSINESS}_{MONTHLY,ANNUAL}`).
-
-**Planned webhook surface (CLAUDE.md Stripe Rules):** `app/api/webhooks/stripe/route.ts` will handle 5 events idempotently using `stripe_events`:
-- `checkout.session.completed` — initial subscription.
-- `invoice.paid` — renewal (missing this = users lose access after cycle 1).
-- `invoice.payment_failed` — flag for dunning.
-- `customer.subscription.deleted` — cancel org.
-- `customer.subscription.updated` — plan change.
-
-**Discipline:** Verify webhook signatures with raw body (`request.text()` before any parse — same pattern as Clerk handler). All handlers idempotent via stored event IDs.
-
-**SDK:** `stripe` NPM package NOT yet in `package.json`.
-
----
-
-## Resend + React Email (Phase 7 — NOT YET IMPLEMENTED)
-
-**Status:** Placeholder.
-
-**Env vars reserved (`.env.local.example` lines 54-56):** `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (default `noreply@policypilot.com`).
-
-**Planned use:** Reminder emails (`notifications` table → outbound email), acknowledgment nudges, review-due alerts.
-
-**SDK:** `resend` NPM package NOT yet in `package.json`.
+**Local Development:** Stripe CLI — bind via `STRIPE_API_KEY` from `.env.local` to avoid two-account mismatch; see `memory/gsd-tooling-quirks.md`.
 
 ---
 
-## Railway Cron Worker (Phase 7 — NOT YET IMPLEMENTED)
+## Anthropic Claude API — AI Layer
 
-**Status:** Placeholder.
+**Purpose:** Policy draft generation, TL;DR summaries, employee Q&A, policy consistency check.
 
-**Env vars reserved:** `CRON_SECRET` (HMAC for Railway → Next.js callback authentication).
+**SDK:** `@anthropic-ai/sdk 0.97.1` (pinned exact)
 
-**Planned use:** Persistent container running cron schedules for review-reminder emails + bulk-notification fan-out. Hits Vercel-hosted Next.js endpoints with `CRON_SECRET`-signed requests.
+**Models:**
+- `claude-sonnet-4-6` — draft, Q&A, consistency check (defined as `MODEL_SONNET` in `lib/ai/models.ts`)
+- `claude-haiku-4-5-20251001` — TL;DR summary only (defined as `MODEL_HAIKU` in `lib/ai/models.ts`)
 
-**Not yet built:** No Railway service code in this repo. Will likely live in a sibling directory or separate repo.
+**Client:** `lib/ai/client.ts` — lazy singleton; `maxRetries: 0` (no auto-retry); `timeout: 25_000ms`
+
+**Surface:**
+- `lib/ai/prompts.ts` — system prompt constants: `DRAFT_SYSTEM_PROMPT`, `SUMMARY_SYSTEM_PROMPT`, `QA_SYSTEM_PROMPT_TEMPLATE`, `CONSISTENCY_SYSTEM_PROMPT`; contents gated by `scripts/check-ai-prompts.ts` (40-char anchor match against `reference/PROMPTS.md`)
+- `lib/ai/cache.ts` — prompt cache helpers; `EPHEMERAL_CACHE` (5min default TTL), `LONG_CACHE` (1h TTL for Q&A policy library block); D-33c ordering: LONG_CACHE block FIRST, EPHEMERAL SECOND
+- `lib/ai/qa.ts` — Q&A orchestrator; builds per-org policy library XML; calls Anthropic; parses citations; writes `qa_citation_grants`
+- `lib/ai/summary.ts` — TL;DR summary with Haiku
+- `lib/ai/batch-status.ts` — `translateProcessingStatus()` SDK → SPEC enum for Consistency Check
+- `lib/ai/extract.ts`, `lib/ai/qa-extract.ts`, `lib/ai/qa-parser.ts`, `lib/ai/schemas.ts` — XML/citation extraction + parsing utilities
+- `app/api/ai/draft/route.ts` — policy draft endpoint; checks `aiDraftsMonthly` tier limit before calling Anthropic; stores idempotency key
+- `app/api/ai/summary/route.ts` — TL;DR summary endpoint
+- `app/api/ai/qa/route.ts` — employee Q&A HTTP route (wraps `lib/ai/qa.ts`)
+- `app/api/ai/consistency/route.ts` — submits Anthropic Batch API job; returns `batchId`
+- `app/api/ai/consistency/[batchId]/route.ts` — polls batch status; writes `ai_generations` row on completion
+
+**Audit Trail:** Every successful Anthropic call writes one row to `ai_generations` via `AiGenerations.insert()` in `lib/db/repositories/ai_generations.ts`. Columns: `orgId`, `policyId`, `type` (`draft|summary|qa|consistency`), `prompt`, `result`, `model`, `inputTokens`, `outputTokens`, `cacheReadInputTokens`, `cacheCreationInputTokens`, `idempotencyKey`.
+
+**Tier Gating:** `requireTierLimit(orgId, 'aiDraftsMonthly')` called before every draft; `requireTierLimit(orgId, 'consistencyCheck')` before consistency check (Growth+ feature).
+
+**Batch API (Consistency Check):** Anthropic Batch API used for async consistency check; 50% cost reduction. Batch state tracked in `batch_jobs` table. `ai_generations` row written on completion only (SUCCESS-ONLY semantic).
+
+**Prompt Injection Guard:** Q&A system prompt includes explicit instruction treating all text inside `<policy>` XML tags as DATA only, not directives.
+
+**Required Env Vars:**
+- `ANTHROPIC_API_KEY` — server-only; never exposed client-side
 
 ---
 
-## Webhooks Summary
+## Resend — Email (Phase 7, Planned)
 
-**Incoming:**
-- `POST /api/webhooks/clerk` — Svix-verified, idempotent via `clerk_events`. ACTIVE.
-- `POST /api/webhooks/stripe` — placeholder, Phase 6. Will be Stripe-signature-verified, idempotent via `stripe_events`.
+**Purpose:** Transactional email for policy assignment reminders, acknowledgment reminders. Not yet implemented.
 
-**Outgoing:**
-- `clerkClient().users.updateUserMetadata()` — role mirror to `publicMetadata.role` from webhook handler. ACTIVE.
-- Anthropic API (`messages.create`, Batch API). ACTIVE.
-- (Phase 6+) Stripe Checkout session creation, Customer Portal session creation.
-- (Phase 7+) Resend `emails.send`, Railway → Next.js cron callbacks.
+**SDK:** Not installed in current `package.json` dependencies.
+
+**Config:** `RESEND_API_KEY` and `RESEND_FROM_EMAIL` env vars present in `.env.local.example` (pre-provisioned for Phase 7). `RESEND_FROM_EMAIL` defaults to `noreply@policypilot.com`.
+
+**Status:** Scaffolded in environment config only. No application code exists yet.
 
 ---
 
-## Environment Configuration Summary
+## Railway — Background Worker (Phase 7, Planned)
 
-**Secrets locations:**
-- Local dev: `.env.local` (gitignored).
-- Test DB: `.env.local.test` (gitignored).
-- Staging/prod migration credentials: `secrets/staging.env` / `secrets/prod.env` (gitignored; loaded by `scripts/with-deploy-creds.ps1`).
-- Vercel: Environment Variables panel (production runtime).
-- GitHub Actions: Repository secrets (CI migration apply).
+**Purpose:** Cron-based reminder jobs (acknowledgment reminders, review due alerts). Not yet deployed.
 
-**Audit log:** After every successful prod migration, append a one-line entry to `.planning/STATE.md` Session Continuity per `docs/runbooks/deploy-migrations.md` § Audit log.
+**Status:** Planned as a separate Railway worker service. `CRON_SECRET` env var present in `.env.local.example` for future cron route authentication (`/api/cron/(.*)`). Middleware already has the `isCronRoute` matcher that bypasses Clerk auth (cron routes verify `CRON_SECRET` header instead). No Railway worker code exists yet.
 
 ---
 
-*Integration audit: 2026-05-24 — Phase 5 (Employee Portal) shipped via PR #27 on `gsd/phase-5-employee-portal`. Phases 1-5 complete; Phases 6 (Billing), 7 (Crons+Email), 8 (Validation) not yet started.*
+## Analytics & Monitoring (Scaffolded)
+
+**PostHog:**
+- `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST` env vars present
+- No PostHog SDK installed in current `package.json`
+
+**Sentry:**
+- `SENTRY_DSN` env var present
+- No Sentry SDK installed in current `package.json`
+
+Both are scaffolded in environment configuration and CI workflows for future activation.
+
+---
+
+## CI/CD
+
+**GitHub Actions Workflows:**
+- `.github/workflows/verify.yml` — general PR + push verification
+- `.github/workflows/verify-phase-6.yml` — Phase 6 full verification (runs `pnpm verify:phase-6` with all secrets); triggers on PR, push to `main`/`gsd/**`, workflow_dispatch
+- `.github/workflows/migrate.yml` — migration application pipeline
+
+**Vercel:**
+- Auto-deploy via `vercel.json`; `buildCommand: "pnpm deploy:preflight && pnpm build"` — schema gate fires before every deploy
+- Secret storage: GitHub repository secrets for all env vars listed in `.github/workflows/verify-phase-6.yml`
+
+---
+
+## Environment Variable Summary
+
+| Variable | Service | Required For |
+|----------|---------|-------------|
+| `DATABASE_URL` | Supabase | Runtime queries (pooler port 6543) |
+| `DIRECT_URL` | Supabase | Migrations (direct port 5432) |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase | Client SDK init |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase | Client SDK init |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase | Service-role operations |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk | Client SDK |
+| `CLERK_SECRET_KEY` | Clerk | Server SDK |
+| `CLERK_WEBHOOK_SECRET` | Clerk | Webhook signature verification |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` | Clerk | Must be `/post-sign-in` |
+| `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL` | Clerk | Must be `/post-sign-in` |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe | Client-side Stripe.js |
+| `STRIPE_SECRET_KEY` | Stripe | Server-side Stripe API |
+| `STRIPE_WEBHOOK_SECRET` | Stripe | Webhook signature verification |
+| `STRIPE_PRICE_STARTER_MONTHLY` | Stripe | Price catalog |
+| `STRIPE_PRICE_STARTER_ANNUAL` | Stripe | Price catalog |
+| `STRIPE_PRICE_GROWTH_MONTHLY` | Stripe | Price catalog |
+| `STRIPE_PRICE_GROWTH_ANNUAL` | Stripe | Price catalog |
+| `STRIPE_PRICE_BUSINESS_MONTHLY` | Stripe | Price catalog |
+| `STRIPE_PRICE_BUSINESS_ANNUAL` | Stripe | Price catalog |
+| `ANTHROPIC_API_KEY` | Anthropic | All AI endpoints — server-only |
+| `RESEND_API_KEY` | Resend | Phase 7 email (not yet used) |
+| `RESEND_FROM_EMAIL` | Resend | Phase 7 email (not yet used) |
+| `NEXT_PUBLIC_APP_URL` | App | Stripe redirect URLs |
+| `CRON_SECRET` | App | Phase 7 cron route auth |
+| `DATABASE_URL_TEST` | Supabase | Test DB for RLS cross-org tests |
+| `DIRECT_URL_TEST` | Supabase | Test DB migrations |
+| `NEXT_PUBLIC_POSTHOG_KEY` | PostHog | Analytics (not yet active) |
+| `NEXT_PUBLIC_POSTHOG_HOST` | PostHog | Analytics (not yet active) |
+| `SENTRY_DSN` | Sentry | Error tracking (not yet active) |
+
+---
+
+*Integration audit: 2026-05-30*

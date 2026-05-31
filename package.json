@@ -49,7 +49,8 @@
     "verify:full": "pnpm lint && pnpm build && pnpm verify:phase-5 && pnpm db:verify && pnpm test:e2e",
     "verify:phase-3": "pnpm typecheck && pnpm check:db-imports && pnpm check:rls && pnpm check:auth-context && pnpm check:policies-list-filters && pnpm check:admin-routes && pnpm check:error-discipline && pnpm check:policy-id-brand && pnpm check:artifacts && pnpm test && node -e \"require('fs').rmSync('.tmp/svix-url.json', { force: true })\"",
     "verify:phase-4": "pnpm verify:phase-3 && pnpm check:ai-prompts && pnpm check:ai-layer",
-    "verify:phase-5": "pnpm verify:phase-4 && pnpm check:acknowledgment-immutability && pnpm check:acknowledgment-immutability:self-test && pnpm check:employee-portal"
+    "verify:phase-5": "pnpm verify:phase-4 && pnpm check:acknowledgment-immutability && pnpm check:acknowledgment-immutability:self-test && pnpm check:employee-portal",
+    "verify:phase-6": "pnpm tsc --noEmit && pnpm verify:phase-5 && pnpm run test -- --run lib/stripe && pnpm run test -- --run app/api/webhooks/stripe && pnpm db:verify && pnpm check:artifacts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.97.1",
@@ -69,6 +70,7 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "shadcn": "^4.7.0",
+    "stripe": "^22.2.0",
     "svix": "1.93.0",
     "tailwind-merge": "^3.6.0",
     "tw-animate-css": "^1.4.0",

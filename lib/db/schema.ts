@@ -27,6 +27,11 @@
 // references(() => organizations.id) defers evaluation, so forward references
 // in the file work in any order.
 //
+// Phase 6 schema delta (lands via drizzle/0012):
+//   - Phase 6 D-10/D-11/D-12: additive billing-state columns on organizations
+//                   plus partial unique indexes on nullable Stripe customer and
+//                   subscription IDs. Partial indexes are hand-written in SQL.
+//
 // stripe_events + clerk_events do NOT carry org_id — they are service-role
 // idempotency tables for webhook handlers (see RESEARCH § "Anti-Patterns to
 // Avoid": Don't denormalize org_id onto stripe_events or clerk_events).
@@ -165,6 +170,11 @@ export const organizations = pgTable('organizations', {
   stripeCustomerId: text('stripe_customer_id'),
   stripeSubscriptionId: text('stripe_subscription_id'),
   stripeSubscriptionStatus: text('stripe_subscription_status').default('trialing'),
+  stripePriceId: text('stripe_price_id'),
+  stripeSubscriptionItemId: text('stripe_subscription_item_id'),
+  stripeCurrentPeriodEnd: timestamp('stripe_current_period_end', { withTimezone: true }),
+  stripeCancelAtPeriodEnd: boolean('stripe_cancel_at_period_end').notNull().default(false),
+  stripeLastEventCreated: timestamp('stripe_last_event_created', { withTimezone: true }),
   createdAt: timestamp('created_at').defaultNow(),
 });
 

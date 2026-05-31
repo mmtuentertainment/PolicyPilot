@@ -1,381 +1,519 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-05-24
-
-PolicyPilot tests split into two tracks: **co-located unit/component tests**
-(default `pnpm test` glob) and **integration harnesses** under `scripts/`
-(excluded from the default glob, fired by dedicated `pnpm check:*` scripts).
-Phase 5 (Employee Portal) shipped 56 new tests; total = **228 tests across
-28 files**.
+**Analysis Date:** 2026-05-30
+**Phase coverage:** Through Phase 6 Billing (inclusive)
 
 ---
 
 ## Test Framework
 
-| Tool | Version | Notes |
-|------|---------|-------|
-| Vitest | `^1.6.0` (installed 1.6.1) | CJS Node API — deprecation warning on every run; harmless |
-| Environment | `jsdom` | Default per `vitest.config.ts:30`; supports component tests |
-| Assertion | Vitest built-in `expect` + `@testing-library/jest-dom/vitest` | Custom matchers from `tests/setup.ts:1` |
-| React testing | `@testing-library/react` `^16` + `@vitejs/plugin-react` `^4` | Component DOM tests |
-| Config | `vitest.config.ts` | `globals: true`, `include: ['**/*.{test,spec}.{ts,tsx}']` |
+**Runner:** Vitest `^1.6.0`
+**Config:** `vitest.config.ts` (project root)
+**Assertion Library:** Vitest built-in (`expect`) + `@testing-library/jest-dom` matchers (via `tests/setup.ts`)
+**React testing:** `@testing-library/react` `^16` with jsdom environment
 
-**Run commands:**
-
+**Run Commands:**
 ```bash
-pnpm test               # default unit/component glob (excludes integration harnesses)
-pnpm test:watch         # vitest in watch mode
-pnpm check:ai-layer     # Phase 4 integration harness (dedicated config)
-pnpm check:employee-portal  # Phase 5 integration harness (dedicated config, live TEST DB)
-pnpm verify:phase-5     # full chain: phase-4 chain + ack-immutability + check:employee-portal
+pnpm test                  # Run all default vitest tests (unit + component)
+pnpm test:watch            # Watch mode
+pnpm check:ai-layer        # Integration harness against live TEST DB (Phase 4)
+pnpm check:employee-portal # Integration harness against live TEST DB (Phase 5)
+pnpm verify:phase-6        # Full Phase 6 gate (tsc + verify:phase-5 + stripe tests + db:verify + artifacts)
+pnpm test:e2e              # Playwright end-to-end tests
+pnpm test:e2e:ui           # Playwright UI mode
 ```
+
+---
+
+## Two Test Tracks
+
+### Track 1 — Default Vitest Glob (fast, DB-independent)
+
+**Include glob:** `**/*.{test,spec}.{ts,tsx}` (everything in the repo)
+
+**Excluded from default run:**
+```typescript
+exclude: [
+  'node_modules', '.next', 'tests/types.ts',
+  'tests/e2e/**',
+  'scripts/check-ai-layer.test.ts',       // Phase 4 integration harness
+  'scripts/check-employee-portal.test.ts', // Phase 5 integration harness
+]
+```
+
+**Environment:** `jsdom` (global default); individual files override with `// @vitest-environment node` docblock (used by `lib/ai/client.test.ts` — Anthropic SDK refuses to instantiate in browser-like env).
+
+**Setup file:** `tests/setup.ts`
+- Imports `@testing-library/jest-dom/vitest` for DOM matchers
+- Runs `cleanup()` after each test via `afterEach`
+- Shims `window.matchMedia` for shadcn primitives that probe it
+
+**`server-only` stub:** `tests/stubs/server-only.ts` (empty export) aliased via `vitest.config.ts` so tests can import server-only modules without the package's hard throw. Next.js build still enforces the real guard.
+
+**PostCSS override:** `vitest.config.ts` sets `css: { postcss: { plugins: [] } }` to skip Tailwind v4's PostCSS plugin (rejected by plain Vite; not needed in unit tests).
+
+### Track 2 — Integration Harnesses (DB-connected, node env)
+
+Both harnesses have dedicated vitest configs that use the `node` environment, single-fork pool (`pool: 'forks'`, `singleFork: true`), `testTimeout: 30_000`, and require `TEST_DATABASE_URL` / `DATABASE_URL_TEST` env vars.
+
+**`scripts/check-ai-layer.test.ts`** — Phase 4 AI layer integration:
+- Config: `scripts/check-ai-layer.vitest.config.ts`
+- Run via: `pnpm check:ai-layer` → wired into `verify:phase-4`
+- Tests actual route handler behavior with live DB (TRUNCATE + ROLLBACK isolation)
+
+**`scripts/check-employee-portal.test.ts`** — Phase 5 employee portal integration:
+- Config: `scripts/check-employee-portal.vitest.config.ts`
+- Run via: `pnpm check:employee-portal` → wired into `verify:phase-5`
 
 ---
 
 ## Test File Organization
 
-**Co-located unit / component tests** sit next to source:
+**Pattern:** co-located alongside implementation files (not a separate `__tests__/` directory)
 
+**Naming:** `<module>.test.ts` or `<route>.test.ts` alongside the source file
+
+**Directory layout:**
 ```
-lib/policies/state-machine.ts
-lib/policies/state-machine.test.ts          ← co-located
-app/(employee)/my-policies/[id]/actions.ts
-app/(employee)/my-policies/[id]/actions.test.ts  ← co-located
-components/policy/PolicyEditor.tsx
-components/policy/PolicyEditor.test.tsx     ← co-located
-```
-
-**Integration harnesses** live under `scripts/`:
-
-```
-scripts/check-ai-layer.test.ts              ← Phase 4, vitest+Anthropic mock
-scripts/check-ai-layer.vitest.config.ts     ← dedicated config (node env, DB passthrough)
-scripts/check-employee-portal.test.ts       ← Phase 5, 846 lines, raw postgres-js + RLS
-scripts/check-employee-portal.vitest.config.ts  ← dedicated config (BYPASSRLS seed)
-```
-
-`vitest.config.ts:43` excludes both integration tests from the default glob so
-`pnpm test` stays fast and DB-independent:
-
-```ts
-exclude: [
-  'node_modules', '.next', 'tests/types.ts',
-  'scripts/check-ai-layer.test.ts',
-  'scripts/check-employee-portal.test.ts',
-],
+app/
+  (admin)/
+    dashboard/consistency/  page.test.tsx
+    policies/[id]/          actions.test.ts
+    settings/               actions.test.ts
+  (employee)/
+    my-policies/ask/        actions.test.ts
+    my-policies/[id]/       actions.test.ts
+  api/
+    ai/consistency/         route.test.ts, route.nyquist.test.ts
+    ai/consistency/[batchId]/ route.test.ts
+    ai/draft/               route.test.ts
+    ai/qa/                  route.test.ts
+    ai/summary/             route.test.ts
+    webhooks/stripe/        route.test.ts        ← Phase 6
+lib/
+  ai/                       client.test.ts, qa-extract.test.ts, qa-parser.test.ts
+                            schemas.test.ts, summary.test.ts
+  auth/                     bootstrap-errors.test.ts, require-admin.test.ts
+  db/repositories/          acknowledgments.test.ts, policies.test.ts
+                            policy_assignments.test.ts, qa_citation_grants.test.ts
+  policies/                 acknowledgment.test.ts, state-machine.test.ts, transitions.test.ts
+  stripe/                   catalog.test.ts, client.test.ts, mask.test.ts  ← Phase 6
+                            normalize.test.ts, products.test.ts            ← Phase 6
+components/
+  admin/                    PolicyAssignmentsPanelForm.test.tsx
+  policy/                   PolicyAiDraftDialog.test.tsx, PolicyEditor.test.tsx
+scripts/
+  check-ai-layer.test.ts    (Track 2 — excluded from default glob)
+  check-employee-portal.test.ts (Track 2 — excluded from default glob)
+tests/
+  smoke.test.ts
+  ai-mocks.ts               (shared fixture helpers — NOT a test file)
+  stubs/server-only.ts      (stub for vitest import resolution)
+  types.ts                  (compile-time type tests — excluded from default glob)
 ```
 
 ---
 
-## Test Inventory (28 files, 228 tests)
+## Test Counts (2026-05-30 — Phase 6 current)
 
-### Unit tests — `lib/`
+| Location | File count | Approx test cases |
+|----------|-----------|------------------|
+| `app/**/*.test.{ts,tsx}` | 12 files | ~115 |
+| `lib/**/*.test.{ts,tsx}` | 19 files | ~140 |
+| `components/**/*.test.tsx` | 3 files | ~15 |
+| `tests/smoke.test.ts` | 1 file | 1 |
+| **Default `pnpm test` total** | **35 files** | **~269 test cases** |
+| `scripts/check-ai-layer.test.ts` | 1 file (Track 2) | varies |
+| `scripts/check-employee-portal.test.ts` | 1 file (Track 2) | varies |
 
-| File | Tests | Focus |
-|------|------:|-------|
-| `lib/policies/state-machine.test.ts` | 24 | Pure state transitions (no I/O) |
-| `lib/policies/transitions.test.ts` | 20 | Orchestrator with mocked repos |
-| `lib/policies/acknowledgment.test.ts` | — | Phase 5 ack orchestrator |
-| `lib/auth/bootstrap-errors.test.ts` | 21 | ADR-026 typed-error contracts |
-| `lib/auth/require-admin.test.ts` | — | RBAC guard |
-| `lib/ai/qa-parser.test.ts` | 6 | Includes QA-PARSER-FENCE regression |
-| `lib/ai/qa-extract.test.ts` | — | Citation extraction |
-| `lib/ai/schemas.test.ts` | — | Zod schemas for AI payloads |
-| `lib/ai/summary.test.ts` | — | TL;DR summary path |
-| `lib/ai/client.test.ts` | — | Anthropic client wrapper |
-| `lib/db/repositories/acknowledgments.test.ts` | — | Phase 5 repository |
-| `lib/db/repositories/policies.test.ts` | — | |
-| `lib/db/repositories/policy_assignments.test.ts` | — | Phase 5 |
-| `lib/db/repositories/qa_citation_grants.test.ts` | — | Phase 5 |
-| `lib/stripe/products.test.ts` | — | |
-
-### Unit tests — Server Actions (`app/`)
-
-| File | Tests | Focus |
-|------|------:|-------|
-| `app/(admin)/policies/[id]/actions.test.ts` | 25 | Includes 6 new for `bulkAssignToDepartmentAction` |
-| `app/(employee)/my-policies/[id]/actions.test.ts` | 12 | `acknowledgePolicyAction` |
-| `app/(employee)/my-policies/ask/actions.test.ts` | 8 | Q&A action |
-| `app/(admin)/dashboard/consistency/page.test.tsx` | — | Page-level test |
-| `app/api/ai/qa/route.test.ts` | — | Phase 4 R4 + Phase 5 accessibility extension |
-| `app/api/ai/draft/route.test.ts` | — | |
-| `app/api/ai/summary/route.test.ts` | — | |
-| `app/api/ai/consistency/route.test.ts` | — | |
-| `app/api/ai/consistency/route.nyquist.test.ts` | — | Nyquist Per-Task Verification entry |
-| `app/api/ai/consistency/[batchId]/route.test.ts` | — | |
-
-### Component tests
-
-| File | Tests |
-|------|------:|
-| `components/policy/PolicyEditor.test.tsx` | 3 |
-| `components/policy/PolicyAiDraftDialog.test.tsx` | 4 |
-
-### Integration harnesses
-
-| File | Pattern |
-|------|---------|
-| `scripts/check-data-layer.ts` | Phase 2 7-check orchestrator (plain tsx) |
-| `scripts/check-ai-layer.test.ts` | Phase 4 vitest + Anthropic mock + DB |
-| `scripts/check-employee-portal.test.ts` | Phase 5 vitest + raw postgres-js + BYPASSRLS seed + SET LOCAL ROLE authenticated (9 tests, 846 lines) |
-| `tests/smoke.test.ts` | Sanity smoke (always green) |
-
-### Compile-time invariants (not runtime tests)
-
-| File | Role |
-|------|------|
-| `tests/types.ts` | D-07 `@ts-expect-error` invariants (ADR-018 append-only, ADR-028 PolicyId brand, D-43 QA citation shape). Excluded from vitest glob; lives only as a tsc target. |
+**Note on counting methodology:** `grep -rn "^\s*\(it\|test\)\s*(" app/ lib/ components/ tests/` returned **269** matching lines. This excludes the two Track 2 integration harnesses and `tests/types.ts` (compile-time tests).
 
 ---
 
-## Mocking Patterns
+## Test Structure
 
-**Hoisted `vi.fn()` state + module-level `vi.mock` + `beforeEach` reset.**
-Canonical shape from `app/(employee)/my-policies/[id]/actions.test.ts:18-58`:
+**Typical suite organization:**
+```typescript
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-```ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+describe('<module>.<function> (<ADR or plan reference>)', () => {
+  beforeEach(() => {
+    // reset mocks
+  });
 
-// Hoisted mock state.
-const recordAcknowledgmentMock = vi.fn();
-vi.mock('@/lib/policies/acknowledgment', () => ({
-  recordAcknowledgment: (...args: unknown[]) => recordAcknowledgmentMock(...args),
-}));
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+    vi.restoreAllMocks();
+  });
 
-const revalidateMock = vi.fn();
-vi.mock('next/cache', () => ({
-  revalidatePath: (p: string) => revalidateMock(p),
-}));
+  it('describes the expected behavior on success', async () => {
+    // arrange → act → assert
+  });
 
-const headersGetMock = vi.fn();
-vi.mock('next/headers', () => ({
-  headers: vi.fn(async () => ({ get: headersGetMock })),
-}));
+  it('describes the error behavior', async () => {
+    await expect(action()).rejects.toBeInstanceOf(SomeError);
+  });
+});
+```
 
+**`it.each` for parametric tests:**
+```typescript
+it.each(['unpaid', 'canceled', 'incomplete_expired', 'paused'] as const)(
+  'downgrades terminal status %s to starter',
+  async (status) => { ... },
+);
+```
+
+**`it.each` for table-driven multiple parameters (settings actions):**
+```typescript
+it.each([
+  ['starter', 'monthly', 'starterMonthlyPriceSentinel'],
+  ['growth', 'annual', 'growthAnnualPriceSentinel'],
+])('accepts %s %s intent...', async (tier, interval, priceId) => { ... });
+```
+
+---
+
+## Mocking
+
+**Framework:** Vitest `vi` API (`vi.mock`, `vi.fn`, `vi.spyOn`, `vi.stubEnv`)
+
+### Module Mocking Patterns
+
+**Static hoisted `vi.mock` (most common pattern):**
+```typescript
+// Declared before imports — Vitest hoists vi.mock() above import statements
 vi.mock('@/lib/auth/context', () => ({
-  getOrgContext: vi.fn(async () => ({
-    orgId: 'org_1',
-    userId: 'user_1',
-    clerkOrgId: 'clerk_test_org',
-    clerkUserId: 'clerk_test_user',
-    role: 'employee' as const,
-  })),
+  getOrgContext: () => getOrgContextMock(),
 }));
-
-import { acknowledgePolicyAction } from './actions'; // import AFTER vi.mock calls
-
-beforeEach(() => {
-  recordAcknowledgmentMock.mockReset();
-  revalidateMock.mockClear();
-  headersGetMock.mockReset();
-  headersGetMock.mockReturnValue(null); // default: no x-forwarded-for
-});
+const getOrgContextMock = vi.fn();
 ```
 
-**Why this shape:**
-- `vi.mock` is hoisted to the top of the file by vitest; the `vi.fn()` refs are
-  separately hoisted (Vitest understands the pattern) and stay mutable across
-  tests.
-- Source import (`import { acknowledgePolicyAction } from './actions'`) MUST
-  come after the `vi.mock` calls for the mock to apply at module-load time.
-- `beforeEach` resets call history but keeps the mock identity stable.
+**Dynamic import after `vi.resetModules()` (for env-var-dependent modules):**
+```typescript
+async function importRoute() {
+  vi.resetModules();
+  vi.stubEnv('STRIPE_SECRET_KEY', 'test_key');
+  vi.doMock('@/lib/db', () => ({ db: createFakeDb(dbState) }));
+  return import('@/app/api/webhooks/stripe/route');
+}
+```
+Used by `app/api/webhooks/stripe/route.test.ts` and `lib/stripe/client.test.ts` because these modules read env vars at load time (module-level initialization).
 
-### Commonly mocked modules
+**`vi.spyOn` for split-helper mocking (WARNING-2 pattern):**
+```typescript
+import * as productsMod from '@/lib/stripe/products';
+vi.spyOn(productsMod, 'readPlanTier').mockResolvedValue('growth');
+vi.spyOn(productsMod, 'countDraftsThisMonth').mockResolvedValue(0);
+```
+Required because `checkTierLimit` calls helpers via `self.*` namespace (not direct closure), making them interceptable by spies. This is the reason `lib/stripe/products.ts` exports `readPlanTier` and `countDraftsThisMonth`.
 
-| Module | Why |
-|--------|-----|
-| `next/cache` | `revalidatePath` — verify cache invalidation count + targets |
-| `next/headers` | `headers()` — drive `x-forwarded-for` cases |
-| `@/lib/auth/context` | `getOrgContext` — inject role/org/user without Clerk |
-| `@/lib/db/scoped` | `withOrgScope` — pass through a fake `OrgScope` |
-| `@/lib/db/repositories/*` | Per-aggregate — stub `record`, `findById`, etc. |
-| `@/lib/ai/client` | `getAnthropicClient` — return fixture messages.create result |
-| `@clerk/nextjs/server` | `auth`, `currentUser` — for actions touching Clerk |
+**`server-only` mock (for files that start with `import 'server-only'`):**
+```typescript
+vi.mock('server-only', () => ({}));
+```
+Or relied upon via `vitest.config.ts` alias to `tests/stubs/server-only.ts`.
 
-### Anthropic mock pattern
+**Drizzle chain builder mock (repository tests):**
+```typescript
+// Chainable mock where each method returns an object with the next method
+const whereMock = vi.fn(() => Promise.resolve([{ id: 'p1', ... }]));
+const fromMock = vi.fn(() => ({ where: whereMock }));
+const selectMock = vi.fn(() => ({ from: fromMock }));
+const txMock = { select: selectMock };
+// Used as: s.tx in repository calls
+```
 
-Used in `app/api/ai/*/route.test.ts` and `scripts/check-employee-portal.test.ts`.
-Shape mirrors the live SDK response:
-
-```ts
-vi.mock('@/lib/ai/client', () => ({
-  getAnthropicClient: vi.fn(() => ({
-    messages: {
-      create: vi.fn(async () => ({
-        content: [
-          {
-            type: 'text',
-            text: `Mock Q&A answer body.\n\n--- CITATIONS ---\n${citationJson}\n--- END CITATIONS ---`,
-          },
-        ],
-        usage: {
-          input_tokens: 100,
-          output_tokens: 50,
-          cache_creation_input_tokens: 0,
-          cache_read_input_tokens: 0,
-        },
-      })),
-    },
-  })),
+**`next/navigation` mock (for redirect/notFound):**
+```typescript
+vi.mock('next/navigation', () => ({
+  redirect: (url: string) => { throw new Error(`NEXT_REDIRECT:${url}`); },
+  notFound: () => { throw new Error('NEXT_NOT_FOUND'); },
 }));
 ```
+Redirect/notFound throws are asserted via `rejects.toThrow('NEXT_REDIRECT:/target')`.
 
-`H-5` (pure-hallucination) and `H-6` (cross-org-leak) negative tests use this
-mock to inject hallucinated / foreign-org UUIDs, then assert
-`parseQaResponse` strips them AND no grant row was written. The mock proves
-Phase 4 D-41 same-closure `validIds` defense holds at runtime in the extracted
-`lib/ai/qa.ts`.
+### Env Var Stubbing
 
----
-
-## Fixtures
-
-- **UUID fixtures** are inline constants (`const VALID_POLICY_ID = '00000000-0000-4000-8000-000000000001';`).
-- **FormData helper** is a per-file `fd()` function (see
-  `app/(employee)/my-policies/[id]/actions.test.ts:60-64`):
-  ```ts
-  function fd(entries: Record<string, string>): FormData {
-    const f = new FormData();
-    for (const [k, v] of Object.entries(entries)) f.append(k, v);
-    return f;
-  }
-  ```
-- **No shared `tests/fixtures/` directory** — fixtures stay co-located with
-  their test for context-locality.
-
----
-
-## Integration Harness — Phase 5 Pattern
-
-`scripts/check-employee-portal.test.ts` (846 lines, 9 tests) is the reference
-implementation for live-DB integration tests:
-
-**Connection:**
-- Raw `postgres-js` client (no Drizzle session pooling) — direct control over
-  transaction lifecycle.
-- Env vars from `.env.local` via a dedicated config
-  (`scripts/check-employee-portal.vitest.config.ts`).
-- TEST DB only — `DATABASE_URL_TEST` + `DIRECT_URL_TEST` (NEVER prod).
-
-**RLS strategy:**
-- Seed with `BYPASSRLS` role (admin grant) to populate fixture data.
-- Switch to `authenticated` role via `SET LOCAL ROLE authenticated` inside a
-  transaction, then run the system-under-test query.
-- `ROLLBACK` at end of each test — never persists changes.
-
-**Cross-org isolation tests** confirm RLS blocks foreign-org reads even when
-the authenticated user supplies the foreign `org_id` in a WHERE clause.
-
-**Module mocks:** `vi.mock('@/lib/auth/context', …)` + `vi.mock('@/lib/ai/client', …)`
-let the integration harness reuse the same orchestrator code path as production
-while controlling Anthropic responses and OrgContext.
-
----
-
-## TEST DB Pattern (Phase 2 baseline)
-
-`scripts/check-data-layer.ts:95-111` shows the migration-spawn pattern:
-
-```ts
-const { spawnSync } = require('node:child_process');
-spawnSync('pnpm', ['db:migrate:test'], {
-  env: {
-    ...process.env,
-    DATABASE_URL: process.env.DATABASE_URL_TEST,
-    DIRECT_URL: process.env.DIRECT_URL_TEST,
-  },
-  stdio: 'inherit',
-});
+```typescript
+vi.stubEnv('STRIPE_SECRET_KEY', 'test_value');
+// Clean up in afterEach:
+vi.unstubAllEnvs();
 ```
 
-Key invariant: **never mutate `process.env` in-process** — pass overrides via
-`spawnSync`'s `env` field so the parent's env stays clean and concurrent
-checks don't race.
+### What to Mock
+
+- External network calls (Stripe SDK, Anthropic SDK) — always
+- DB layer (`@/lib/db`, `@/lib/db/scoped`, repositories) — always in unit tests
+- Auth context (`@/lib/auth/context`) — always; expose via `mockGetOrgContext`
+- `next/navigation` (redirect, notFound) — always in Server Action tests
+- `server-only` — always when testing modules that import it
+
+### What NOT to Mock
+
+- Pure business logic (state machine, normalization, error classes) — test directly
+- Zod schemas — test directly with real inputs
+- `lib/stripe/normalize.ts`, `lib/stripe/catalog.ts` — test via `importNormalizer()` / `importCatalog()` (dynamic import after `vi.resetModules()` + env stubs) to get module re-evaluation per test
+- `lib/policies/state-machine.ts` — pure function, no mocking needed
 
 ---
 
-## CI Gate Map
+## Fixtures and Factories
 
-Phase verify chains compose via prefix inheritance:
+### Shared AI Fixtures (`tests/ai-mocks.ts`)
 
-```text
-verify:phase-1 → check-foundation.ts + check:artifacts
-verify:phase-2 → check-data-layer.ts (7 sub-checks)
-verify:phase-3 → typecheck + check:db-imports + check:rls + check:auth-context
-               + check:policies-list-filters + check:admin-routes
-               + check:error-discipline + check:policy-id-brand
-               + check:artifacts + pnpm test
-verify:phase-4 → verify:phase-3 + check:ai-prompts + check:ai-layer
-verify:phase-5 → verify:phase-4 + check:acknowledgment-immutability
-               + check:acknowledgment-immutability:self-test + check:employee-portal
+```typescript
+// Build a full Anthropic.Messages.Message fixture
+export function mockTextResponse(
+  text: string,
+  usage?: Partial<Anthropic.Messages.Usage>,
+): Anthropic.Messages.Message
+
+// Build a MessageBatch fixture for batch polling endpoint tests
+export function mockBatch(
+  processing_status: 'in_progress' | 'canceling' | 'ended',
+  counts?: { succeeded?: number; errored?: number; ... }
+)
 ```
 
-**Total: 11 active static check gates + 3 integration harnesses.** Every gate
-exits 0 on green; CI / `verify:phase-N` halts on the first non-zero exit.
+Used by all `app/api/ai/**/route.test.ts` and `lib/ai/*.test.ts` files.
+
+### Per-Test Fixture Factories (inline)
+
+**Stripe route test (`app/api/webhooks/stripe/route.test.ts`):**
+```typescript
+function eventFixture(type = 'checkout.session.completed', object, suffix): Stripe.Event
+function checkoutSessionFixture(): Stripe.Checkout.Session
+function invoiceFixture(type: 'paid' | 'failed'): Stripe.Invoice
+function subscriptionFixture(overrides?: { status?, priceId?, customer?, orgId? }): Stripe.Subscription
+```
+
+**Fake DB state for webhook tests:**
+```typescript
+interface FakeDbState {
+  orgRows: OrgRow[];
+  processedEventIds: Set<string>;
+  mutations: MutationRecord[];
+  updateShouldFail: boolean;
+}
+// FakeTx implements insert (with conflict detection) + update + commit
+class FakeTx { ... }
+function createFakeDb(state: FakeDbState) { ... }
+```
+This pattern avoids mocking Drizzle's full chained-builder API; instead a minimal fake that records mutations and supports idempotency semantics.
+
+**OrgContext fixture (shared across many test files):**
+```typescript
+const ADMIN_CTX = {
+  orgId: 'org_1', userId: 'user_1', role: 'admin' as const,
+  clerkOrgId: 'org_clerk_1', clerkUserId: 'user_clerk_1',
+};
+```
+
+**Sentinel values for Stripe IDs:**
+```typescript
+// IDs are constructed as join(['prefix', 'descriptor']) to avoid embedding
+// real-looking Stripe IDs and to make grep easier:
+function customerId() { return ['cus', 'route_customer_sentinel'].join('_'); }
+function subscriptionId() { return ['sub', 'route_subscription_sentinel'].join('_'); }
+```
+
+---
+
+## Verification Chains (verify:phase-N)
+
+### `verify:phase-3` chain
+
+```
+pnpm typecheck
+  && pnpm check:db-imports
+  && pnpm check:rls
+  && pnpm check:auth-context
+  && pnpm check:policies-list-filters
+  && pnpm check:admin-routes
+  && pnpm check:error-discipline
+  && pnpm check:policy-id-brand
+  && pnpm check:artifacts
+  && pnpm test
+  && node -e "require('fs').rmSync('.tmp/svix-url.json', { force: true })"
+```
+
+### `verify:phase-4` chain
+
+```
+pnpm verify:phase-3
+  && pnpm check:ai-prompts
+  && pnpm check:ai-layer   (integration harness, node env, live TEST DB)
+```
+
+### `verify:phase-5` chain
+
+```
+pnpm verify:phase-4
+  && pnpm check:acknowledgment-immutability
+  && pnpm check:acknowledgment-immutability:self-test
+  && pnpm check:employee-portal   (integration harness, node env, live TEST DB)
+```
+
+### `verify:phase-6` chain (Phase 6 Billing — current)
+
+```
+pnpm tsc --noEmit
+  && pnpm verify:phase-5
+  && pnpm run test -- --run lib/stripe        (Stripe unit tests)
+  && pnpm run test -- --run app/api/webhooks/stripe  (webhook handler tests)
+  && pnpm db:verify
+  && pnpm check:artifacts
+```
+
+Phase 6 explicitly re-runs the Stripe test subtrees as named subsets (in addition to the full `pnpm test` run inside `verify:phase-5`) to make billing regressions visible at the top-level gate.
+
+### `verify:full`
+
+```
+pnpm lint && pnpm build && pnpm verify:phase-5 && pnpm db:verify && pnpm test:e2e
+```
+
+Note: `verify:full` points at `verify:phase-5` not `verify:phase-6` (Phase 6 not yet shipped to `main`).
 
 ---
 
 ## Coverage
 
-- **No automatic coverage measurement.** No `nyc`, `c8`, or `v8` coverage
-  collector wired into `pnpm test`.
-- **Manual per-phase tracking** via the Nyquist Per-Task Verification Map
-  (style documented in each phase's `05-VALIDATION.md`). Each task references
-  the specific test file(s) that exercise it.
+**Requirements:** None enforced (no coverage threshold configured).
+
+**View coverage:**
+```bash
+pnpm vitest run --coverage   # (if @vitest/coverage-v8 were added)
+```
+Coverage tooling is not installed — `pnpm test` runs without coverage collection. Phase 8 may add it.
 
 ---
 
-## Snapshot Testing
+## Test Types
 
-**Not used.** Deliberate decision — snapshots are fragile to whitespace and
-formatting churn, and they hide assertion intent. Component tests use explicit
-`expect(...).toBeInTheDocument()` / `expect(...).toHaveTextContent('…')` from
-`@testing-library/jest-dom`.
+### Unit Tests (Track 1 — `pnpm test`)
+
+**Scope:** Pure functions, repository contract shapes, error class hierarchies, route handler behavior (with all external dependencies mocked).
+
+**Co-located** with source files (e.g., `lib/stripe/normalize.test.ts` next to `lib/stripe/normalize.ts`).
+
+**Key examples:**
+- `lib/policies/state-machine.test.ts` — pure 4×4 transition matrix (no mocks)
+- `lib/auth/bootstrap-errors.test.ts` — error class hierarchy invariants + unique code enforcement
+- `app/api/webhooks/stripe/route.test.ts` — full webhook handler with FakeDb + FakeStripeClient (no real network)
+- `lib/stripe/normalize.test.ts` — subscription normalization across all status values + edge cases
+- `app/(admin)/settings/actions.test.ts` — checkout and portal Server Actions with mocked Stripe client
+
+### Integration Harnesses (Track 2 — `pnpm check:*`)
+
+**Scope:** Route handler + DB repository composition tested against a real PostgreSQL test database.
+
+**Isolation:** each test seeds data then rolls back or truncates; `singleFork` ensures no parallelism race.
+
+**When to add a Track 2 test:** when correctness requires verifying the actual SQL query (JOIN correctness, index usage, RLS enforcement) rather than just the composition shape.
+
+### E2E Tests (Playwright — `pnpm test:e2e`)
+
+**Framework:** `@playwright/test` `^1.60.0`
+
+**Location:** `tests/e2e/`
+
+**Config:** `playwright.config.ts` (root)
+
+**Auth bypass:** `POLICYPILOT_E2E_AUTH_BYPASS=1` env var enables a test-only auth shortcut for CI (no real Clerk session needed).
 
 ---
 
-## Test Setup Globals
+## CI Wiring (GitHub Actions)
 
-`tests/setup.ts` (loaded via `setupFiles` in `vitest.config.ts:32`):
+### Workflow: `verify.yml` — runs on PR + push to `main`/`gsd/**` + nightly schedule
 
-```ts
-import '@testing-library/jest-dom/vitest';
+**`full-verification` job:**
+- Spins up a local Postgres 16 service container
+- Runs `pnpm verify:full` (includes `pnpm test:e2e` against a built Next.js app)
+- Uses CI placeholder env vars (no real API keys — AI layer test harness excluded)
 
-// jsdom does not implement matchMedia; shim for shadcn primitives
-// (Sidebar, Dialog, DropdownMenu — Phase 3 Admin UI surface).
-if (typeof window !== 'undefined' && !window.matchMedia) {
-  Object.defineProperty(window, 'matchMedia', {
-    writable: true,
-    value: (q: string) => ({
-      matches: false, media: q, onchange: null,
-      addListener: () => {}, removeListener: () => {},
-      addEventListener: () => {}, removeEventListener: () => {},
-      dispatchEvent: () => false,
-    }),
-  });
+**`browser-smoke` job:**
+- Runs `pnpm test:e2e` only (Playwright smoke)
+
+**`live-verification` job:**
+- Runs only on `workflow_dispatch` or nightly schedule
+- Uses real secrets — exercises live Supabase + Clerk + Anthropic integration
+
+### Workflow: `verify-phase-6.yml` — runs on PR + push to `main`/`gsd/**`
+
+- Uses real Stripe secrets from repository secrets
+- Runs `pnpm verify:phase-6`
+- Separate workflow so Phase 6 Stripe-env gate doesn't block PRs that lack billing secrets
+
+### Workflow: `migrate.yml` — migration CI gate
+
+- Runs Drizzle migrations against staging/prod on deploy triggers
+
+**Common CI pattern:** all jobs pin action versions with full SHA digests (e.g., `actions/checkout@de0fac2e...`) for supply-chain security.
+
+---
+
+## Common Async Testing Patterns
+
+**Async happy path:**
+```typescript
+it('returns 200 on success', async () => {
+  const res = await POST(makeReq());
+  expect(res.status).toBe(200);
+  const body = await res.json();
+  expect(body.someField).toBe('expected');
+});
+```
+
+**Async error path:**
+```typescript
+it('throws typed error', async () => {
+  await expect(someAction()).rejects.toBeInstanceOf(PolicyNotFoundError);
+});
+```
+
+**Redirect assertion (Server Actions):**
+```typescript
+// next/navigation redirect throws — caught by rejects.toThrow
+await expect(runAction()).rejects.toThrow('NEXT_REDIRECT:/target-path');
+```
+
+**Error Testing:**
+```typescript
+try {
+  runAction();
+  throw new Error('expected ForbiddenError throw, got fall-through');
+} catch (err) {
+  expect(err).toBeInstanceOf(ForbiddenError);
+  expect((err as ForbiddenError).reason).toBe('admin role required');
 }
 ```
 
-`server-only` is stubbed via `vitest.config.ts:9-16` alias to
-`tests/stubs/server-only.ts` so jsdom unit tests can import server-only
-modules without the real package's hard throw firing.
+**Time-sensitive tests (UTC boundary):**
+```typescript
+vi.useFakeTimers();
+vi.setSystemTime(new Date('2026-04-30T23:59:59.000Z'));
+// ... test month-boundary logic
+vi.useRealTimers();
+```
+
+**Module re-evaluation for env-var-sensitive modules:**
+```typescript
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.resetModules();
+});
+
+it('fails closed when env var is missing', async () => {
+  vi.stubEnv('STRIPE_SECRET_KEY', '');
+  const { getStripeClient } = await importClient(); // dynamic import
+  expect(() => getStripeClient()).toThrow(StripeConfigError);
+});
+```
 
 ---
 
-## Test Conventions Summary
-
-| Rule | Why |
-|------|-----|
-| Co-locate unit/component tests with source (`foo.ts` + `foo.test.ts`) | Locality + grep-discoverability |
-| Centralize integration harnesses under `scripts/check-*.test.ts` | Excluded from default glob; dedicated config for DB env |
-| File header docstring cites Plan + decision IDs | Same convention as source files |
-| `vi.mock` calls before source import | `vi.mock` hoists; source must import the mocked version |
-| `beforeEach` resets mock state (`mockReset` or `mockClear`) | Tests must be order-independent |
-| Inline UUID/FormData fixtures over shared dirs | Context-locality |
-| Discriminated-union result assertions | Mirrors Server Action return shape |
-| Compile-time invariants live in `tests/types.ts` | Excluded from vitest glob; tsc-only target |
-| Never use snapshot tests | Brittle; obscures intent |
-
----
-
-*Testing analysis: 2026-05-24*
+*Testing analysis: 2026-05-30*
