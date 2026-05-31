@@ -17,8 +17,8 @@ tests:
 checkout -> webhook -> DB sync -> tier gate -> Customer Portal -> simulated
 renewal/payment-failure/cancel.
 
-Phase 6 is not shipped until the operator records masked PASS evidence for
-every required row below and Matthew chooses the PR/ship path.
+Phase 6 shipped via PR #32 after the operator recorded masked PASS evidence
+for every required row below and Matthew authorized the guarded closeout.
 
 ## Current Local Verifier Status
 
@@ -27,12 +27,19 @@ every required row below and Matthew chooses the PR/ship path.
 - Additive migration `0012_billing_state` is applied to the approved TEST/dev
   Supabase target; this does not represent staging/prod migration approval.
 - `pnpm db:verify` PASSes.
-- `pnpm verify:phase-6` PASSes.
+- `pnpm verify:phase-6` PASSed before merge.
 - Live Stripe test-mode UAT verified rows 1-11.
-- Hosted PR #32 checks are green/acceptable at PR head `fe60709`: `Phase 6
-  verifier` PASS, `Verify full gate` PASS, `Browser e2e smoke` PASS, `Live
-  full verification` intentionally SKIPPED, CodeRabbit PASS/skipped, and
-  `mergeStateStatus` CLEAN.
+- Hosted pre-merge PR #32 checks were green/acceptable at PR head
+  `1abca44dff89ccc7151d59b07fe1a93ce3d7be81`: `Phase 6 verifier` PASS,
+  `Verify full gate` PASS, `Browser e2e smoke` PASS, `Live full verification`
+  intentionally SKIPPED, CodeRabbit PASS/skipped, and `mergeStateStatus`
+  CLEAN.
+- PR #32 was squash-merged to `main` at
+  `243067e9f259561a595230e5e7d3e97634040157` on 2026-05-31T22:34:30Z.
+- Post-merge local `pnpm tsc --noEmit`, `pnpm run test -- --run lib/stripe`,
+  and `pnpm run test -- --run app/api/webhooks/stripe` passed. Post-merge
+  `pnpm verify:phase-6` was skipped because the worktree lacked the approved
+  ignored env; do not create/copy/read env files for that.
 - Row 9 PASS: a true test-clock renewal produced a fresh `invoice.paid` and
   kept the org Growth/active.
 - Row 10 PASS: a test-clock payment failure produced `invoice.payment_failed`
@@ -133,5 +140,5 @@ Notes:
 
 ## Operator Sign-Off
 
-All rows are PASS with masked-only evidence. Phase 6 is still not shipped until
-Matthew chooses the PR/ship path after ChatGPT reviews the final handoff.
+All rows are PASS with masked-only evidence. Phase 6 shipped via PR #32 after
+Matthew authorized the guarded closeout. Phase 7 has not started.

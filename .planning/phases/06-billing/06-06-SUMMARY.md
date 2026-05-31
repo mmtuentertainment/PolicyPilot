@@ -19,10 +19,11 @@ artifact gates for billing closeout, adds a hosted GitHub Actions workflow for
 `verify:phase-6`, and creates the secret-safe Stripe sandbox/test-clock UAT
 checklist.
 
-Phase 6 is not shipped. After the follow-up checkout fix and operator DB/UAT
-work, additive migration `0012_billing_state` is applied to the approved
-TEST/dev Supabase target, `pnpm db:verify` passes, and `pnpm verify:phase-6`
-passes. Live Stripe test-mode UAT now has rows 1-11 PASS.
+Phase 6 shipped via PR #32 at squash commit
+`243067e9f259561a595230e5e7d3e97634040157`. After the follow-up checkout fix
+and operator DB/UAT work, additive migration `0012_billing_state` is applied to
+the approved TEST/dev Supabase target, `pnpm db:verify` passes, and pre-merge
+`pnpm verify:phase-6` passed. Live Stripe test-mode UAT has rows 1-11 PASS.
 
 `b92a15f` fixed the launch-blocking checkout bug discovered during UAT:
 `createCheckoutSessionAction` blocked first checkout for new orgs seeded as
@@ -49,7 +50,7 @@ coverage. `b818805` added the historical forensic realignment brief on top.
   for checkout, webhook sync, tier gate, Customer Portal, renewal, payment
   failure, and cancel/unpaid flows.
 - `.planning/consultant/*.md`: refreshed the consultant overlay to mark
-  verifier wiring complete while keeping Phase 6 unshipped.
+  verifier wiring complete; later post-merge bookkeeping marks Phase 6 shipped.
 - `ops/deltas/2026-05-29-phase6-06-06-verifier-uat.md`: added the original
   verifier/UAT delta.
 - `ops/deltas/2026-05-29-phase6-uat-fix.md`: records the post-fix verifier
@@ -123,10 +124,16 @@ Vitest path filters.
   tier-gate transition, portal return, portal state-truth behavior, and
   cancel/unpaid downgrade have masked live Stripe test-mode evidence in
   `06-UAT.md`.
-- Hosted PR #32 checks are green/acceptable at PR head `fe60709`: `Phase 6
-  verifier` PASS, `Verify full gate` PASS, `Browser e2e smoke` PASS, `Live
-  full verification` intentionally SKIPPED, CodeRabbit PASS/skipped, and
-  `mergeStateStatus` CLEAN.
+- Hosted pre-merge PR #32 checks were green/acceptable at PR head
+  `1abca44dff89ccc7151d59b07fe1a93ce3d7be81`: `Phase 6 verifier` PASS,
+  `Verify full gate` PASS, `Browser e2e smoke` PASS, `Live full verification`
+  intentionally SKIPPED, CodeRabbit PASS/skipped, and `mergeStateStatus` CLEAN.
+- PR #32 was squash-merged to `main` at
+  `243067e9f259561a595230e5e7d3e97634040157` on 2026-05-31T22:34:30Z.
+- Post-merge local `pnpm tsc --noEmit`, `pnpm run test -- --run lib/stripe`,
+  and `pnpm run test -- --run app/api/webhooks/stripe` passed. Post-merge
+  `pnpm verify:phase-6` was skipped because the worktree lacked the approved
+  ignored env.
 - Commit `524ae17` is test-only: it makes the Stripe catalog missing-price test
   hermetic against ambient CI `STRIPE_PRICE_*` env values and does not alter
   runtime catalog behavior.
@@ -159,12 +166,10 @@ Vitest path filters.
 
 ## Remaining
 
-- Review the UAT-complete / draft-PR-open handoff with ChatGPT before ship.
-- Keep draft PR #32 open from `gsd/phase-6-stripe-uat-complete` against `main`;
-  do not mark it ready, merge it, or ship Phase 6 until Matthew chooses that
-  path.
-- Hosted PR #32 checks are green/acceptable, but Phase 6 remains draft and
-  unmerged until Matthew chooses the ship path.
+- PR #32 is merged to `main`; Phase 6 is shipped.
+- Phase 7 has not started. Do not create Phase 7 plans or implementation until
+  Matthew explicitly authorizes next-phase planning.
+- Local `gsd/phase-6-billing` remains until Matthew approves branch deletion.
 - Operator-approved exception: Claude Code configured repository Actions secrets
   from `.env.local` via stdin without printing or committing values. This was a
   one-off exception and not the default operating pattern.
@@ -177,15 +182,15 @@ Vitest path filters.
 - SF-WHSEC-1 remains an operator follow-up before any future live webhook smoke
   if the current `CLERK_WEBHOOK_SECRET` was used before rotation.
 
-## Publication Status (2026-05-30)
+## Publication Status (2026-05-31)
 
-Draft **PR #32** ("docs(phase-6): record Stripe test-clock UAT completion") is
-now open against `main` from branch `gsd/phase-6-stripe-uat-complete`; current
-head is tracked by GitHub PR metadata and may advance with docs-only follow-ups.
-Initial publication head: `660df0d`. Hosted PR head `fe60709` is green/acceptable
-as of the 2026-05-31 ship-evidence refresh. It must remain **draft and
-unmerged** until Matthew chooses the ship path. See
-`ops/deltas/2026-05-31-phase-6-pr32-green-ship-review.md`.
+**PR #32** was squash-merged to `main` as `Phase 6: Billing` at
+`243067e9f259561a595230e5e7d3e97634040157` on 2026-05-31T22:34:30Z. The PR
+head before merge was `1abca44dff89ccc7151d59b07fe1a93ce3d7be81`; initial
+publication head was `660df0d`, and hosted PR head `fe60709` was the earlier
+green ship-evidence checkpoint. See
+`ops/deltas/2026-05-31-phase-6-pr32-green-ship-review.md` and
+`ops/deltas/2026-05-31-phase-6-merged-main.md`.
 
 Follow-up topology reconciliation on 2026-05-31 carried the safe codebase-map
 docs and Phase 5 concern carry-forwards from `gsd/phase-6-billing` into the PR
