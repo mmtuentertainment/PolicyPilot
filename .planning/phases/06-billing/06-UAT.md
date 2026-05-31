@@ -29,6 +29,10 @@ every required row below and Matthew chooses the PR/ship path.
 - `pnpm db:verify` PASSes.
 - `pnpm verify:phase-6` PASSes.
 - Live Stripe test-mode UAT verified rows 1-11.
+- Hosted PR #32 checks are green/acceptable at PR head `fe60709`: `Phase 6
+  verifier` PASS, `Verify full gate` PASS, `Browser e2e smoke` PASS, `Live
+  full verification` intentionally SKIPPED, CodeRabbit PASS/skipped, and
+  `mergeStateStatus` CLEAN.
 - Row 9 PASS: a true test-clock renewal produced a fresh `invoice.paid` and
   kept the org Growth/active.
 - Row 10 PASS: a test-clock payment failure produced `invoice.payment_failed`
@@ -65,11 +69,17 @@ Evidence MUST NOT include:
 
 Use only Stripe test mode/sandbox objects. Do not use live mode.
 
-Security sequencing for future hosted or public-tunnel proof: Matthew/operator
-must rotate SF-WHSEC-1 first, then configure/reconfigure the required GitHub
-repository secrets if hosted verification uses `CLERK_WEBHOOK_SECRET`, then
-rerun hosted checks. Codex must not inspect, print, configure, or rotate
-secrets.
+Security sequencing for future public-tunnel proof: repository Actions secrets
+were configured by operator-authorized Claude Code action from `.env.local` via
+stdin, with no values printed or committed. This is a one-off exception and not
+the default operating pattern. SF-WHSEC-1 remains an operator follow-up before
+any future live webhook smoke if the current `CLERK_WEBHOOK_SECRET` was used
+before rotation. Codex must not inspect, print, configure, or rotate secrets
+without explicit operator approval.
+
+Hosted CI note: the Phase 6 verifier is allowed to mutate the approved dev/test
+Supabase target through TRUNCATE/seed. This is not staging/prod evidence and
+does not approve staging/prod migration or data mutation.
 
 ## Masked Evidence Template
 

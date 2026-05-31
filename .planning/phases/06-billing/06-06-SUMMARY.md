@@ -123,6 +123,16 @@ Vitest path filters.
   tier-gate transition, portal return, portal state-truth behavior, and
   cancel/unpaid downgrade have masked live Stripe test-mode evidence in
   `06-UAT.md`.
+- Hosted PR #32 checks are green/acceptable at PR head `fe60709`: `Phase 6
+  verifier` PASS, `Verify full gate` PASS, `Browser e2e smoke` PASS, `Live
+  full verification` intentionally SKIPPED, CodeRabbit PASS/skipped, and
+  `mergeStateStatus` CLEAN.
+- Commit `524ae17` is test-only: it makes the Stripe catalog missing-price test
+  hermetic against ambient CI `STRIPE_PRICE_*` env values and does not alter
+  runtime catalog behavior.
+- Commit `fe60709` restricts verify workflow push triggers to `main` while
+  preserving `pull_request`, `workflow_dispatch`, schedule/main coverage as
+  applicable, preventing duplicate branch+PR CI without weakening PR coverage.
 - Renewal is PASS: a true test-clock renewal produced a fresh `invoice.paid`
   event and kept the org Growth/active.
 - Payment failure is PASS: a test-clock failure produced
@@ -153,26 +163,29 @@ Vitest path filters.
 - Keep draft PR #32 open from `gsd/phase-6-stripe-uat-complete` against `main`;
   do not mark it ready, merge it, or ship Phase 6 until Matthew chooses that
   path.
-- Hosted `Verify Phase 6` fails closed until the required GitHub repository
-  secrets are configured by the operator. Do not weaken the gate, add dummy
-  secrets, configure secrets in code, or use live Stripe mode.
-- Security sequencing is operator-only: rotate SF-WHSEC-1 first, then
-  configure/reconfigure required GitHub repository secrets if hosted
-  verification uses `CLERK_WEBHOOK_SECRET`, then rerun hosted checks.
+- Hosted PR #32 checks are green/acceptable, but Phase 6 remains draft and
+  unmerged until Matthew chooses the ship path.
+- Operator-approved exception: Claude Code configured repository Actions secrets
+  from `.env.local` via stdin without printing or committing values. This was a
+  one-off exception and not the default operating pattern.
+- Operator-approved exception: Claude Code restricted verify workflow push
+  triggers to `main` while preserving `pull_request` and main coverage to avoid
+  duplicate branch+PR CI against the shared dev/test verification DB.
+- The hosted Phase 6 verifier mutates only the approved dev/test Supabase target
+  through TRUNCATE/seed. Staging/prod migration and data mutation remain
+  operator-gated.
+- SF-WHSEC-1 remains an operator follow-up before any future live webhook smoke
+  if the current `CLERK_WEBHOOK_SECRET` was used before rotation.
 
 ## Publication Status (2026-05-30)
 
 Draft **PR #32** ("docs(phase-6): record Stripe test-clock UAT completion") is
 now open against `main` from branch `gsd/phase-6-stripe-uat-complete`; current
 head is tracked by GitHub PR metadata and may advance with docs-only follow-ups.
-Initial publication head: `660df0d`. It must remain **draft and unmerged** until
-Matthew chooses the ship path. The hosted `Verify` workflow is green on the PR
-head; the hosted
-`Verify Phase 6` check fails closed because the required GitHub repository
-secrets are not yet configured — operator action, not a repo-code defect. The
-fail-closed gate must not be weakened or fed dummy secrets, no secrets should be
-configured in code, and no live Stripe mode is to be used. See
-`ops/deltas/2026-05-30-phase6-pr32-draft-open.md`.
+Initial publication head: `660df0d`. Hosted PR head `fe60709` is green/acceptable
+as of the 2026-05-31 ship-evidence refresh. It must remain **draft and
+unmerged** until Matthew chooses the ship path. See
+`ops/deltas/2026-05-31-phase-6-pr32-green-ship-review.md`.
 
 Follow-up topology reconciliation on 2026-05-31 carried the safe codebase-map
 docs and Phase 5 concern carry-forwards from `gsd/phase-6-billing` into the PR

@@ -143,7 +143,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 **UI hint**: yes
 
 ### Phase 6: Billing
-**Status**: Verifying/UAT-complete/ship-prep (2026-05-31) — spec + discuss + research + validate + plan complete; plans 06-01..06-06 are committed; `pnpm db:verify` and `pnpm verify:phase-6` pass locally; live Stripe test-mode UAT rows 1-11 are PASS with masked-only evidence. Draft PR #32 is open from `gsd/phase-6-stripe-uat-complete` against `main`. Phase 6 is not shipped or merged. Hosted `Verify Phase 6` fails closed because required GitHub repository secrets are missing/unset; this is operator configuration, not a code defect. Operator sequencing: rotate SF-WHSEC-1 first, then configure/reconfigure required GitHub repository secrets if the hosted verifier uses `CLERK_WEBHOOK_SECRET`, then rerun hosted checks. Do not weaken the gate, add dummy secrets, configure secrets in code, inspect/print secrets, or use live Stripe mode.
+**Status**: Verifying/UAT-complete/ship-prep (2026-05-31) — spec + discuss + research + validate + plan complete; plans 06-01..06-06 are committed; `pnpm db:verify` and `pnpm verify:phase-6` pass locally; live Stripe test-mode UAT rows 1-11 are PASS with masked-only evidence. Draft PR #32 is open from `gsd/phase-6-stripe-uat-complete` against `main`. Phase 6 is not shipped or merged. Hosted PR #32 checks are green/acceptable at PR head `fe60709`: `Phase 6 verifier` PASS, `Verify full gate` PASS, `Browser e2e smoke` PASS, `Live full verification` intentionally SKIPPED, CodeRabbit PASS/skipped, and `mergeStateStatus` CLEAN. Operator-approved exceptions: Claude Code configured repository Actions secrets from `.env.local` via stdin without printing or committing values, and Claude Code restricted verify workflow push triggers to `main` while preserving `pull_request` and main coverage to avoid duplicate branch+PR CI. CI Phase 6 verification uses the approved dev/test Supabase target and mutates it through TRUNCATE/seed; it is not staging/prod. SF-WHSEC-1 remains an operator follow-up before any future live webhook smoke if the current `CLERK_WEBHOOK_SECRET` was used before rotation. Do not weaken gates, add dummy secrets, inspect/print secrets, use live Stripe mode, treat Phase 6 as shipped, or start Phase 7 before Matthew chooses the ship path.
 **Goal**: A new sign-up can pick a plan, complete Stripe Checkout, see their org's `planTier` synced from the webhook, hit tier limits with a clear 403 + upgrade prompt, and have their subscription survive the first billing-cycle renewal automatically.
 **Depends on**: Phase 4 *(amended by ADR-029 2026-05-21; was Phase 5 — `checkTierLimit` is the binding dependency per Phase 4 SC #1/#5, not the employee portal; eligible for Wave 2 parallel with Phase 7)*
 **Requirements**: REQ-tier-starter, REQ-tier-growth, REQ-tier-business
@@ -166,7 +166,7 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 - Wave 3:
   - [x] 06-05-admin-settings-portal-PLAN.md — `/settings` billing page + Customer Portal action (DB `stripeCustomerId` only) + sidebar/middleware wiring
 - Wave 4:
-  - [x] 06-06-verify-chain-ci-uat-PLAN.md — cumulative `verify:phase-6` + schema/artifact verifier extensions + hosted CI + secret-safe Stripe test-mode UAT checklist; local verifier is green, UAT rows 1-11 PASS with masked-only evidence, and hosted `Verify Phase 6` fails closed until required GitHub repository secrets are configured by the operator after the SF-WHSEC-1 rotation decision
+  - [x] 06-06-verify-chain-ci-uat-PLAN.md — cumulative `verify:phase-6` + schema/artifact verifier extensions + hosted CI + secret-safe Stripe test-mode UAT checklist; local verifier is green, UAT rows 1-11 PASS with masked-only evidence, and hosted PR #32 checks are green/acceptable at `fe60709`. Repository Actions secrets were set by operator-authorized Claude Code action from `.env.local` via stdin without printing or committing values; this is a one-off exception. Verify workflow push triggers are restricted to `main`, while `pull_request` and main coverage remain active, to avoid duplicate branch+PR CI against the shared dev/test verifier DB.
 **UI hint**: yes
 
 ### Phase 7: Crons + Email
@@ -207,6 +207,6 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 | 3. Admin UI | 15/15 | Complete | 2026-05-20 |
 | 4. AI Layer | 14/14 | Complete | 2026-05-22 |
 | 5. Employee Portal | 10/10 | Complete - shipped via PR #27 at `3344847` | 2026-05-27 |
-| 6. Billing | 6/6 | Verifying/UAT-complete/ship-prep — local verifier green; live Stripe test-mode UAT 11/11 rows PASS; draft PR #32 open; not shipped or merged; hosted Phase 6 verifier fails closed on missing repo secrets | 2026-05-30 (verifying) |
+| 6. Billing | 6/6 | Verifying/UAT-complete/ship-prep — local verifier green; live Stripe test-mode UAT 11/11 rows PASS; draft PR #32 open; not shipped or merged; hosted PR #32 checks green/acceptable at `fe60709`; ship pending Matthew decision | 2026-05-31 (ship-prep) |
 | 7. Crons + Email | 0/0 | Not started | - |
 | 8. Validation | 0/0 | Not started | - |

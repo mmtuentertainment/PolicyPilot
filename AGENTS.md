@@ -143,15 +143,18 @@ fallback in the handoff.
 ## Phase Constraint
 
 `.planning/STATE.md` is the source of truth for current phase state. As of
-2026-05-30, Phase 5 Employee Portal is shipped and Phase 6 Billing is in
+2026-05-31, Phase 5 Employee Portal is shipped and Phase 6 Billing is in
 verifying/UAT-complete/ship-prep with draft PR #32 open from
 `gsd/phase-6-stripe-uat-complete` against `main`. Plans 06-01..06-06 are
 committed, local `pnpm verify:phase-6` is green, live Stripe test-mode UAT rows
 1-11 are PASS with masked-only evidence, and Phase 6 is not shipped or merged.
-Hosted `Verify Phase 6` fails closed until the required GitHub repository
-secrets are configured by the operator. Do not weaken the gate, add dummy
-secrets, configure secrets in code, use live Stripe mode, treat Phase 6 as
-shipped, or start Phase 7 until Matthew chooses the ship path.
+Hosted PR #32 checks are green/acceptable at PR head `fe60709`: Phase 6
+verifier PASS, Verify full gate PASS, Browser e2e smoke PASS, Live full
+verification intentionally SKIPPED, CodeRabbit PASS/skipped, and
+`mergeStateStatus` CLEAN. Phase 6 still must remain draft/unmerged until
+Matthew chooses the ship path. Do not weaken the gate, add dummy secrets,
+configure secrets in code, use live Stripe mode, treat Phase 6 as shipped, or
+start Phase 7 until Matthew chooses the ship path.
 
 ## Stack
 

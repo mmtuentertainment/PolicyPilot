@@ -1,6 +1,6 @@
 # Consultant Backlog — PolicyPilot
 
-Updated: 2026-05-31 - Phase 6 UAT complete; draft PR #32 ship-prep; branch topology reconciled
+Updated: 2026-05-31 - Phase 6 PR #32 green ship-evidence refresh
 
 Use this backlog for consultant-level sequencing only. It does not replace `.planning/ROADMAP.md` or phase plans. The purpose is to keep strategic pressure on the smallest high-value moves that improve launch readiness, revenue readiness, and trust.
 
@@ -19,7 +19,7 @@ Each input is scored 1-5. Higher priority ships first unless blocked by phase di
 | 1 | Review and merge the operating-layer docs PR. | Cross-cutting | 2 | 2 | 3 | 2 | 5 | 1 | 13 | Done | Merged as PR #30 at `ee50880`; no further action. |
 | 2 | Prepare Phase 6 Stripe webhook spec before implementation. | 6 | 5 | 3 | 5 | 3 | 4 | 2 | 18 | Done | spec+discuss+plan complete on `gsd/phase-6-billing`; gsd-plan-checker PASSED (2026-05-29). |
 | 3 | Preserve append-only acknowledgment behavior through future gates. | 5+ | 5 | 5 | 5 | 5 | 3 | 3 | 20 | Shipped / monitor | Keep immutability checks active when later phases touch policy or acknowledgment surfaces. |
-| 4 | Implement Stripe Checkout + 5-event idempotent webhook. | 6 | 5 | 4 | 5 | 3 | 3 | 4 | 16 | Hardening - UAT complete / draft PR open | Foundation, webhook, tier predicate, checkout/pricing intent, Customer Portal/settings, and verifier/UAT checklist are complete. Rows 1-11 PASS with masked evidence; hosted `Verify Phase 6` awaits operator repository-secret setup. |
+| 4 | Implement Stripe Checkout + 5-event idempotent webhook. | 6 | 5 | 4 | 5 | 3 | 3 | 4 | 16 | Hardening - UAT complete / hosted checks green | Foundation, webhook, tier predicate, checkout/pricing intent, Customer Portal/settings, and verifier/UAT checklist are complete. Rows 1-11 PASS with masked evidence; hosted PR #32 checks are green/acceptable at `fe60709`; Phase 6 remains draft/unmerged until Matthew chooses the ship path. |
 | 5 | Add tier-gating proof for AI and Growth+ features. | 6 | 5 | 3 | 4 | 3 | 4 | 3 | 16 | Hardening - UAT complete / draft PR open | Plan 06-03 added real maxUsers count + Phase-4 403/429 regression guard; row 5 PASSed and renewal/failure UAT rows 9-10 are now PASS. |
 | 6 | Design idempotent reminder send model. | 7 | 3 | 4 | 5 | 4 | 4 | 2 | 18 | Pending | Define send-state key before building email worker. |
 | 7 | Implement minimal Railway reminder worker. | 7 | 3 | 4 | 4 | 4 | 3 | 4 | 14 | Pending | Build one reminder type before expanding templates. |
@@ -47,9 +47,9 @@ Do not prioritize these until the core revenue loop is proven:
 
 ## Next Recommended Micro-Batch
 
-1. Plans 06-01 through 06-06 are complete; local `pnpm db:verify`, `pnpm verify:phase-6`, and Stripe test-mode UAT rows 1-11 pass; Phase 6 is still not shipped.
-2. Operator-only next step: rotate SF-WHSEC-1 first, then configure/reconfigure the required GitHub repository secrets for the intended test/dev verification environment, then rerun hosted PR #32 checks.
-3. Next Codex slice after hosted checks rerun: ship-readiness refresh for draft PR #32 without merging, undrafting, weakening gates, or starting Phase 7.
+1. Plans 06-01 through 06-06 are complete; local `pnpm db:verify`, `pnpm verify:phase-6`, Stripe test-mode UAT rows 1-11, and hosted PR #32 checks are green/acceptable at `fe60709`; Phase 6 is still not shipped.
+2. Operator-only next step: decide whether to keep PR #32 draft for more review or proceed with the Phase 6 ship path. SF-WHSEC-1 remains a follow-up before any future live webhook smoke if the current `CLERK_WEBHOOK_SECRET` was used before rotation.
+3. Next Codex slice if Matthew chooses ship: final guarded PR closeout without starting Phase 7, deleting branches, exposing secrets, or weakening gates.
 
 ---
 
