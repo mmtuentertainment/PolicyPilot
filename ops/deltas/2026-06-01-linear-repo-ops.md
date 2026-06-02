@@ -13,8 +13,8 @@ Recorded the external Linear Repo Ops tracking surface for
 - Linear tracking is live and additive only.
 - The original Linear setup did not touch this repository.
 - No product implementation, Phase 7 planning, secrets, third-party dashboards,
-  app code, workflows, packages, schema, migrations, tests, or remote branches
-  changed in this bookkeeping patch.
+  app code, workflows, packages, schema, migrations, tests, or remote branch
+  pointers outside this PR publication branch changed in this bookkeeping patch.
 
 ## Verification Before Editing
 
@@ -142,7 +142,7 @@ the project, and no issue was submitted from that draft.
   no.
 - Secrets inspected, printed, configured, rotated, or committed: no.
 - Linear mutated by this patch: no.
-- Remote branches pushed or changed: no.
+- Remote branches pushed or changed outside publishing this PR branch: no.
 - Phase 7 planning or implementation started: no.
 
 ## Next
