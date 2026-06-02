@@ -161,7 +161,7 @@ async function main(): Promise<void> {
         console.error(`POSITIVE CONTROL FAILED: orgA cannot see its own policy row (${positiveRows.length} rows). Likely cause: GRANT missing (L-04 in 0001_rls_policies.sql).`);
       }
 
-      // NEGATIVE: for each of the 10 tenant-scoped tables, orgA's user
+      // NEGATIVE: for each of the 12 tenant-scoped tables, orgA's user
       // must see ZERO rows whose org_id (or id, for organizations) is orgB's.
       for (const table of TENANT_TABLES) {
         const col = predicateColumnFor(table);

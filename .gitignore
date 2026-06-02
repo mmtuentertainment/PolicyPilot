@@ -75,5 +75,9 @@ scratch/
 Designprototypes/
 skills-lock.json
 
+# Generated scanner outputs; keep audit-report/PHASE-2-API-AUDIT.md tracked.
+audit-report/audit-report.md
+audit-report/audit-report.sarif
+
 # Dev server logs (UAT smoke runs, real-key probes)
 localhost-*.log
