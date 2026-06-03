@@ -16,8 +16,10 @@ import { resolve as resolvePath, sep as pathSep, relative as relPath } from 'nod
 
 // ADR-023 allow-list with 4 logical entries (webhook(clerk|stripe), cron,
 // test-harness) — the test-harness entry expands to: tests/**,
-// scripts/check-rls.ts, scripts/check-schema.ts. Plus lib/db/scoped.ts as
-// the wrapper that secures the channel.
+// scripts/check-rls.ts, scripts/check-schema.ts, scripts/check-db.ts, and
+// lib/db/index.test.ts (the Cause-B lazy-init regression test that imports
+// the barrel-under-test). Plus lib/db/scoped.ts as the wrapper that secures
+// the channel.
 //
 // Note 1: scripts/check-artifacts.ts is NOT allow-listed — its @/lib/db
 // references are string literals used by its grep walker (NOT ES imports);
@@ -42,6 +44,7 @@ const ALLOWLIST: RegExp[] = [
   /^scripts\/check-rls\.ts$/,                    // ADR-023 #4 — Phase 2 RLS gate
   /^scripts\/check-schema\.ts$/,                 // ADR-023 #4 — Phase 2 schema audit
   /^scripts\/check-db\.ts$/,                     // Phase 1 smoke gate (baseline raw-db importer; Rule-3 deviation)
+  /^lib\/db\/index\.test\.ts$/,                  // ADR-023 #4 (test-harness): Cause-B lazy-init regression test imports the @/lib/db barrel-under-test to assert side-effect-free import + lazy throw. Test-only — never ships to prod; no RLS-posture change.
   /^lib\/db\/scoped\.ts$/,                       // wrapper that secures the channel (Plan 02-01)
   /^lib\/auth\/context\.ts$/,                    // ADR-023 allow-list entry: getOrgContext translates Clerk text ids to internal UUIDs per gap-closure 03-G1.
   /^lib\/stripe\/products\.ts$/,                 // Phase 4 Plan 04-06 (D-14 + D-37): tier-limit gate runs BEFORE withOrgScope opens; app-layer org-scoping via eq(organizations.id, orgId) + eq(aiGenerations.orgId, orgId) inside the readPlanTier + countDraftsThisMonth split-helpers. WARNING-2 documented exception.

@@ -30,6 +30,7 @@ Each input is scored 1-5. Higher priority ships first unless blocked by phase di
 | 12 | Reconcile Stripe CLI/login and app test credentials. | 6 | 5 | 3 | 5 | 2 | 5 | 1 | 19 | Mitigated for UAT / monitor | Local UAT used the app test-account override. Future Stripe UAT must use the same override or a relogged CLI profile; do not rely on the default mismatched CLI profile. |
 | 13 | Delete throwaway billing UAT test objects. | 6 | 1 | 2 | 2 | 1 | 5 | 1 | 10 | Optional/operator cleanup | Operator may delete the "Acme Test Co" Clerk org and the canceled test subscription. |
 | 14 | Make dev org provisioning expectations explicit. | 6+ | 2 | 3 | 3 | 1 | 5 | 1 | 13 | Pending/process | Dev-created orgs without a webhook tunnel may hit `OrgNotProvisionedError`; document the tunnel/provisioning path as process, not Phase 6 code defect. |
+| 15 | Tier B: provision prod Supabase (Pro+PITR) + first working Vercel production deploy (runtime env/secrets + staged migrations). | Cross-cutting/Infra | 4 | 3 | 4 | 2 | 3 | 4 | 12 | Pending / operator-gated | Surfaced by `fix/db-lazy-init`: prod has never deployed (404 `DEPLOYMENT_NOT_FOUND`; CLI deploys frozen at `bae9174`). The lazy-db fix unblocks the build-crash class but is necessary-but-not-sufficient. Operator + Codex own provisioning + secrets; read-only on secrets this session (risks R-015/R-016). |
 
 ---
 
