@@ -10,6 +10,7 @@
 //   1. import must NOT throw when DATABASE_URL is absent;
 //   2. the helpful error still fires on first db use when it is absent;
 //   3. with DATABASE_URL set, the Proxy forwards to a real drizzle instance.
+import "server-only";
 import { describe, it, expect, afterEach, vi } from "vitest";
 
 describe("lib/db lazy init (Cause-B regression)", () => {
