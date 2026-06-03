@@ -79,5 +79,8 @@ skills-lock.json
 audit-report/audit-report.md
 audit-report/audit-report.sarif
 
+# Local repo-cleanup audit outputs (generated; pruned from tracking in PR #33).
+.audit/
+
 # Dev server logs (UAT smoke runs, real-key probes)
 localhost-*.log
