@@ -1,6 +1,6 @@
 # Consultant Working Context - PolicyPilot
 
-Updated: 2026-06-04 - Cause-B build-fix class shipped to `main` (PR #37 lazy `lib/db` `3b4bdb5` + PR #38 lazy Stripe catalog `6f17412`); `gsd/phase-6-billing` deleted; approvalWorkflows tier-gate gap surfaced (R-017); production deploy is Tier-B / operator-gated
+Updated: 2026-06-04 - Cause-B build-fix class shipped to `main` (PR #37 lazy `lib/db` `3b4bdb5` + PR #38 lazy Stripe catalog `6f17412`); `gsd/phase-6-billing` deleted; approvalWorkflows tier-gate RESOLVED → parked (R-017 Accepted/Parked; pre-declared future flag pending the unbuilt Reviewer feature); production deploy is Tier-B / operator-gated
 
 ## Mission
 - Build an AI-powered policy and procedure management SaaS for SMBs with 25-300 employees.
@@ -33,6 +33,7 @@ Updated: 2026-06-04 - Cause-B build-fix class shipped to `main` (PR #37 lazy `li
 
 ## Active Watchlist
 - Phase 6 is shipped. Phase 7 has not started; Matthew may authorize Phase 7 planning next.
+- `approvalWorkflows` is a PARKED pre-declared Growth+ flag (R-017 Accepted/Parked, operator product-intent 2026-06-04): NOT gate-now — gating the admin transition menu is cosmetic (`approve()` aliases `publish()`, `transitions.ts:133-135`, so a direct publish bypasses it). Enforcement ships WITH the future Reviewer-role / review-queue feature (backlog rank 17, Phase 9 candidate; new tables/RLS/role-gating = ASK-FIRST/security → default Codex, needs operator GO + routing). OPEN: the pricing page still markets "Approval workflows" on the Growth tile while unbuilt — marketing-copy decision deferred.
 - Production has NEVER successfully deployed to Vercel (prod 404 `DEPLOYMENT_NOT_FOUND`; CLI deploys frozen at `bae9174`). The lazy-`lib/db` change (PR #37 `3b4bdb5`, merged to `main`) unblocks the build-crash class but is necessary-but-not-sufficient; a real prod deploy is Tier-B / operator-gated (risk R-015).
 - Preview/CI red Vercel ✗ at `deploy:preflight` is Cause A (stale Supabase pooler `postgres` password), operator-owned and non-blocking to the GitHub Actions merge gate (risk R-016). Read-only on secrets/env this session.
 - SF-WHSEC-1 remains an operator follow-up before any future live webhook smoke if the current `CLERK_WEBHOOK_SECRET` was used before rotation. Codex must not inspect, print, configure, or rotate secrets without explicit operator approval.

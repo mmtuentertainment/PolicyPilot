@@ -1,7 +1,7 @@
-# ASK-FIRST Proposal — `approvalWorkflows` tier gate (DRAFT — no code applied)
+# ASK-FIRST Proposal — `approvalWorkflows` tier gate (RESOLVED 2026-06-04 — parked, no code applied)
 
 Date: 2026-06-04
-Status: **DRAFT — pending operator product-intent decision.** No code in this PR.
+Status: **RESOLVED 2026-06-04 — operator chose Document-only + park; gate-now DECLINED (pre-declared future flag).** No code in this PR. See §5 Resolution.
 Tracked by: backlog rank 16 · risk register **R-017** · surfaced by the PR #39 codebase-map refresh (`.planning/codebase/ARCHITECTURE.md` "approvalWorkflows … is NOT currently enforced").
 
 > This is a **consultant proposal**, not an implementation. Per CLAUDE.md ASK-FIRST
@@ -65,6 +65,19 @@ review-workflow orchestrators in `transitions.ts` (`submitForReview`, `approve`,
 `reject`) — **not** `publish`/`archive`/`restore`/`editPublished`, which Starter
 must keep. Throws `TierLimitExceededError` → 403 for Starter, consistent with the
 existing AI-route pattern and the 429-vs-403 discrimination.
+
+> **⚠ CAVEAT (session-11 validation `wf_c7f9d7cd-de9`) — gating `approve()` is COSMETIC.**
+> `approve()` is a literal alias of `publish()` (`transitions.ts:133-135`) and the state
+> machine allows `draft→published` directly (`state-machine.ts:23`). A Starter admin can
+> bypass any approve-gate via `submit → under_review → reject → draft → publish` (or simply
+> publish direct) — the **publish-leak**. The authoritative control therefore CANNOT be a 403
+> on `approve()` / the transition menu; it must be a **workflow-COMPLETENESS check inside
+> `publish()`** (the single mutation chokepoint) that, for Growth+ orgs running a workflow,
+> blocks publish until the `workflow_stages` rows are complete — while leaving Starter
+> direct-publish intact. That is feature work (new state + guard + tests), not a tier-flag
+> toggle, which is why enforcement folds into the Reviewer feature (backlog rank 17 / Phase 9),
+> not this proposal.
+
 - **Pros:** authoritative (server-side, matches the established `requireTierLimit`
   pattern and D-15/D-16 status-code contract); one defense layer at the true
   mutation boundary.
@@ -95,3 +108,28 @@ feature," leave the flag as pre-declared and add a one-line note at the
   backlog rank-16 row are the only artifacts.
 - Any implementation is a separate, operator-authorized change through the
   ASK-FIRST / `gsd-secure-phase` path.
+
+## 5. Resolution (2026-06-04)
+
+**Operator product-intent decision:** `approvalWorkflows` is a **pre-declared future flag**,
+intentionally unenforced and **parked** pending the unbuilt Reviewer-role / review-queue
+feature. **Gate-now is DECLINED** — the §2 "future feature" branch is the answer.
+
+Rationale:
+- Gating the existing admin transition menu / `approve()` is the **wrong target and cosmetic**
+  (the publish-leak in §3 Option A) — confirmed by session-11 read-only validation
+  `wf_c7f9d7cd-de9` and the session-10 reframe `wf_95bf9248-fa6`.
+- There is no distinct reviewer product surface yet; `approve()` is a thin alias of `publish()`.
+  Real enforcement belongs to a workflow-completeness check **inside `publish()`** that ships
+  **with** the Reviewer feature, via the ASK-FIRST/security path — never a doc PR.
+
+Recorded in: risk **R-017** → Accepted/Parked; backlog **rank 16** → Parked + new **rank 17**
+"Build Reviewer-role + review-queue feature" (Phase 9 candidate, depends 2/3/6); a one-line
+intentional-gap note at the `TIER_LIMITS` definition (`lib/stripe/products.ts`); consultant
+delta `ops/deltas/2026-06-04-approvalworkflows-intent-resolved.md`.
+
+**Open (deferred to operator):** the pricing page (`app/(marketing)/pricing/page.tsx`) markets
+"Approval workflows" on the highlighted Growth tile while the feature is unbuilt — accept as a
+roadmap promise vs footnote/soften. No marketing copy was changed here.
+
+This proposal is now historical reference; no code was or will be applied under it.

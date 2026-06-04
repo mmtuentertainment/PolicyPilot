@@ -37,6 +37,14 @@ export const TIER_LIMITS = {
   starter: {
     maxUsers: 25,
     aiDraftsMonthly: 50,
+    // INTENTIONALLY UNENFORCED (operator product-intent 2026-06-04): `approvalWorkflows` is a
+    // PRE-DECLARED Growth+ flag, PARKED pending the unbuilt Reviewer-role / review-queue feature
+    // — NOT a gate-now control. Gating the current admin transition menu is the wrong target and
+    // provably cosmetic: `approve()` aliases `publish()` (transitions.ts:133-135) and the state
+    // machine allows draft→published directly (state-machine.ts:23), so any approve-gate is
+    // bypassed by a direct publish (the "publish-leak"). Enforcement must instead be a workflow-
+    // completeness check inside `publish()`, shipped WITH the Reviewer feature via the ASK-FIRST/
+    // security path — never a doc PR. See risk R-017 + ops/proposals/2026-06-04-approvalworkflows-tier-gate.md.
     approvalWorkflows: false,
     slackIntegration: false,
     consistencyCheck: false,
