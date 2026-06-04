@@ -1,6 +1,6 @@
 # Consultant Backlog — PolicyPilot
 
-Updated: 2026-05-31 - Phase 6 shipped via PR #32
+Updated: 2026-06-04 - approvalWorkflows tier-gate gap surfaced (rank 16 / risk R-017); stale dead-branch guard retired (`gsd/phase-6-billing` deleted)
 
 Use this backlog for consultant-level sequencing only. It does not replace `.planning/ROADMAP.md` or phase plans. The purpose is to keep strategic pressure on the smallest high-value moves that improve launch readiness, revenue readiness, and trust.
 
@@ -31,6 +31,7 @@ Each input is scored 1-5. Higher priority ships first unless blocked by phase di
 | 13 | Delete throwaway billing UAT test objects. | 6 | 1 | 2 | 2 | 1 | 5 | 1 | 10 | Optional/operator cleanup | Operator may delete the "Acme Test Co" Clerk org and the canceled test subscription. |
 | 14 | Make dev org provisioning expectations explicit. | 6+ | 2 | 3 | 3 | 1 | 5 | 1 | 13 | Pending/process | Dev-created orgs without a webhook tunnel may hit `OrgNotProvisionedError`; document the tunnel/provisioning path as process, not Phase 6 code defect. |
 | 15 | Tier B: provision prod Supabase (Pro+PITR) + first working Vercel production deploy (runtime env/secrets + staged migrations). | Cross-cutting/Infra | 4 | 3 | 4 | 2 | 3 | 4 | 12 | Pending / operator-gated | Surfaced by `fix/db-lazy-init`: prod has never deployed (404 `DEPLOYMENT_NOT_FOUND`; CLI deploys frozen at `bae9174`). The lazy-db fix unblocks the build-crash class but is necessary-but-not-sufficient. Operator + Codex own provisioning + secrets; read-only on secrets this session (risks R-015/R-016). |
+| 16 | approvalWorkflows tier gate unimplemented — the Growth+ `TIER_LIMITS.approvalWorkflows` flag is enforced nowhere; `requireTierLimit` is called only in `app/api/ai/draft/route.ts:61` + `app/api/ai/consistency/route.ts:72`, never in `lib/policies/`, so the 7 transition orchestrators are not tier-gated. Confirm product intent before wiring. | 6+ | 3 | 2 | 4 | 1 | 5 | 2 | 13 | Pending / ASK-FIRST | See risk R-017 + proposal `ops/proposals/2026-06-04-approvalworkflows-tier-gate.md`. Touches the "Starter blocked from Growth features with 403" validation gate; `transitions.ts:127-128` records the original Phase-3 intent that approve would later require reviewer-tier. |
 
 ---
 
@@ -50,7 +51,7 @@ Do not prioritize these until the core revenue loop is proven:
 
 1. Phase 6 Billing is shipped via PR #32 at `243067e`; Phase 7 has not started.
 2. Operator-only next step: Matthew may authorize Phase 7 planning. SF-WHSEC-1 remains a follow-up before any future live webhook smoke if the current `CLERK_WEBHOOK_SECRET` was used before rotation.
-3. Do not delete local `gsd/phase-6-billing`, expose secrets, change gates, or start Phase 7 implementation without explicit operator authorization.
+3. Do not expose secrets, change gates, or start Phase 7 implementation without explicit operator authorization. (Local `gsd/phase-6-billing` has been deleted.)
 
 ---
 

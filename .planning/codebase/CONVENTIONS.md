@@ -294,7 +294,7 @@ export function getStripeClient(): Stripe {
 
 ### Stripe Catalog (`lib/stripe/catalog.ts`)
 
-Six price IDs read from env vars (`STRIPE_PRICE_<TIER>_<INTERVAL>`) at module load. Module-level `buildCatalog()` throws `StripeCatalogConfigError` on missing or duplicate price IDs. The `PRICE_CATALOG` export is frozen (`Object.freeze`).
+Six price IDs read from env vars (`STRIPE_PRICE_<TIER>_<INTERVAL>`). `buildCatalog()` throws `StripeCatalogConfigError` on missing or duplicate price IDs, but is invoked **lazily** via `getPriceCatalog()` (`cachedCatalog ??= buildCatalog()`) on first access — not at module load — so importing the module is side-effect-free (Cause-B build-coupling fix, PR #38). The built catalog array is frozen (`Object.freeze`); the old eager `PRICE_CATALOG` export was removed.
 
 ```typescript
 export function priceIdToTier(priceId: string): PlanTier | undefined

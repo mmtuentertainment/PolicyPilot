@@ -54,7 +54,7 @@ export function buildCatalog(): readonly CatalogEntry[] {
 }
 
 // LAZY SINGLETON — Cause-B-class build-coupling fix (companion to the lib/db
-// lazy-init fix in PR #37; lib/db/index.ts is still eager on this branch).
+// lazy-init fix in PR #37, now merged to main; lib/db/index.ts is lazy too).
 //
 // `buildCatalog()` reads the six STRIPE_PRICE_* env vars and throws
 // StripeCatalogConfigError when any is missing or duplicated (fail-closed).
