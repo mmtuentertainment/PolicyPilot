@@ -1,7 +1,13 @@
+---
+last_mapped_commit: 6f17412a2df1218e9a618d7b58df00fe1e595a7a
+last_mapped_date: 2026-06-04
+scan_mode: fast (concerns)
+---
+
 # Codebase Concerns
 
-**Analysis Date:** 2026-05-30
-**Scope:** Full repo — `gsd/phase-6-billing` (local-only; 6 plans committed; `pnpm verify:phase-6` green; UAT 11/11 PASS; not shipped / no PR)
+**Analysis Date:** 2026-06-04
+**Scope:** Full repo — main branch at `6f17412` (PR #38 lazy-catalog + PR #37 lazy-db fixes shipped)
 
 ## Severity Legend
 
@@ -15,6 +21,14 @@
 
 ---
 
+## Build & Deployment Concerns
+
+### BUILD-CRASH CLASS — RESOLVED
+
+**Status: CLOSED as of PR #37 (3b4bdb5) and PR #38 (6f17412).** Verified at HEAD: `lib/db/index.ts:23-31` uses a lazy Proxy (`resolveDb`) and `lib/stripe/catalog.ts:56-80` uses a lazy memoized singleton (`getPriceCatalog`), so importing these modules is side-effect-free and `next build` no longer crashes when `DATABASE_URL`/`STRIPE_PRICE_*` are absent. Runtime checks still fire on misconfigured deployments. No further action.
+
+---
+
 ## Security Carry-Forwards
 
 **SF-WHSEC-1 — Rotate Clerk webhook signing secret before any live public-tunnel smoke** (MEDIUM)
@@ -24,28 +38,29 @@
 - Action: One-click rotation in Svix Dashboard. No code change. Mark closed in `ops/deltas/` once done.
 
 **ANTHROPIC_API_KEY non-null assertion — silent startup crash suppressed** (MEDIUM)
-- Risk: `lib/ai/client.ts:28` uses `process.env.ANTHROPIC_API_KEY!` (non-null assertion). If the env var is missing, Anthropic SDK will receive `undefined` and throw at the first call site, not at startup. Unlike `DATABASE_URL` (`lib/db/index.ts:9-14`), there is no explicit throw-on-missing guard here. On Vercel, a misconfigured deploy would surface as a runtime 503 on the first AI request rather than a build-time or startup error.
-- Files: `lib/ai/client.ts:28`
-- Current pattern for contrast: `lib/db/index.ts:8-14` explicitly checks and throws `Error("DATABASE_URL is not set...")`; `lib/stripe/client.ts:11-13` checks and throws `StripeConfigError`.
+- Risk: `lib/ai/client.ts:28` uses `process.env.ANTHROPIC_API_KEY!` (non-null assertion). If the env var is missing, Anthropic SDK will receive `undefined` and throw at the first call site, not at startup. Unlike `DATABASE_URL` (`lib/db/index.ts:23-31`), there is no explicit throw-on-missing guard here. On Vercel, a misconfigured deploy would surface as a runtime 503 on the first AI request rather than a build-time or startup error.
+- Files: `lib/ai/client.ts:26-31`
+- Current pattern for contrast: `lib/db/index.ts:23-31` checks and throws with helpful context; `lib/stripe/client.ts:7-17` checks and throws `StripeConfigError`.
 - Fix: Add an explicit missing-key check in `getAnthropicClient()` matching the `StripeConfigError` pattern in `lib/stripe/client.ts`.
 
 **No HTTP security headers configured** (MEDIUM)
-- Risk: `next.config.ts` is an empty stub (4 lines, no `headers()` config). There is no `Content-Security-Policy`, `X-Frame-Options`, `Strict-Transport-Security`, or `X-Content-Type-Options` response header. Pre-production requirement before any staging/prod deploy.
-- Files: `next.config.ts:1-7`
+- Risk: `next.config.ts` is an empty stub (7 lines; the `NextConfig` body has no options and no `headers()` config). There is no `Content-Security-Policy`, `X-Frame-Options`, `Strict-Transport-Security`, or `X-Content-Type-Options` response header. Pre-production requirement before any staging/prod deploy.
+- Files: `next.config.ts`
 - Fix: Add `async headers()` block in `next.config.ts` per Next.js docs. CSP needs careful construction to allow Clerk's embedded iframes and Stripe Checkout redirect. Phase 8 or a standalone hardening PR.
 
-**`POLICYPILOT_E2E_AUTH_BYPASS` bypass path in production binary** (MEDIUM)
-- Risk: `middleware.ts:95-98` hard-codes a route-smoke bypass that short-circuits ALL Clerk authentication when `POLICYPILOT_E2E_AUTH_BYPASS === "1"` AND `CI === "true"` AND `GITHUB_ACTIONS === "true"`. The triple-AND makes accidental production bypass very unlikely, but the bypass path ships in the production bundle. If a future CI misconfiguration or environment leak sets all three vars in a non-CI context, every request would bypass Clerk.
-- Files: `middleware.ts:95-98`
-- Current mitigation: The three-env-var requirement provides meaningful defense-in-depth.
-- Recommendation: Confirm the bypass is stripped in production Vercel builds via env isolation, or gate on a fourth secret that only CI holds.
+**`POLICYPILOT_E2E_AUTH_BYPASS` route-smoke path in production binary** (MEDIUM)
+- Clarification: This is NOT a full auth bypass. `middleware.ts:95-98` selects `routeSmokeMiddleware` (defined at `middleware.ts:75-93`) only when `POLICYPILOT_E2E_AUTH_BYPASS === "1"` AND `CI === "true"` AND `GITHUB_ACTIONS === "true"`. `routeSmokeMiddleware` is a *degraded* auth mode for CI route-smoke testing, not an open door: it returns 404 for admin routes and redirects protected routes to `/sign-in`, only letting webhooks, crons, and public routes through.
+- Risk: The triple-AND makes accidental production activation very unlikely, but the route-smoke path ships in the production bundle. If a future CI misconfiguration or environment leak set all three vars in a non-CI context, requests would run under the degraded route-smoke policy instead of full Clerk auth — admin surfaces would 404 and protected routes would redirect, but the production binary should not contain a CI-only code path.
+- Files: `middleware.ts:75-98`
+- Current mitigation: The three-env-var requirement provides meaningful defense-in-depth; the degraded mode itself denies admin/protected access rather than granting it.
+- Recommendation: Confirm the route-smoke path is stripped in production Vercel builds via env isolation, or gate on a fourth secret that only CI holds.
 
 ---
 
 ## Tech Debt
 
-**Clerk idempotency-before-dispatch ordering (Phase 7+ open item)** (HIGH)
-- Status: Application-layer mitigation shipped (03-G3 T7: `deleteIdempotencyRow()` called before every non-2xx return). Full architectural fix remains deferred.
+**Clerk idempotency-before-dispatch ordering (Phase 7+ open item)** (MEDIUM)
+- Status: Interim fix L-06a SHIPPED in commit `edebab7` (Phase 3): `deleteIdempotencyRow()` is called at `app/api/webhooks/clerk/route.ts:406` before returning 200 on a dispatch error, so Clerk's retry re-fires the event. The original HIGH issue (permanent silent loss on dispatch error) is mitigated; only a secondary edge case remains (the delete itself failing, logged at line 113 but unrecovered). Full architectural fix (invert ordering) remains deferred to Phase 7+.
 - Issue: `app/api/webhooks/clerk/route.ts:384-406` writes the `clerk_events` idempotency row BEFORE dispatching the event to the application. If dispatch throws, the current mitigation deletes the row so Clerk's exponential retry can re-fire. However: the deletion happens inside the dispatch-error `catch` block. If the delete itself fails (network partition, pooler hiccup), the event is permanently lost with a 200 response back to Clerk. The TODO comment at lines 384 and 404 explicitly names the correct fix: invert ordering so the row is written only AFTER successful dispatch.
 - Files: `app/api/webhooks/clerk/route.ts:384-410`
 - Impact: Rare silent webhook drop. Production issue severity scales with volume.
@@ -65,7 +80,7 @@
 
 **SF-CASCADE-AUDIT — org-delete cascade with no audit event** (HIGH)
 - Status: **OPEN OBLIGATION** — no app-level org-delete code path exists today; becomes a blocker when tenant-lifecycle UI ships.
-- Issue: `drizzle/0003_fk_hardening.sql` (referenced in `lib/db/schema.ts:11`) adds `ON DELETE CASCADE` to every `org_id` FK across 10 tenant tables. A Postgres-level org-row delete silently wipes acknowledgments, `ai_generations`, `policy_assignments`, `policy_versions`, `qa_citation_grants`, `notifications`, `workflow_stages`, and `batch_jobs` in one transaction with no application-layer signal. ADR-018's append-only contract is app-layer; the cascade bypasses it entirely.
+- Issue: `drizzle/0003_fk_hardening.sql` adds `ON DELETE CASCADE` to the `org_id` FK on 9 tenant tables (acknowledgments, ai_generations, departments, notifications, policies, policy_assignments, policy_versions, users, workflow_stages). Later migrations extend the cascade set: `batch_jobs` (`0005`) and `qa_citation_grants` (`0011`). Cumulatively, a Postgres-level org-row delete silently wipes acknowledgments, `ai_generations`, `policy_assignments`, `policy_versions`, `qa_citation_grants`, `notifications`, `workflow_stages`, and `batch_jobs` in one transaction with no application-layer signal. ADR-018's append-only contract is app-layer; the cascade bypasses it entirely.
 - When it matters: Phase 6+ adds subscription cancellation. If a "cancel + delete org" code path ever lands without the audit guard, acknowledgment audit trails are destroyed with no record.
 - Files: `lib/db/schema.ts:11`, `app/api/webhooks/clerk/route.ts:363-371`
 - Fix approach: When org-delete route lands, the handler MUST: (1) count rows per table, (2) emit a structured audit event with row counts, (3) THEN allow the cascade to fire. See STATE.md § Carry-forward queue.
@@ -77,13 +92,6 @@
 - Documented: `.planning/phases/06-billing/06-UAT.md` § Deferred Or Accepted Limits; `MEMORY.md` (stripe-clerk-dev-uat.md)
 - Fix approach: Either re-login `stripe` CLI with `stripe login --api-key $STRIPE_SECRET_KEY` to bind the default profile to the test account, or always pass `STRIPE_API_KEY` override. Document the chosen convention before Phase 6 ships.
 
-**`b92a15f` checkout edge case — trialing seed status** (MEDIUM)
-- Status: Fixed in `b92a15f`. Robustness assessment follows.
-- Issue: Clerk `organization.created` webhook seeds new orgs with `stripeSubscriptionStatus = 'trialing'` and no `stripeCustomerId`. Before `b92a15f`, the `DUPLICATE_SUBSCRIPTION_STATUSES` guard in `createCheckoutSessionAction` would redirect an already-trialing org to `/settings?billing=manage`, blocking the first checkout.
-- Fix applied: `app/(admin)/settings/actions.ts:99-105` now gates the duplicate-subscription check behind `org.stripeCustomerId &&` — an org with `trialing` status but no customer can still start checkout.
-- Residual risk: The `DUPLICATE_SUBSCRIPTION_STATUSES` set (`active`, `trialing`, `past_due`) is used in two places: (1) the Server Action (`actions.ts:23,99-105`) and (2) the Settings page renders the "Manage Subscription" vs "Start Checkout" button path (`page.tsx:86-90`). The page's `statusVariant()` helper does NOT guard on `stripeCustomerId` for the `trialing` display case — it shows "active" badge styling for `trialing` status even when no customer exists. This is cosmetic but slightly misleading on the UI.
-- Files: `app/(admin)/settings/actions.ts:23,99-105`, `app/(admin)/settings/page.tsx:81-91`
-
 **PR 3.3 / ADR-028 PolicyId branded type — carry-forward is SHIPPED; scope note** (ADVISORY)
 - Status: ADR-028 `PolicyId` branded type shipped in PR #13 (`bd2257a`). `lib/policies/types.ts` defines `PolicyIdSchema`, `PolicyId`, and `policyIdFromString`. `scripts/check-policy-id-brand.ts` is wired into `verify:phase-3`.
 - Open slippery-slope scope: ADR-028 intentionally defers `UserId` and `OrgId` branding per `lib/policies/types.ts:10-19`. When `Users` or `Org` heavy code surfaces are touched in future phases, evaluate whether branding those IDs has become warranted.
@@ -93,14 +101,14 @@
 
 ## Stub Implementations (Phase 7+ obligations)
 
-**`Notifications.create` and `Notifications.markRead` throw unconditionally** (MEDIUM)
-- Status: Stubs — not yet implemented.
-- Issue: `lib/db/repositories/notifications.ts:34-44` throws `Error('Not yet implemented — Phase 7 (Crons + Email)')` for both `create` and `markRead`. If any Phase 6 or 7 code path calls these methods before Phase 7 ships, it will crash at runtime. The `listAll` and `listUnreadForUser` methods are implemented but the notifications table is currently write-only via the webhook handler alone.
+**`Notifications.create` and `Notifications.markRead` throw unconditionally** (LOW)
+- Status: Stubs — not yet implemented. No callers in the codebase today; Phase 7 (implementation target) not started per ROADMAP.md, so the runtime-crash risk is latent rather than active.
+- Issue: `lib/db/repositories/notifications.ts:34-44` throws `Error('Not yet implemented — Phase 7 (Crons + Email)')` for both `create` and `markRead`. If a future Phase 7 code path calls these methods before they are implemented, it will crash at runtime. The `listAll` and `listUnreadForUser` methods are implemented but the notifications table is currently write-only via the webhook handler alone.
 - Files: `lib/db/repositories/notifications.ts:34-44`
 - Impact: Any Phase 7 email/cron work that touches `Notifications.create` must implement this before calling it.
 
-**`Departments.create` throws unconditionally** (LOW)
-- Status: Stub — Phase 3+ scope per inline comment.
+**`Departments.create` throws unconditionally** (ADVISORY)
+- Status: Stub — Phase 3+ scope per inline comment. Zero call sites in the codebase (git grep confirms), so the throw is unreachable today; this is a forward seam, not an active risk.
 - Issue: `lib/db/repositories/departments.ts:36-40` throws `Error('Not yet implemented — Phase 3+ (admin department management)')`. Admin department management UI was not in Phase 3-6 scope; the stub is correct but must be implemented before that surface is built.
 - Files: `lib/db/repositories/departments.ts:36-40`
 
@@ -113,23 +121,16 @@
 
 ## Fragile Areas
 
-**Stripe catalog loaded at module init — crashes entire app on missing env vars** (HIGH)
-- Issue: `lib/stripe/catalog.ts:56` calls `buildCatalog()` at module load time as a top-level `const`. `buildCatalog()` throws `StripeCatalogConfigError` if any of the 6 `STRIPE_PRICE_*` env vars are missing or duplicated. On Vercel, any cold start without all 6 price IDs configured crashes the app before serving a single request — including the Clerk webhook endpoint, meaning org provisioning would fail silently.
-- Files: `lib/stripe/catalog.ts:28-56`
-- Impact: A misconfigured staging or production deploy with missing price IDs takes the entire app down, not just billing surfaces.
-- Mitigation in place: `lib/stripe/errors.ts` typed `StripeCatalogConfigError` is thrown (not a raw Error), so the crash is at least identifiable in logs.
-- Fix approach: Lazy-initialize catalog on first call OR add a deploy-preflight check in `scripts/deploy-preflight.ts` that validates all 6 price IDs before allowing Vercel to serve traffic.
-
 **`getOrgContext()` makes two sequential DB round-trips per request** (MEDIUM)
-- Issue: `lib/auth/context.ts:132-165` does two sequential Drizzle selects per page load: (1) `organizations` lookup by `clerkOrgId`, (2) `users` lookup by `clerkUserId` scoped to the resolved org. The ADR-027 sequentialization was intentional (see the org→user lookup comment at line 119), but adds ~2 RTTs to every authenticated server-side render. On a high-latency Supabase pooler, this can accumulate to 50-100ms per request.
-- Files: `lib/auth/context.ts:132-165`
-- Impact: Performance degradation at scale; not a current blocker for MVP load profile.
+- Issue: `lib/auth/context.ts:132-145` does two sequential Drizzle selects per page load: (1) `organizations` lookup by `clerkOrgId` (lines 132-136), (2) `users` lookup by `clerkUserId` scoped to the resolved `orgRow.id` (lines 141-145). The ADR-027 sequentialization was intentional — a deliberate trade from the prior parallel `Promise.all` pattern (at `bf65712`) to enforce state-consistency. ADR-027 itself acknowledges it "Trades 1 RTT (parallel → sequential)" and estimates the latency impact at "single-digit milliseconds" per request (the earlier "50-100ms" figure here was an overestimate; corrected per ADR-027).
+- Files: `lib/auth/context.ts:132-145`
+- Impact: Minor performance cost at scale; not a current blocker for MVP load profile.
 - Fix approach (Phase 8+): Consider caching org ID mapping in a short-TTL Clerk session claim (injected at webhook time) to eliminate the org lookup RTT.
 
 **`PolicyListSearch` `eslint-disable` on `react-hooks/exhaustive-deps`** (LOW)
-- Issue: `components/policy/PolicyListSearch.tsx:36` disables the exhaustive-deps rule. This suppresses a warning that the `useEffect` dependency array may be incorrect. If the effect captures a stale closure, searches could silently return wrong results.
+- Issue: `components/policy/PolicyListSearch.tsx:36` has an `eslint-disable-next-line react-hooks/exhaustive-deps` with no inline explanation. The `useEffect` reads `params` and `router` but its dependency array is only `[q]`, so a stale `params` closure is intentionally accepted. The code works correctly in normal Next.js server/client flows, but the undocumented disable makes the omission fragile for future maintenance — the "why this is safe" rationale is not recorded.
 - Files: `components/policy/PolicyListSearch.tsx:36`
-- Fix approach: Audit the effect's closure; if safe, replace the disable with an inline comment explaining why the dep is intentionally omitted (e.g., `// eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally run only on mount`).
+- Fix approach: Replace the bare disable with an inline comment documenting why `params`/`router` can be safely omitted from the dep array (e.g., the stale-`params` closure is intentional because the effect only reacts to `q`).
 
 **`scoped.ts` approved `any` usage — bounded but fragile** (ADVISORY)
 - Issue: `lib/db/scoped.ts:26` uses `PgTransaction<any, any, any>` with an operator-approved `eslint-disable` comment. Tightening this via Drizzle's internal generic types was deemed impractical (see comment). If a future Drizzle major version changes the transaction handle shape, this type will silently accept the wrong shape.
@@ -137,18 +138,13 @@
 - Current mitigation: Bounded `any` is limited to this single definition; all consumer call sites use the typed `OrgScope` alias.
 
 **`lib/ai/summary.ts:53` raw `Error` throw inside `withOrgScope`** (LOW)
-- Issue: `lib/ai/summary.ts:53` throws `throw new Error('Policy not found')`. This is inside a `withOrgScope` callback where the project convention (enforced by `scripts/check-error-discipline.ts` for `lib/auth/**`) expects typed domain errors. The policy-not-found path here should throw `PolicyNotFoundError` from `lib/policies/errors.ts`. The `check-error-discipline.ts` gate only covers `lib/auth/` not `lib/ai/`, so this slips through.
+- Issue: `lib/ai/summary.ts:53` throws `throw new Error('Policy not found')`. This is inside a `withOrgScope` callback where the project convention (enforced by `scripts/check-error-discipline.ts`) expects typed domain errors. The policy-not-found path here should throw `PolicyNotFoundError` from `lib/policies/errors.ts`. The `check-error-discipline.ts` gate covers `lib/auth/` + `lib/stripe/` + `lib/policies/` (scope at lines 89-129) but NOT `lib/ai/`, so this slips through.
 - Files: `lib/ai/summary.ts:53`, `lib/policies/errors.ts:73-85`
 - Impact: Structured-log triage in Phase 7+ cannot discriminate this error type without the named class.
 
 ---
 
 ## Test Coverage Gaps
-
-**Stripe webhook handler — Customer Portal session tests absent** (MEDIUM)
-- What's not tested: `createPortalSessionAction` in `app/(admin)/settings/actions.ts:47-68`. The `createCheckoutSessionAction` has test coverage in `app/(admin)/settings/actions.test.ts`, but the portal session action (which calls `stripe.billingPortal.sessions.create`) has no automated test verifying the "no stripeCustomerId → redirect to setup" branch or the Stripe API error branch.
-- Files: `app/(admin)/settings/actions.ts:47-68`, `app/(admin)/settings/actions.test.ts`
-- Risk: Regression on portal session creation could silently break the Manage Subscription UX.
 
 **Stripe webhook — `customer.subscription.updated` canonical re-fetch path** (MEDIUM)
 - What's not tested: The `handleSubscriptionUpdated` function at `app/api/webhooks/stripe/route.ts:410-425` always calls `retrieveSubscription(stripe, eventSubscription.id)` — it ignores the event object's inline subscription and re-fetches the canonical version. This canonical-retrieve pattern has no test for the path where `retrieveSubscription` returns `null` (Stripe API failure → retry 500).
@@ -161,8 +157,8 @@
 
 **Verify scripts have silent-failure gaps (SF-H1, SF-H2, SF-H3, SF-M5)** (LOW)
 - What's not tested / what's fragile:
-  - `scripts/check-foundation.ts:62-73, 178-192` — `spawnSync` ENOENT/EACCES errors mask as generic `"tsc failed"` instead of surfacing `result.error.code` + `result.error.message` (SF-H1).
-  - `scripts/check-foundation.ts:175, 191` — signal-killed `result.status === null` reported as `"unknown"` rather than `result.signal` (SF-H2).
+  - `scripts/check-foundation.ts:33-46` — `checkTypecheck()`'s `spawnSync` result handling masks ENOENT/EACCES as the generic `detail || "tsc failed"` fallback (:45) instead of surfacing `result.error.code` + `result.error.message` (SF-H1).
+  - `scripts/check-foundation.ts:151` — a signal-killed `result.status === null` collapses to the literal `"unknown"` in the `check:db exited …` detail string rather than surfacing `result.signal` (SF-H2).
   - `scripts/check-artifacts.ts:776-784` — server-only walker has no `try/catch` around `readdirSync`/`readFileSync` and no symlink skip; a mid-walk permission error crashes all 114+ assertions (SF-H3).
   - `scripts/check-artifacts.ts:28-30` — `read()` has no `try/catch`; TOCTOU between `exists()` and `read()` can silently nuke assertions (SF-M5).
 - Files: `scripts/check-foundation.ts`, `scripts/check-artifacts.ts`
@@ -187,17 +183,33 @@
 - Fix: Confirm `isCronRoute` pattern is appropriately narrow before Phase 7 ships the handler.
 
 **`x-pathname` header injection** (ADVISORY)
-- Issue: `middleware.ts:70-72` sets `x-pathname` from `req.nextUrl.pathname` and overwrites any client-supplied value (the overwrite is explicitly noted in the comment at line 109 citing T-03-02-04 mitigation). This pattern is safe as implemented, but worth re-verifying if Next.js changes its header forwarding behavior in a future version.
-- Files: `middleware.ts:68-72`
+- Issue: `middleware.ts:70-71` sets `x-pathname` from `req.nextUrl.pathname`, overwriting any client-supplied value, before Server Components read it (consumer confirmed at `AdminSidebar.tsx:27-29`). Threat model T-03-02-04 explicitly closes this vector via the overwrite behavior, so the pattern is safe as currently implemented. This entry is purely advisory — worth re-verifying only if Next.js changes its header forwarding behavior in a future version.
+- Files: `middleware.ts:70-71`, `components/admin/AdminSidebar.tsx:27-29`
 
 ---
 
 ## Operational Concerns
 
-**Tenant-lifecycle orphan org cleanup pending** (LOW)
-- Issue: The smoke/UAT test run left an orphan `MMTU Entertainment` (Title Case) org and a case-only duplicate org pair in the Clerk dev environment. These don't affect production but pollute the dev tenant list and can cause `OrgNotProvisionedError` confusions during local development.
-- Files: Diagnosed at `.planning/debug/org-topology-uat5.md`
-- Fix approach: Delete the orphan org via Clerk Dashboard + clean up associated `organizations` row in the dev Supabase project.
+**Production has NEVER deployed (pre-Phase 7 blocker)** (HIGH)
+- Issue: PolicyPilot production (`https://policypilot.mmtu.tv`) has never successfully deployed. Vercel shows `404 DEPLOYMENT_NOT_FOUND` for all prod commits, including Phase 6 ship commit `243067e`.
+- Root cause history: 
+  - **Cause-A (Build-Time Coupling)**: Stripe catalog + DB client crashed at `next build` when env vars were missing. **FIXED and shipped in main at PR #37 (3b4bdb5) and PR #38 (6f17412).**
+  - **Cause-B (Prod Supabase project not yet provisioned, THEN pooler auth)**: The blocker is broader than a stale password. (1) The production Supabase project does **not yet exist** — `scripts/deploy-config.json:12` still holds the `REPLACE_WITH_PROD_PROJECT_REF` placeholder, and provisioning it requires Pro tier + PITR per `docs/runbooks/deploy-migrations.md:15`. (2) Only *after* the prod project is provisioned can the operator configure/rotate the Transaction-pooler (port 6543) password and set `DATABASE_URL`; until both are done, `deploy:preflight` fails authentication against the pooler and the build exits 1.
+- Impact: No production traffic can run on the latest code. Live users (if any) are stuck at the last successful deployment (if any exist).
+- Action path: 
+  1. Operator provisions the production Supabase project (Pro tier + PITR) and replaces `REPLACE_WITH_PROD_PROJECT_REF` in `scripts/deploy-config.json`.
+  2. Operator sets/rotates the prod pooler password and configures `DATABASE_URL` in Vercel production environment secrets.
+  3. Trigger a re-deployment in Vercel or push a new commit to `main`.
+  4. Verify `pnpm db:verify:prod` passes after deploy.
+- Files: `scripts/deploy-config.json:12`, `scripts/deploy-preflight.ts`, `docs/runbooks/deploy-migrations.md:15`
+- Verify-phase-6 status: The build-crash class is CLOSED. The remaining blockers are prod-project provisioning followed by pooler-auth configuration.
+
+**Vercel preview `deploy:preflight` fails on stale Supabase `postgres` password** (MEDIUM — non-blocking)
+- Issue: The Vercel preview environment's `DATABASE_URL` uses a stale pooler password. The `deploy:preflight` script fails when it tries to connect to verify the schema. This causes the pre-merge Vercel check to show a red X.
+- Impact: Non-blocking — GitHub Actions is the real merge signal per CLAUDE.md. Vercel preview failures do not block Phase 7 planning. However, they are noisy and make it harder to spot real issues.
+- Documented: `MEMORY.md` (vercel-preview-preflight-fail.md) + `.planning/phases/06-billing/06-UAT.md`
+- Workaround: Operator can temporarily set `DATABASE_URL` in Vercel preview to a working dev target, or accept the red X and rely on GitHub Actions checks.
+- Fix: Sync the preview environment's `DATABASE_URL` with a valid pooler password + target after a staging deploy succeeds.
 
 **Staging and production migrations not applied** (HIGH — pre-deploy gate)
 - Issue: `0012_billing_state` (Stripe billing-state columns + partial unique indexes on `organizations`) is applied only to the approved TEST/dev Supabase target. Staging and production remain at the pre-Phase-6 schema. Per CLAUDE.md Database Migration Discipline, code may not deploy ahead of migrations.
@@ -213,13 +225,18 @@
 - Files: `.env.local.example:63-65`, `next.config.ts`
 - Impact: Phase 7+ monitoring gap. Not a launch blocker for MVP but increases mean-time-to-detect for production billing failures.
 
+**Tenant-lifecycle orphan org cleanup pending** (LOW)
+- Issue: The smoke/UAT test run left an orphan `MMTU Entertainment` (Title Case) org and a case-only duplicate org pair in the Clerk dev environment. These don't affect production but pollute the dev tenant list and can cause `OrgNotProvisionedError` confusions during local development.
+- Files: Diagnosed at `.planning/debug/org-topology-uat5.md`
+- Fix approach: Delete the orphan org via Clerk Dashboard + clean up associated `organizations` row in the dev Supabase project.
+
 ---
 
 ## Performance Risks
 
 **No database connection pooling limit visible at application layer** (ADVISORY)
-- Issue: `lib/db/index.ts:19` creates a `postgres-js` client with default pool settings (`prepare: false` is set for pooler compatibility but no `max` connection count). Supabase Transaction pooler handles connection multiplexing, but under burst load the app could saturate the pooler's connection slots. Phase 8 load testing should verify connection behavior.
-- Files: `lib/db/index.ts:19`
+- Issue: `lib/db/index.ts:35` creates a `postgres-js` client with default pool settings (`prepare: false` is set for pooler compatibility but no `max` connection count). Supabase Transaction pooler handles connection multiplexing, but under burst load the app could saturate the pooler's connection slots. Phase 8 load testing should verify connection behavior.
+- Files: `lib/db/index.ts:35`
 
 **`ai_generations` table grows unboundedly** (ADVISORY)
 - Issue: Every AI call (draft, summary, Q&A, consistency check) inserts a row in `ai_generations`. There is no TTL, archival, or pruning job. Over time this table grows without bound. The `countDraftsThisMonth` query (`lib/stripe/products.ts:145-161`) scans with a `created_at >= monthStart` filter on an index only covering `org_id` — as the table grows, this query's cost scales with rows per org per month.
@@ -234,16 +251,16 @@
 
 ## Future Obligations (Phase 7+)
 
-**Phase 7 cron endpoint has no handler yet but middleware bypass is live** (MEDIUM)
-- Issue: `middleware.ts:28-30` bypasses Clerk for `/api/cron/(.*)`. The endpoint handler (`app/api/cron/reminders/`) does not yet exist. The `CRON_SECRET` env var is in `.env.local.example:60` but is not validated anywhere at runtime. When Phase 7 ships the handler, it must validate `Authorization: Bearer {CRON_SECRET}` as the first action.
-- Files: `middleware.ts:28-30`, `.env.local.example:60`, `reference/API-SPEC.md:110-111`
+**Phase 7 cron endpoint has no handler yet but middleware bypass is live** (LOW)
+- Issue: `middleware.ts:28-30` declares `isCronRoute("/api/cron/(.*)")` and `:118-120` bypasses Clerk for it, with a comment asserting in-route `CRON_SECRET` validation (`:113-114`). The endpoint handler (`app/api/cron/`) does not yet exist and `CRON_SECRET` in `.env.local.example:60` is blank, so the bypass is a harmless forward seam today: any request to `/api/cron/*` gets a Next.js 404, with no handler to reach and no data exposure. The cleanup audit (`claude_repo_cleanup_audit.md:571-585`, L-FINDING-027) classified this as "harmless today (no cron route)" intentional preparatory code for Phase 7. When Phase 7 ships the handler, it must validate `Authorization: Bearer {CRON_SECRET}` as the first action.
+- Files: `middleware.ts:28-30`, `middleware.ts:113-120`, `.env.local.example:60`, `reference/API-SPEC.md:110-111`
 
 **Phase 7 reminder email / Resend not implemented** (ADVISORY)
 - Issue: `RESEND_API_KEY` and `RESEND_FROM_EMAIL` env vars are declared in `.env.local.example:55-56`. No `lib/email/` directory exists. The `Notifications.create` stub throws at runtime. Phase 7 must build the entire email layer from scratch.
 - Files: `.env.local.example:55-56`, `lib/db/repositories/notifications.ts:34-40`
 
 **Hardcoded copyright year** (LOW)
-- Issue: `app/(marketing)/layout.tsx:28` hardcodes `© 2026 MMTU Entertainment LLC · PolicyPilot`. Must be updated annually or wired to `new Date().getFullYear()`.
+- Issue: `app/(marketing)/layout.tsx:28` hardcodes `© 2026 MMTU Entertainment LLC` with no dynamic `new Date().getFullYear()` wiring (verified at HEAD). The year must be bumped manually each January, or wired to `new Date().getFullYear()`.
 - Files: `app/(marketing)/layout.tsx:28`
 
 **`pnpm db:migrate:test` env-file coupling** (LOW)
@@ -341,16 +358,15 @@ This pass did not line-by-line reverify all 12 findings.
 - ADR-028 PolicyId branded type: CLOSED.
 - `transitions.test.ts:206` blocker: already resolved at Phase 5.
 - DEV + TEST DB creds rotated 2026-05-24 advisory: time-stale / dropped.
+- Build-crash class (Causes A and B): CLOSED as of PR #37 + PR #38.
 
-Do not re-open ADR-028.
+Do not re-open ADR-028 or the build-crash class.
 
 ### Phase 6 additions remain separate
 
 The Phase 6 billing concerns above remain intact and separate from this Phase 5
 carry-forward section:
 
-- Stripe catalog module-init env crash risk.
-- `0012_billing_state` staging/prod deployment gate.
 - Stripe CLI account mismatch residual.
 - `b92a15f` checkout edge case fixed plus UI badge residual.
 - Portal, `customer.subscription.updated`, tier-gate, E2E, and billing-meter
@@ -358,4 +374,4 @@ carry-forward section:
 
 ---
 
-*Concerns audit: 2026-05-30*
+*Concerns audit: 2026-06-04*

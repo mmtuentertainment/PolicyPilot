@@ -1,6 +1,12 @@
+---
+last_mapped_commit: 6f17412a2df1218e9a618d7b58df00fe1e595a7a
+last_mapped_date: 2026-06-04
+scan_mode: fast (tech+arch)
+---
+
 # Codebase Structure
 
-**Analysis Date:** 2026-05-30
+**Analysis Date:** 2026-06-04
 
 ## Directory Layout
 
@@ -74,13 +80,18 @@ policypilot/                          # Next.js 15 project root
 │   ├── employee/                     # Employee-specific components
 │   │   ├── AcknowledgeButton.tsx     # Acknowledgment submit button
 │   │   └── AskQuestionForm.tsx       # Q&A form (React 19 useActionState)
-│   ├── policy/                       # Policy-related shared components
+│   ├── policy/                       # Policy-related shared components (13)
 │   │   ├── PolicyEditor.tsx          # TipTap rich text editor
 │   │   ├── PolicyAiDraftDialog.tsx   # AI draft generation dialog
+│   │   ├── CreatePolicyForm.tsx      # New-policy form
+│   │   ├── EditPolicyForm.tsx        # Edit-published form
+│   │   ├── PolicyHeaderActions.tsx   # Policy-detail header actions
 │   │   ├── PolicyTransitionMenu.tsx  # Status transition dropdown
+│   │   ├── PolicyRegenerateTldrButton.tsx # Regenerate TL;DR button
 │   │   ├── PolicyView.tsx            # Read-only policy display
 │   │   ├── PolicyVersionHistory.tsx  # Version list
 │   │   ├── PolicyStatusBadge.tsx     # Status chip
+│   │   ├── PolicyStatusFilter.tsx    # Status filter control
 │   │   ├── AckStatusBadge.tsx        # Acknowledgment status chip
 │   │   └── PolicyListSearch.tsx      # Search/filter control
 │   └── ui/                           # shadcn/ui primitives
@@ -108,7 +119,7 @@ policypilot/                          # Next.js 15 project root
 │   │   ├── errors.ts                 # BootstrapError hierarchy
 │   │   └── bootstrap-errors.ts       # matchesErrorClass() helper
 │   ├── db/                           # Data access
-│   │   ├── index.ts                  # db singleton (Drizzle + postgres-js)
+│   │   ├── index.ts                  # db singleton (Drizzle + postgres-js) — LAZY-INIT (PR #37)
 │   │   ├── schema.ts                 # All 14 Drizzle table definitions
 │   │   ├── scoped.ts                 # withOrgScope() + OrgScope type
 │   │   └── repositories/             # Per-aggregate DB access
@@ -132,7 +143,7 @@ policypilot/                          # Next.js 15 project root
 │   │   └── types.ts                  # PolicyId branded type
 │   ├── stripe/                       # Stripe integration
 │   │   ├── client.ts                 # getStripeClient() singleton
-│   │   ├── catalog.ts                # PRICE_CATALOG, priceIdToTier(), tierAndIntervalToPriceId()
+│   │   ├── catalog.ts                # LAZY SINGLETON (PR #38) — getPriceCatalog()
 │   │   ├── normalize.ts              # normalizeSubscription() → NormalizedSubscription
 │   │   ├── products.ts               # TIER_LIMITS, checkTierLimit(), requireTierLimit()
 │   │   ├── mask.ts                   # maskCustomerId(), maskSubscriptionId()
@@ -155,7 +166,7 @@ policypilot/                          # Next.js 15 project root
 │   ├── 0012_billing_state.sql        # Phase 6 — billing columns + partial unique indexes
 │   └── meta/                         # Drizzle snapshot journal (source of truth)
 │       ├── _journal.json
-│       └── 0000_snapshot.json … 0011_snapshot.json
+│       └── 0000_snapshot.json … 0011_snapshot.json   # 0012 has SQL + journal entry; snapshot JSON absent
 │
 ├── scripts/                          # CI/CD + verification scripts
 │   ├── check-foundation.ts           # Phase 1 verifier
@@ -185,7 +196,7 @@ policypilot/                          # Next.js 15 project root
 │   ├── fixtures/                     # Test fixture data
 │   └── e2e/route-smoke.spec.ts       # Playwright route smoke tests
 │
-├── hooks/                            # React hooks (currently empty or minimal)
+├── hooks/                            # React hooks (contains use-mobile.ts)
 ├── reference/                        # Frozen spec documents
 │   ├── STACK.md                      # Stack decisions + rationale
 │   ├── SCHEMA.md                     # Frozen DB schema contract
@@ -208,10 +219,12 @@ policypilot/                          # Next.js 15 project root
 ├── CONSULTANT.md                     # Consultant operating instructions
 ├── BLUEPRINT.md                      # Frozen architecture reference
 ├── REQUIREMENTS.md                   # Frozen business requirements
-├── next.config.ts                    # Next.js config
-├── tailwind.config.ts                # Tailwind config
+├── next.config.ts                    # Next.js config (empty stub — no headers())
+├── postcss.config.mjs                # Tailwind v4 config via @tailwindcss/postcss (no tailwind.config.ts)
 ├── drizzle.config.ts                 # Drizzle Kit config
 ├── vitest.config.ts                  # Vitest config
+├── .fallowrc.json                    # Fallow codebase analysis config (NEW — PR #36)
+├── .mcp.json                         # MCP server config (includes fallow — PR #36)
 └── package.json                      # Dependencies + scripts
 ```
 
@@ -248,12 +261,12 @@ policypilot/                          # Next.js 15 project root
 
 **`lib/db/`:**
 - Purpose: Database client, schema, OrgScope bridge, per-aggregate repositories.
-- Key files: `lib/db/index.ts`, `lib/db/schema.ts`, `lib/db/scoped.ts`
-- Rule: Only `lib/db/index.ts`, `lib/db/scoped.ts`, `app/api/webhooks/clerk/route.ts`, and `lib/stripe/products.ts` may import raw `db`.
+- Key files: `lib/db/index.ts` (LAZY-INIT, PR #37), `lib/db/schema.ts`, `lib/db/scoped.ts`
+- Rule (source of truth = `scripts/check-db-imports.ts:39-51`): app modules permitted to import raw `db` are `lib/db/scoped.ts`, `lib/auth/context.ts`, `app/api/webhooks/clerk/route.ts`, `app/api/webhooks/stripe/route.ts`, and `lib/stripe/products.ts` (plus `tests/**`, `scripts/check-{rls,schema,db}.ts`, `lib/db/index.test.ts`, `app/api/cron/**`). `lib/db/index.ts` is the barrel that defines `db`, not an importer.
 
 **`lib/stripe/`:**
 - Purpose: All Stripe integration — client, price catalog, subscription normalization, tier gating.
-- Key files: `lib/stripe/catalog.ts`, `lib/stripe/normalize.ts`, `lib/stripe/products.ts`
+- Key files: `lib/stripe/catalog.ts` (LAZY-INIT, PR #38), `lib/stripe/normalize.ts`, `lib/stripe/products.ts`
 
 **`lib/policies/`:**
 - Purpose: Policy domain — state machine, transition orchestrators, acknowledgment logic.
@@ -291,7 +304,7 @@ policypilot/                          # Next.js 15 project root
 - `app/api/webhooks/stripe/route.ts` — Stripe webhook handler
 - `app/(admin)/settings/page.tsx` — billing settings UI
 - `app/(admin)/settings/actions.ts` — checkout + portal server actions
-- `lib/stripe/catalog.ts` — price ID ↔ tier mapping
+- `lib/stripe/catalog.ts` — price ID ↔ tier mapping (LAZY, PR #38)
 - `lib/stripe/normalize.ts` — subscription state normalization
 - `lib/stripe/products.ts` — tier limits + `requireTierLimit()`
 - `lib/stripe/client.ts` — Stripe SDK singleton
@@ -319,6 +332,10 @@ policypilot/                          # Next.js 15 project root
 - `tests/ai-mocks.ts` — Anthropic mock helpers
 - `tests/stubs/server-only.ts` — `server-only` stub for test environment
 
+**Codebase Analysis (NEW — PR #36):**
+- `.fallowrc.json` — fallow rules config (duplication, health, staged adoption)
+- `.mcp.json` — MCP servers including `fallow` CLI integration
+
 ## Naming Conventions
 
 **Files:**
@@ -336,7 +353,7 @@ policypilot/                          # Next.js 15 project root
 - Repositories: namespace-style exports (`Policies.create`, `Policies.listAll`).
 - Auth helpers: named function exports (`getOrgContext`, `requireAdmin`).
 - Stripe helpers: named function exports (`requireTierLimit`, `normalizeSubscription`).
-- Constants: SCREAMING_SNAKE_CASE (`TIER_LIMITS`, `ALLOWED_TRANSITIONS`, `PRICE_CATALOG`, `MODEL_SONNET`).
+- Constants: SCREAMING_SNAKE_CASE (`TIER_LIMITS`, `ALLOWED_TRANSITIONS`, `MODEL_SONNET`, `MODEL_HAIKU`). (`PRICE_CATALOG` was removed by PR #38 — the catalog is now the lazy `getPriceCatalog()` function.)
 
 **Types:**
 - `OrgContext`, `OrgScope`, `NormalizedSubscription`, `PlanTier` — PascalCase.
@@ -420,8 +437,8 @@ policypilot/                          # Next.js 15 project root
 - Generated: Yes.
 - Committed: No (gitignored).
 
-**`audit-cache/`, `audit-report/`:**
-- Purpose: Static analysis audit artifacts.
+**`audit-cache/`, `audit-report/`, `.fallow/`:**
+- Purpose: Static analysis audit artifacts (fallow cache added PR #36).
 - Generated: Yes (by audit tooling).
 - Committed: Check `.gitignore`; generally not committed.
 
@@ -436,4 +453,4 @@ policypilot/                          # Next.js 15 project root
 
 ---
 
-*Structure analysis: 2026-05-30*
+*Structure analysis: 2026-06-04*

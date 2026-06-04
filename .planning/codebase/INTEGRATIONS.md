@@ -1,6 +1,12 @@
+---
+last_mapped_commit: 6f17412a2df1218e9a618d7b58df00fe1e595a7a
+last_mapped_date: 2026-06-04
+scan_mode: fast (tech+arch)
+---
+
 # External Integrations
 
-**Analysis Date:** 2026-05-30
+**Analysis Date:** 2026-06-04
 
 ---
 
@@ -49,14 +55,23 @@
 
 **Purpose:** Primary data store; Row-Level Security enforces tenant isolation at DB layer.
 
-**SDK:** `@supabase/supabase-js ^2.105.4` (client-side + service-role); `drizzle-orm ^0.45.2` (primary query interface); `postgres ^3.4.9` (driver)
+**SDK:** `drizzle-orm ^0.45.2` (primary query interface) over `postgres ^3.4.9` (driver). NOTE: `@supabase/supabase-js ^2.105.4` is pinned in `package.json` but currently UNUSED in app code (fallow flags it an unused dep) — all DB access is via Drizzle/`postgres`, and RLS claims are injected through `set_config` in `lib/db/scoped.ts`, not this client.
 
 **Surface:**
-- `lib/db/index.ts` — Drizzle singleton over `postgres` driver; `prepare: false` required for Supabase Transaction pooler
+- `lib/db/index.ts` — Drizzle singleton over `postgres` driver; LAZY-INITIALIZED (PR #37, 2026-06-03) so `next build` doesn't crash without `DATABASE_URL`; `prepare: false` required for Supabase Transaction pooler
 - `lib/db/schema.ts` — all 14 tables defined with Drizzle table builders
 - `lib/db/scoped.ts` — `withOrgScope()`: wraps every user-facing query in a transaction with JWT claims injected for RLS
 - `lib/db/repositories/` — repository objects (one per table aggregate); only way to access DB outside webhook/cron allow-list
 - `drizzle/` — 13 migrations (`0000` → `0012`) + meta snapshots
+
+**Module Init Behavior (PR #37 — Lazy Init Pattern):**
+- `lib/db/index.ts` exports `db` as a Proxy instead of a direct instance
+- On first property access (`db.select()`, `db.transaction()`, etc.), the proxy calls `resolveDb()` which:
+  1. Checks `DATABASE_URL` env var; throws helpful error if absent
+  2. Creates Postgres connection with `prepare: false` (Supabase pooler requirement)
+  3. Wraps in Drizzle ORM and caches
+- All methods are bound so `this` context for chained query builders stays correct
+- This allows `next build` to evaluate route modules without crashing on missing `DATABASE_URL` — the connection is deferred to first runtime use
 
 **Schema — 14 Tables:**
 
@@ -108,7 +123,7 @@
 
 **Surface:**
 - `lib/stripe/client.ts` — lazy singleton `getStripeClient()`; reads `STRIPE_SECRET_KEY`
-- `lib/stripe/catalog.ts` — `PRICE_CATALOG` built from 6 price ID env vars at module load; `priceIdToTier()`, `tierAndIntervalToPriceId()` lookups
+- `lib/stripe/catalog.ts` — LAZY-INITIALIZED (PR #38, 2026-06-03); `getPriceCatalog()` builds `PRICE_CATALOG` from 6 price ID env vars on first access; `priceIdToTier()`, `tierAndIntervalToPriceId()` lookups
 - `lib/stripe/normalize.ts` — `normalizeSubscription()`: maps Stripe subscription status → billing state machine kind (`entitled` | `preserve-tier` | `downgrade` | `link-only`)
 - `lib/stripe/products.ts` — `TIER_LIMITS` constant; `checkTierLimit()` / `requireTierLimit()` gate functions; `readPlanTier()`, `countDraftsThisMonth()`, `countOrgUsers()` DB helpers
 - `lib/stripe/errors.ts` — `TierLimitExceededError` (429 for usage-bound, 403 for tier-bound), `StripeConfigError`, `StripeCatalogConfigError`
@@ -116,6 +131,14 @@
 - `app/api/webhooks/stripe/route.ts` — Stripe webhook handler (see events below)
 - `app/(admin)/settings/actions.ts` — `createCheckoutSessionAction()`, `createPortalSessionAction()` Server Actions
 - `app/(admin)/settings/page.tsx` — Billing settings UI; reads live billing state from DB
+
+**Module Init Behavior (PR #38 — Lazy Catalog Patch):**
+- `lib/stripe/catalog.ts` exports `getPriceCatalog()` function instead of eagerly calling `buildCatalog()`
+- On first call to `getPriceCatalog()`:
+  1. Reads all six `STRIPE_PRICE_*` env vars
+  2. Validates presence and uniqueness; throws `StripeCatalogConfigError` if misconfigured (fail-closed)
+  3. Caches result in module-level variable
+- This allows `next build` to evaluate route modules (including `app/api/webhooks/stripe/route.ts` which transitively imports the catalog) without crashing on missing price IDs — the build environment is not expected to have them
 
 **Webhook Handler (`app/api/webhooks/stripe/route.ts`):**
 
@@ -156,11 +179,11 @@ All 5 events from CLAUDE.md Stripe Rules are handled. No gaps.
 - `createPortalSessionAction()` — creates `stripe.billingPortal.sessions.create`; requires existing `stripeCustomerId`
 - Redirect return URLs: `NEXT_PUBLIC_APP_URL/settings?billing=success|canceled`
 
-**Price Catalog Env Vars:**
+**Price Catalog Env Vars (lazy-accessed):**
 - `STRIPE_PRICE_STARTER_MONTHLY`, `STRIPE_PRICE_STARTER_ANNUAL`
 - `STRIPE_PRICE_GROWTH_MONTHLY`, `STRIPE_PRICE_GROWTH_ANNUAL`
 - `STRIPE_PRICE_BUSINESS_MONTHLY`, `STRIPE_PRICE_BUSINESS_ANNUAL`
-- All 6 required at module load; `StripeCatalogConfigError` thrown on missing or duplicate values
+- All 6 required at first `getPriceCatalog()` call; `StripeCatalogConfigError` thrown on missing or duplicate values
 
 **Required Env Vars:**
 - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
@@ -248,7 +271,7 @@ Both are scaffolded in environment configuration and CI workflows for future act
 
 **GitHub Actions Workflows:**
 - `.github/workflows/verify.yml` — general PR + push verification
-- `.github/workflows/verify-phase-6.yml` — Phase 6 full verification (runs `pnpm verify:phase-6` with all secrets); triggers on PR, push to `main`/`gsd/**`, workflow_dispatch
+- `.github/workflows/verify-phase-6.yml` — Phase 6 full verification (runs `pnpm verify:phase-6` with all secrets); triggers on `pull_request`, `push` to `main` only (`gsd/**` push was removed — concurrent push+PR jobs deadlocked on TRUNCATE against the shared verification DB; see workflow comment), and `workflow_dispatch`
 - `.github/workflows/migrate.yml` — migration application pipeline
 
 **Vercel:**
@@ -274,12 +297,12 @@ Both are scaffolded in environment configuration and CI workflows for future act
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe | Client-side Stripe.js |
 | `STRIPE_SECRET_KEY` | Stripe | Server-side Stripe API |
 | `STRIPE_WEBHOOK_SECRET` | Stripe | Webhook signature verification |
-| `STRIPE_PRICE_STARTER_MONTHLY` | Stripe | Price catalog |
-| `STRIPE_PRICE_STARTER_ANNUAL` | Stripe | Price catalog |
-| `STRIPE_PRICE_GROWTH_MONTHLY` | Stripe | Price catalog |
-| `STRIPE_PRICE_GROWTH_ANNUAL` | Stripe | Price catalog |
-| `STRIPE_PRICE_BUSINESS_MONTHLY` | Stripe | Price catalog |
-| `STRIPE_PRICE_BUSINESS_ANNUAL` | Stripe | Price catalog |
+| `STRIPE_PRICE_STARTER_MONTHLY` | Stripe | Price catalog (lazy-loaded) |
+| `STRIPE_PRICE_STARTER_ANNUAL` | Stripe | Price catalog (lazy-loaded) |
+| `STRIPE_PRICE_GROWTH_MONTHLY` | Stripe | Price catalog (lazy-loaded) |
+| `STRIPE_PRICE_GROWTH_ANNUAL` | Stripe | Price catalog (lazy-loaded) |
+| `STRIPE_PRICE_BUSINESS_MONTHLY` | Stripe | Price catalog (lazy-loaded) |
+| `STRIPE_PRICE_BUSINESS_ANNUAL` | Stripe | Price catalog (lazy-loaded) |
 | `ANTHROPIC_API_KEY` | Anthropic | All AI endpoints — server-only |
 | `RESEND_API_KEY` | Resend | Phase 7 email (not yet used) |
 | `RESEND_FROM_EMAIL` | Resend | Phase 7 email (not yet used) |
@@ -293,4 +316,4 @@ Both are scaffolded in environment configuration and CI workflows for future act
 
 ---
 
-*Integration audit: 2026-05-30*
+*Integration audit: 2026-06-04*

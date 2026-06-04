@@ -1,7 +1,12 @@
-<!-- refreshed: 2026-05-30 -->
+---
+last_mapped_commit: 6f17412a2df1218e9a618d7b58df00fe1e595a7a
+last_mapped_date: 2026-06-04
+scan_mode: fast (tech+arch)
+---
+
 # Architecture
 
-**Analysis Date:** 2026-05-30
+**Analysis Date:** 2026-06-04
 
 ## System Overview
 
@@ -12,7 +17,7 @@
 │  (marketing)/   (auth)/   (onboarding)/   (admin)/   (employee)/            │
 │  Public pages   Clerk UI  Create org      Admin UI   Employee UI            │
 │  `app/(marketing)` `app/(auth)` `app/(onboarding)` `app/(admin)` `app/(employee)` │
-└──────────┬───────────────────────────────────────────────────┬──────────────┘
+└──────────┬───────────────────────────────────────────────────────┬──────────┘
            │  Server Actions / API Route Handlers              │
            ▼                                                   ▼
 ┌──────────────────────────────┐    ┌─────────────────────────────────────────┐
@@ -24,7 +29,7 @@
 │  ├── webhooks/clerk          │    │  ├── policies/state-machine.ts         │
 │  └── webhooks/stripe         │    │  ├── stripe/products.ts (tier gating)  │
 └──────────┬───────────────────┘    │  ├── stripe/client.ts                  │
-           │                        │  ├── stripe/catalog.ts                 │
+           │                        │  ├── stripe/catalog.ts (lazy)          │
            ▼                        │  ├── stripe/normalize.ts               │
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │  Data Layer                                                                  │
@@ -114,13 +119,13 @@
 - Purpose: Tenant-scoped, transactional DB access with RLS enforcement.
 - `lib/db/scoped.ts` — `withOrgScope(ctx, fn)` opens Drizzle transaction, executes `SET LOCAL ROLE authenticated` and `set_config('request.jwt.claims', claims, true)` inside the transaction so RLS predicates evaluate against `ctx.orgId`.
 - `lib/db/repositories/` — per-aggregate modules (`Policies`, `PolicyVersions`, `Acknowledgments`, `PolicyAssignments`, etc.). All take `OrgScope` first. None import raw `db` (enforced by `scripts/check-db-imports.ts`).
-- Exception allow-list for raw `db`: `lib/db/index.ts`, `app/api/webhooks/clerk/route.ts` (service-role provisioning), `lib/db/scoped.ts`, `lib/stripe/products.ts` (tier-check runs before `withOrgScope` opens).
+- Exception allow-list for raw `db` (app modules; source of truth = `scripts/check-db-imports.ts:39-51`): `app/api/webhooks/clerk/route.ts` (service-role provisioning), `app/api/webhooks/stripe/route.ts`, `lib/auth/context.ts`, `lib/db/scoped.ts`, `lib/stripe/products.ts` (tier-check runs before `withOrgScope` opens). `lib/db/index.ts` is the barrel that DEFINES `db`, not an importer; the allow-list also covers `tests/**`, `scripts/check-{rls,schema,db}.ts`, `lib/db/index.test.ts`, and `app/api/cron/**`.
 
 **Billing Layer:**
 - Purpose: Stripe subscription lifecycle management and tier-feature gating.
 - Location: `lib/stripe/`
 - `client.ts` — lazy singleton `getStripeClient()` from `STRIPE_SECRET_KEY`.
-- `catalog.ts` — `PRICE_CATALOG` built from 6 env vars at startup (`STRIPE_PRICE_{TIER}_{INTERVAL}`). Maps price IDs ↔ tier + interval.
+- `catalog.ts` — LAZY SINGLETON (PR #38); `getPriceCatalog()` called on first use, reads 6 env vars, throws `StripeCatalogConfigError` if misconfigured.
 - `normalize.ts` — `normalizeSubscription()` maps a Stripe `Subscription` to a discriminated union: `entitled` (active/trialing → write `planTier`), `preserve-tier` (past_due → keep existing tier), `downgrade` (canceled/unpaid → set `starter`), `link-only` (incomplete → store IDs only).
 - `products.ts` — `TIER_LIMITS` constant, `checkTierLimit()`, `requireTierLimit()`. Reads `organizations.plan_tier` from DB via `readPlanTier()` helper (spyable for tests via self-namespace import pattern).
 - `errors.ts` — `TierLimitExceededError` (statusCode 429 for usage-bound, 403 for tier-bound), `StripeConfigError`, `StripeCatalogConfigError`.
@@ -129,7 +134,7 @@
 **Policy Domain Layer:**
 - Purpose: Policy lifecycle business rules.
 - `lib/policies/state-machine.ts` — pure DAG, no DB import. `ALLOWED_TRANSITIONS`, `canTransition()`, `IllegalTransitionError`.
-- `lib/policies/transitions.ts` — server-only orchestrators (`publishPolicy`, `submitForReview`, `approvePolicy`, `archivePolicy`, `restorePolicy`, `editPublished`). Each calls `getOrgContext()` + `requireAdminFromCtx()` + `withOrgScope()` + validates transition + writes version snapshot + status update atomically.
+- `lib/policies/transitions.ts` — 7 server-only orchestrators (`submitForReview`, `approve`, `reject`, `publish`, `archive`, `restore`, `editPublished`). Each calls `getOrgContext()` + `requireAdminFromCtx()` + `withOrgScope()` + validates the transition + writes version snapshot + status update atomically.
 - `lib/policies/acknowledgment.ts` — server-only acknowledgment write orchestrator. Wraps 4 DB operations in one transaction: policy read, assignment check, version lookup, `INSERT ON CONFLICT DO NOTHING`.
 
 **AI Layer:**
@@ -198,7 +203,7 @@
 - Purpose: Single source of truth for allowed policy status transitions.
 - Location: `lib/policies/state-machine.ts`
 - Transitions: `draft → [under_review, published]`, `under_review → [published, draft]`, `published → [archived, draft]`, `archived → [draft]`.
-- Tier gating for `approvalWorkflows` (Growth+) is layered on top in `lib/policies/transitions.ts` via `requireTierLimit()`.
+- `approvalWorkflows` is defined as a Growth+ flag in `TIER_LIMITS` (`lib/stripe/products.ts`) but is NOT currently enforced: `requireTierLimit()` is invoked only in `app/api/ai/draft/route.ts:61` (`aiDraftsMonthly`) and `app/api/ai/consistency/route.ts:72` (`consistencyCheck`) — it is not called anywhere in `lib/policies/`, so the transition orchestrators are not tier-gated. (Tracked as a tier-gating gap; see the consultant risk register.)
 
 **NormalizedSubscription:**
 - Purpose: Discriminated union translating Stripe subscription state to billing intent.
@@ -234,16 +239,19 @@
 **Clerk Webhook:**
 - Location: `app/api/webhooks/clerk/route.ts`
 - Triggers: Clerk organization/user/membership events.
-- Only file in `app/` allowed to import raw `db` directly (service-role provisioning).
+- One of the `app/` files allow-listed to import raw `db` directly (here for service-role org/user provisioning; allow-list at `scripts/check-db-imports.ts:39-51`) — the others are `app/api/webhooks/stripe/route.ts` and the planned `app/api/cron/**` routes.
 
 ## Architectural Constraints
 
 - **Threading:** Single-threaded Node.js event loop on Vercel serverless functions. Anthropic client configured with `maxRetries: 0` and `timeout: 25_000ms` to prevent function monopolization.
-- **Global state:** Module-level singletons for `stripeClient` (`lib/stripe/client.ts`), `anthropicClient` (`lib/ai/client.ts`), and `db` (`lib/db/index.ts`). All lazy-initialized.
+- **Global state (Lazy Modules):** Module-level singletons for `db` (`lib/db/index.ts`), `stripeClient` (`lib/stripe/client.ts`), and `anthropicClient` (`lib/ai/client.ts`). `db` and Stripe price catalog are LAZY-INITIALIZED (PRs #37 & #38) so `next build` doesn't crash on missing env vars.
+  - `lib/db/index.ts`: `db` is a Proxy that defers connection until first property access via `resolveDb()`.
+  - `lib/stripe/catalog.ts`: `getPriceCatalog()` function defers `buildCatalog()` until first call, caches on success.
+  - Both allow build-time evaluation of route modules without side effects; the throw fires on first RUNTIME use where env vars ARE configured.
 - **RLS + SET LOCAL ordering:** `SET LOCAL ROLE authenticated` MUST precede `set_config('request.jwt.claims', ..., true)` within the transaction. `is_local = true` is required to prevent claim leakage across pooled connections. (`lib/db/scoped.ts:61-66`)
-- **Raw body requirement:** Both webhook routes call `request.text()` before any `request.json()` — body streams are readable only once. (`app/api/webhooks/stripe/route.ts:453`, `app/api/webhooks/clerk/route.ts:161`)
+- **Raw body requirement:** Both webhook routes read the raw body before any JSON parse — body streams are readable only once. (`app/api/webhooks/stripe/route.ts:453` `request.text()`; `app/api/webhooks/clerk/route.ts:160` `req.text()`)
 - **Circular imports:** `lib/stripe/products.ts` uses a self-namespace import (`import * as self from './products'`) so `vi.spyOn` can intercept exported helper calls made inside the module. This is the one intentional self-reference in the codebase.
-- **Drizzle raw-db allow-list:** Enforced by `scripts/check-db-imports.ts`. Allowed: `lib/db/index.ts`, `lib/db/scoped.ts`, `app/api/webhooks/clerk/route.ts`, `lib/stripe/products.ts`. All other modules must use `scope.tx`.
+- **Drizzle raw-db allow-list:** Enforced by `scripts/check-db-imports.ts` (the regex allow-list at :39-51 is the source of truth). App-module importers: `lib/db/scoped.ts`, `lib/auth/context.ts`, `app/api/webhooks/clerk/route.ts`, `app/api/webhooks/stripe/route.ts`, `lib/stripe/products.ts` (plus `tests/**`, `scripts/check-{rls,schema,db}.ts`, `lib/db/index.test.ts`, `app/api/cron/**`). `lib/db/index.ts` is the barrel itself, not an importer. All other modules must use `scope.tx`.
 
 ## Anti-Patterns
 
@@ -273,7 +281,9 @@
 
 ## Phase 6 Billing: Subscription State Machine
 
-### Organization Billing Columns (`organizations` table, migration `drizzle/0012_billing_state.sql`)
+### Organization Billing Columns (`organizations` table)
+
+> Column provenance: `plan_tier`, `stripe_customer_id`, `stripe_subscription_id`, `stripe_subscription_status` were added in `0000_initial.sql` (:49-52). The remaining 5 (`stripe_price_id`, `stripe_subscription_item_id`, `stripe_current_period_end`, `stripe_cancel_at_period_end`, `stripe_last_event_created`) were added by Phase 6 migration `drizzle/0012_billing_state.sql`.
 
 | Column | Type | Purpose |
 |--------|------|---------|
@@ -281,7 +291,7 @@
 | `stripe_customer_id` | `text` nullable | Stripe `cus_...` — set on first checkout/webhook |
 | `stripe_subscription_id` | `text` nullable | Stripe `sub_...` — set when subscription creates |
 | `stripe_subscription_status` | `text` default `'trialing'` | Stripe status: `trialing \| active \| past_due \| canceled \| ...` |
-| `stripe_price_id` | `text` nullable | Current price ID — maps back to tier via `PRICE_CATALOG` |
+| `stripe_price_id` | `text` nullable | Current price ID — maps back to tier via `priceIdToTier()` (`lib/stripe/catalog.ts`), backed by the lazy `getPriceCatalog()` singleton |
 | `stripe_subscription_item_id` | `text` nullable | For future quantity/usage updates |
 | `stripe_current_period_end` | `timestamptz` nullable | Next renewal date |
 | `stripe_cancel_at_period_end` | `boolean` default `false` | Pending cancellation flag |
@@ -325,7 +335,7 @@ Seed state for new orgs (set by `organization.created` Clerk webhook):
 - Auth bootstrap errors (`BootstrapError` subclasses): thrown by `getOrgContext()`, caught by page layouts and the post-sign-in trampoline.
 - `ForbiddenError` (403): thrown by `requireAdminFromCtx()` — API routes only. Page routes use `notFound()` (404 per D-10 "advertise nothing").
 - `TierLimitExceededError`: thrown by `requireTierLimit()` — statusCode 429 (usage) or 403 (feature). Caught in API route try/catch.
-- `IllegalTransitionError`: thrown by `canTransition()` validation in transition orchestrators.
+- `IllegalTransitionError`: thrown by the transition orchestrators when `canTransition()` returns false — in `loadAndAssertTransition()` (`lib/policies/transitions.ts:96`) and `editPublished()` (`:301`). `canTransition()` itself (`lib/policies/state-machine.ts:29-31`) returns a boolean and does not throw.
 - Anthropic errors: logged with PII-safe truncation, returned as 503 + `Retry-After: 30`.
 - Stripe webhook errors: bad signature → 400; processing failure → 500 (Stripe retries).
 - `ClerkAuthFailedError`: NOT a BootstrapError — represents infra failure, must not be caught by onboarding-redirect handlers.
@@ -344,4 +354,4 @@ Seed state for new orgs (set by `organization.created` Clerk webhook):
 
 ---
 
-*Architecture analysis: 2026-05-30*
+*Architecture analysis: 2026-06-04*

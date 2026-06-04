@@ -1,6 +1,12 @@
+---
+last_mapped_commit: 6f17412a2df1218e9a618d7b58df00fe1e595a7a
+last_mapped_date: 2026-06-04
+scan_mode: fast (tech+arch)
+---
+
 # Technology Stack
 
-**Analysis Date:** 2026-05-30
+**Analysis Date:** 2026-06-04
 
 ## Languages
 
@@ -50,6 +56,9 @@
 - ts-morph 28.0.0 — TypeScript AST analysis for custom verify scripts
 - js-yaml / ajv — YAML parsing + JSON schema validation used in artifact checks
 
+**Codebase Intelligence (NEW — added PR #36, 2026-06-03):**
+- fallow `^2.87.0` — deterministic structural analysis for TS/JS; answers dead-code, duplication, circular-deps, complexity without AI
+
 ## Key Dependencies
 
 **Critical:**
@@ -59,7 +68,7 @@
 - `@clerk/nextjs ^7.3.4` — Auth + organization management; middleware at `middleware.ts`
 - `stripe ^22.2.0` — Stripe Checkout, Customer Portal, Webhooks (Phase 6)
 - `svix 1.93.0` — Svix webhook verification for Clerk events (pinned exact)
-- `@supabase/supabase-js ^2.105.4` — Supabase client (primarily used for RLS JWT injection; runtime queries go through Drizzle)
+- `@supabase/supabase-js ^2.105.4` — installed but currently UNUSED in app code (fallow flags it an unused dependency; no import in `app/`/`lib/`/`components/`, only a string literal in `scripts/check-artifacts.ts`). RLS JWT injection is done via Drizzle/`postgres` `set_config('request.jwt.claims', …)` in `lib/db/scoped.ts`, NOT this client. Cleanup candidate.
 - `zod ^3.23.5` — Input validation at API and Server Action boundaries
 
 **Infrastructure:**
@@ -89,11 +98,22 @@
 
 **Linting (`eslint.config.mjs`):**
 - Extends `next/core-web-vitals` + `next/typescript` via `@eslint/eslintrc` FlatCompat
-- Ignores: `node_modules/**`, `.next/**`, `.tmp/**`, `Designprototypes/**`, `out/**`, `build/**`
+- Ignores: `node_modules/**`, `.next/**`, `.tmp/**`, `Designprototypes/**`, `out/**`, `build/**`, `next-env.d.ts`
 
 **PostCSS (`postcss.config.mjs`):**
 - Single plugin: `@tailwindcss/postcss` (Tailwind v4 form)
 - Vitest overrides this to empty plugin list so unit tests skip CSS compilation
+
+**Fallow Codebase Analysis (`.fallowrc.json`, PR #36):**
+- Entry points auto-detected (Next.js App Router, Drizzle, Clerk, Server Actions)
+- Duplication rules: ignore tests, verification scripts, `lib/db/schema.ts` (intentional repetition)
+- Health rules: ignore tests and `scripts/**` (complexity in verification gates is not product-runtime risk)
+- Staged adoption: unused exports/dependencies surface as `warn` (exit 0); circular deps, boundary violations stay `error`
+
+**MCP Servers (`.mcp.json`, added fallow):**
+- `supabase` — HTTP MCP for Supabase project introspection
+- `stripe` — HTTP MCP for Stripe API reference
+- `fallow` — stdio MCP for codebase analysis via `fallow` CLI
 
 ## Scripts
 
@@ -114,6 +134,7 @@
 | `check:rls` | RLS policy presence check |
 | `check:ai-layer` | Vitest integration harness against live DB |
 | `check:acknowledgment-immutability` | Append-only audit trail invariant |
+| `check:db-imports` | Enforce raw-db import allow-list |
 
 ## Platform Requirements
 
@@ -132,4 +153,4 @@
 
 ---
 
-*Stack analysis: 2026-05-30*
+*Stack analysis: 2026-06-04*
