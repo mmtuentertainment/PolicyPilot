@@ -99,13 +99,50 @@ export const WorkflowStages = {
       .returning(),
 
   /**
-   * Approve or reject a pending stage row. Stamps reviewedAt = now()
-   * (the schema's lifecycle column; see header note re: completedAt).
-   * WHERE includes BOTH orgId AND id (T-03-04-04 mitigation —
-   * no row updated by id alone).
+   * FIX-B (Phase 9 adversarial review) — supersede every still-PENDING stage of a
+   * policy (status 'pending' → 'superseded'). Called by submitForReview BEFORE
+   * recordSubmission so each submit cycle starts clean with AT MOST one pending
+   * stage. Without it, the admin reject() path (which flips only policies.status
+   * to draft and LEAVES the pending workflow_stages row) lets
+   * submit→admin-reject→edit→resubmit accumulate TWO pending stages — which wedges
+   * the publish completeness gate (pending>0 forever) and is undrainable from the
+   * reviewer UI (it surfaces only the first pending). 'superseded' is
+   * projection-only: it is NOT 'pending', so it neither blocks the publish gate
+   * nor appears in the /reviewer queue (both filter status='pending'), and it
+   * writes NO review_decisions ledger row (it is not a reviewer decision). The
+   * status column is plain text (no enum/CHECK), so 'superseded' needs no migration.
+   */
+  supersedePending: (s: OrgScope, policyId: PolicyId) =>
+    s.tx
+      .update(workflowStages)
+      .set({ status: 'superseded', reviewedAt: sql`now()` })
+      .where(
+        and(
+          eq(workflowStages.orgId, s.orgId),
+          eq(workflowStages.policyId, policyId),
+          eq(workflowStages.status, 'pending'),
+        ),
+      )
+      .returning(),
+
+  /**
+   * Approve or reject a PENDING stage row of a SPECIFIC policy. Stamps
+   * reviewedAt = now() (the schema's lifecycle column; see header note re:
+   * completedAt).
+   *
+   * FIX-A (Phase 9 adversarial review) — the WHERE now binds orgId AND policyId
+   * AND id AND status='pending'. The original orgId+id form (T-03-04-04) let a
+   * same-org reviewer/admin POST a (policyId=B, stageId=A's-pending-stage)
+   * mismatch and flip/strand a SIBLING policy's stage + write a misattributed
+   * immutable ledger row. Binding policyId makes a cross-policy stageId a 0-row
+   * update; binding status='pending' makes an already-decided stage a 0-row
+   * update (no re-flipping a settled stage). The caller (recordReviewDecision)
+   * asserts returning().length > 0 BEFORE the ledger insert, so any mismatch
+   * rolls the whole tx back with no ledger row and no sibling-policy change.
    */
   recordDecision: (
     s: OrgScope,
+    policyId: PolicyId,
     stageId: string,
     decision: 'approved' | 'rejected',
     comment?: string,
@@ -120,7 +157,9 @@ export const WorkflowStages = {
       .where(
         and(
           eq(workflowStages.orgId, s.orgId),
+          eq(workflowStages.policyId, policyId),
           eq(workflowStages.id, stageId),
+          eq(workflowStages.status, 'pending'),
         ),
       )
       .returning(),

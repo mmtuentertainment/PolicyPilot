@@ -82,12 +82,15 @@ vi.mock('@/lib/db/repositories/policy_versions', () => ({
 
 const wfSubmitMock = vi.fn();
 const wfRecordDecisionMock = vi.fn();
+const wfSupersedePendingMock = vi.fn();
 const wfListForPolicyMock = vi.fn();
 vi.mock('@/lib/db/repositories/workflow_stages', () => ({
   WorkflowStages: {
     recordSubmission: (...args: unknown[]) => wfSubmitMock(...args),
     // Phase 9 D-09-01 — wired by recordReviewDecision + the publish() gate.
     recordDecision: (...args: unknown[]) => wfRecordDecisionMock(...args),
+    // Phase 9 FIX-B — submitForReview supersedes stale pending stages first.
+    supersedePending: (...args: unknown[]) => wfSupersedePendingMock(...args),
     listForPolicy: (...args: unknown[]) => wfListForPolicyMock(...args),
   },
 }));
@@ -136,7 +139,7 @@ import {
   restore,
 } from './transitions';
 import { IllegalTransitionError } from './state-machine';
-import { WorkflowIncompleteError } from './errors';
+import { WorkflowIncompleteError, StageNotActionableError } from './errors';
 import type { PolicyId } from './types';
 
 // ADR-028 — orchestrator signatures now require `policyId: PolicyId` (the
@@ -162,7 +165,12 @@ beforeEach(() => {
   pvCreateMock.mockReset();
   wfSubmitMock.mockReset();
   wfRecordDecisionMock.mockReset();
-  wfRecordDecisionMock.mockResolvedValue([]);
+  // FIX-A — recordReviewDecision now asserts recordDecision hit >=1 row before the
+  // ledger write; default to a non-empty (success) result so the existing
+  // happy-path tests pass. The 0-row case is exercised explicitly below.
+  wfRecordDecisionMock.mockResolvedValue([{ id: 's1' }]);
+  wfSupersedePendingMock.mockReset();
+  wfSupersedePendingMock.mockResolvedValue([]);
   wfListForPolicyMock.mockReset();
   wfListForPolicyMock.mockResolvedValue([]);
   reviewRecordMock.mockReset();
@@ -287,6 +295,18 @@ describe('submitForReview', () => {
     await submitForReview(POLICY_ID_FIXTURE, null);
     expect(wfSubmitMock).toHaveBeenCalledWith(expect.anything(), 'p1', null);
     expect(txUpdateMock).toHaveBeenCalled();
+  });
+
+  it('supersedes any stale pending stage before recording the new submission (FIX-B)', async () => {
+    findByIdMock.mockResolvedValueOnce([
+      { id: 'p1', status: 'draft', currentVersion: 1, contentJson: {} },
+    ]);
+    await submitForReview(POLICY_ID_FIXTURE, null);
+    // supersedePending clears any stale pending stage (e.g. from a prior
+    // admin-reject cycle) and is bound to this policy — guaranteeing the publish
+    // gate's pending count can never wedge above the current cycle.
+    expect(wfSupersedePendingMock).toHaveBeenCalledWith(expect.anything(), POLICY_ID_FIXTURE);
+    expect(wfSubmitMock).toHaveBeenCalledWith(expect.anything(), 'p1', null);
   });
 });
 
@@ -593,6 +613,7 @@ describe('recordReviewDecision (Phase 9, D-09-01)', () => {
     ).resolves.toBeUndefined();
     expect(wfRecordDecisionMock).toHaveBeenCalledWith(
       expect.anything(),
+      POLICY_ID_FIXTURE,
       's1',
       'approved',
       'lgtm',
@@ -621,6 +642,7 @@ describe('recordReviewDecision (Phase 9, D-09-01)', () => {
     ).resolves.toBeUndefined();
     expect(wfRecordDecisionMock).toHaveBeenCalledWith(
       expect.anything(),
+      POLICY_ID_FIXTURE,
       's1',
       'rejected',
       undefined,
@@ -673,5 +695,18 @@ describe('recordReviewDecision (Phase 9, D-09-01)', () => {
     ).rejects.toThrow('reviewer or admin role required');
     expect(wfRecordDecisionMock).not.toHaveBeenCalled();
     expect(reviewRecordMock).not.toHaveBeenCalled();
+  });
+
+  it('throws StageNotActionableError when recordDecision hits no actionable pending stage — and writes NO ledger row (FIX-A)', async () => {
+    // A crafted/stale (policyId, stageId) mismatch or an already-decided stage
+    // makes recordDecision a 0-row update; recordReviewDecision must throw BEFORE
+    // the immutable ledger insert so no misattributed row is written and no
+    // sibling-policy state is changed.
+    wfRecordDecisionMock.mockResolvedValueOnce([]);
+    await expect(
+      recordReviewDecision(POLICY_ID_FIXTURE, 's1', 'approved', 'lgtm'),
+    ).rejects.toBeInstanceOf(StageNotActionableError);
+    expect(reviewRecordMock).not.toHaveBeenCalled();
+    expect(txUpdateMock).not.toHaveBeenCalled();
   });
 });

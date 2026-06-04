@@ -53,7 +53,8 @@ export type PolicyDomainErrorCode =
   | 'POLICY_ARCHIVED'
   | 'POLICY_NOT_ASSIGNED'
   | 'ACKNOWLEDGMENT_NOT_RECORDED'
-  | 'WORKFLOW_INCOMPLETE';
+  | 'WORKFLOW_INCOMPLETE'
+  | 'STAGE_NOT_ACTIONABLE';
 
 /**
  * Marker abstract base for errors that lib/policies/ throws during
@@ -154,5 +155,30 @@ export class WorkflowIncompleteError extends PolicyDomainError {
       `Policy workflow incomplete: ${policyId} (pending=${pending}, approved=${approved})`,
     );
     this.name = 'WorkflowIncompleteError';
+  }
+}
+
+/**
+ * Phase 9 (R-017 / D-09-01) — FIX-A (Phase 9 adversarial review). A reviewer or
+ * admin POSTed a (policyId, stageId) pair whose targeted workflow_stages row is
+ * NOT an actionable PENDING stage of THIS policy: the stageId belongs to a
+ * different policy, the stage is no longer 'pending' (already approved / rejected
+ * / superseded), or it does not exist in this org. recordReviewDecision
+ * (lib/policies/transitions.ts) asserts WorkflowStages.recordDecision hit exactly
+ * one such row (returning().length > 0) BEFORE appending the immutable
+ * review_decisions ledger row — so a mismatched or crafted POST rolls back with
+ * NO misattributed ledger entry and NO sibling-policy state change. (Org RLS
+ * already held cross-tenant; this defends ledger integrity + sibling policies
+ * WITHIN an org.)
+ *
+ * handleReviewError (app/(reviewer)/reviewer/actions.ts) maps it to a benign
+ * "no longer available" toast — never a 500. INFO-DISCLOSURE BOUNDARY: policyId
+ * only (the reviewer already has it from the queue); orgId/userId never appear.
+ */
+export class StageNotActionableError extends PolicyDomainError {
+  readonly code = 'STAGE_NOT_ACTIONABLE';
+  constructor(public readonly policyId: string) {
+    super(`Workflow stage not actionable: ${policyId}`);
+    this.name = 'StageNotActionableError';
   }
 }

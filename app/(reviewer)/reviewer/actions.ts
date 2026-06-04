@@ -12,6 +12,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { recordReviewDecision } from '@/lib/policies/transitions';
 import { IllegalTransitionError } from '@/lib/policies/state-machine';
+import { StageNotActionableError } from '@/lib/policies/errors';
 import { PolicyIdSchema } from '@/lib/policies/types';
 
 export type ActionState = { ok: true } | { ok: false; error: string };
@@ -35,6 +36,12 @@ function parseDecisionPayload(
 function handleReviewError(err: unknown): ActionState {
   // reject() can throw IllegalTransitionError if the policy is not under_review.
   if (err instanceof IllegalTransitionError) return { ok: false, error: err.message };
+  // FIX-A (Phase 9 review): a crafted/stale (policyId, stageId) mismatch or an
+  // already-decided stage rolls back as StageNotActionableError — surface a
+  // benign "no longer available" message instead of bubbling to a 500.
+  if (err instanceof StageNotActionableError) {
+    return { ok: false, error: 'This review item is no longer available.' };
+  }
   // Auth/bootstrap and unexpected errors bubble to the Next.js error boundary.
   throw err;
 }

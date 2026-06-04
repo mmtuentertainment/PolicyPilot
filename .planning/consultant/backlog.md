@@ -1,6 +1,6 @@
 # Consultant Backlog — PolicyPilot
 
-Updated: 2026-06-04 - approvalWorkflows tier-gate gap surfaced (rank 16 / risk R-017); stale dead-branch guard retired (`gsd/phase-6-billing` deleted)
+Updated: 2026-06-04 - rank-16 approvalWorkflows gate SHIPPED by the Phase 9 Reviewer MVP (`gsd/phase-9-reviewer`, D-09-01, pending operator PR); rank-17/18 added for the deferred submit-entitlement + reviewer-assignment UI
 
 Use this backlog for consultant-level sequencing only. It does not replace `.planning/ROADMAP.md` or phase plans. The purpose is to keep strategic pressure on the smallest high-value moves that improve launch readiness, revenue readiness, and trust.
 
@@ -31,7 +31,10 @@ Each input is scored 1-5. Higher priority ships first unless blocked by phase di
 | 13 | Delete throwaway billing UAT test objects. | 6 | 1 | 2 | 2 | 1 | 5 | 1 | 10 | Optional/operator cleanup | Operator may delete the "Acme Test Co" Clerk org and the canceled test subscription. |
 | 14 | Make dev org provisioning expectations explicit. | 6+ | 2 | 3 | 3 | 1 | 5 | 1 | 13 | Pending/process | Dev-created orgs without a webhook tunnel may hit `OrgNotProvisionedError`; document the tunnel/provisioning path as process, not Phase 6 code defect. |
 | 15 | Tier B: provision prod Supabase (Pro+PITR) + first working Vercel production deploy (runtime env/secrets + staged migrations). | Cross-cutting/Infra | 4 | 3 | 4 | 2 | 3 | 4 | 12 | Pending / operator-gated | Surfaced by `fix/db-lazy-init`: prod has never deployed (404 `DEPLOYMENT_NOT_FOUND`; CLI deploys frozen at `bae9174`). The lazy-db fix unblocks the build-crash class but is necessary-but-not-sufficient. Operator + Codex own provisioning + secrets; read-only on secrets this session (risks R-015/R-016). |
-| 16 | approvalWorkflows tier gate unimplemented — the Growth+ `TIER_LIMITS.approvalWorkflows` flag is enforced nowhere; `requireTierLimit` is called only in `app/api/ai/draft/route.ts:61` + `app/api/ai/consistency/route.ts:72`, never in `lib/policies/`, so the 7 transition orchestrators are not tier-gated. Confirm product intent before wiring. | 6+ | 3 | 2 | 4 | 1 | 5 | 2 | 13 | Pending / ASK-FIRST | See risk R-017 + proposal `ops/proposals/2026-06-04-approvalworkflows-tier-gate.md`. Touches the "Starter blocked from Growth features with 403" validation gate; `transitions.ts:127-128` records the original Phase-3 intent that approve would later require reviewer-tier. |
+| 16 | approvalWorkflows tier gate — wire the Growth+ `TIER_LIMITS.approvalWorkflows` flag into the policy lifecycle so the review workflow is enforced (was enforced nowhere). | 9 | 3 | 2 | 4 | 1 | 5 | 2 | 13 | Shipped (Phase 9) | **Built by the Phase 9 Reviewer MVP** on `gsd/phase-9-reviewer` (D-09-01), pending operator PR. `publish()` reads `checkTierLimit(…, 'approvalWorkflows')` and enforces a completeness gate for Growth+ (covers `approve()`, closes the publish-leak); Starter stays direct-publish. Resolves R-017 + the proposal `ops/proposals/2026-06-04-approvalworkflows-tier-gate.md` (chosen shape: a publish()-completeness gate — a variant of option A scoped at the true publish boundary rather than gating submit/approve/reject). |
+| 17 | Submit-entitlement refinement (deferred from Phase 9) — gate `submitForReview` by tier/role: Starter-403 on reviewer-assignment, Growth+ must-assign-a-reviewer (§13a-ii). | 9+ | 3 | 2 | 3 | 1 | 4 | 3 | 10 | Deferred / backlog | Additive, non-security-bearing — the publish()-completeness gate already enforces the Growth+ workflow. Deferred because it would break existing submit tests + needs a reviewer-picker UI; build after rank-18. |
+| 18 | Per-reviewer assignment UI + reviewer-picker (deferred from Phase 9) — the MVP ships a SHARED org review queue (`listPendingForOrg`); the per-reviewer `listPendingForReviewer` seam is retained unused. | 9+ | 2 | 3 | 2 | 2 | 4 | 3 | 10 | Deferred / backlog | The `review_decisions` ledger already records the actual approver; assignment is a UX/routing refinement, not a correctness gap. Pairs with rank-17. |
+| 19 | At-most-one-pending DB invariant (hardening surfaced by the Phase 9 adversarial re-review) — add a partial unique index `UNIQUE (org_id, policy_id) WHERE status='pending'` on `workflow_stages` (or `SELECT … FOR UPDATE` on the policy row at submit) so a crafted CONCURRENT double-`submitForReview` cannot create 2 pending stages. | 9+ | 1 | 2 | 3 | 1 | 4 | 2 | 9 | Deferred / ASK-FIRST (schema) | Pre-existing class limitation, NOT introduced by FIX-B; the concurrent re-wedge is already DRAINABLE (a single resubmit supersedes both) and needs a crafted concurrent double-submit (the admin UI posts one form). A partial-unique index is a new migration → ASK-FIRST. |
 
 ---
 
@@ -49,9 +52,10 @@ Do not prioritize these until the core revenue loop is proven:
 
 ## Next Recommended Micro-Batch
 
-1. Phase 6 Billing is shipped via PR #32 at `243067e`; Phase 7 has not started.
-2. Operator-only next step: Matthew may authorize Phase 7 planning. SF-WHSEC-1 remains a follow-up before any future live webhook smoke if the current `CLERK_WEBHOOK_SECRET` was used before rotation.
-3. Do not expose secrets, change gates, or start Phase 7 implementation without explicit operator authorization. (Local `gsd/phase-6-billing` has been deleted.)
+1. **Phase 9 Reviewer MVP is built + verified green on `gsd/phase-9-reviewer`** (R-017 closure; D-09-01) — pending operator PR/merge. Not pushed; PR not opened (operator's contract). Note the `risk_register`/`backlog`/proposal merge overlap with the still-open PR #41 — Phase 9 supersedes #41's document-only park; operator resolves the merge order.
+2. Phase 6 Billing is shipped via PR #32 at `243067e`; Phase 7 has not started.
+3. Operator-only next step: Matthew may authorize Phase 7 planning. SF-WHSEC-1 remains a follow-up before any future live webhook smoke if the current `CLERK_WEBHOOK_SECRET` was used before rotation.
+4. Do not expose secrets, change gates, or start Phase 7 implementation without explicit operator authorization. (Local `gsd/phase-6-billing` has been deleted.)
 
 ---
 

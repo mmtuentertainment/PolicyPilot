@@ -57,7 +57,9 @@ const REPO_TARGETS: Record<string, string[]> = {
   'lib/db/repositories/policies.ts': ['findById', 'updateDraft', 'incrementVersion', 'updateSummary'],
   'lib/db/repositories/policy_versions.ts': ['listForPolicy', 'findByVersionNumber'],
   'lib/db/repositories/policy_assignments.ts': ['listForPolicy'],
-  'lib/db/repositories/workflow_stages.ts': ['recordSubmission', 'listForPolicy'],
+  // Phase 9 FIX-A/FIX-B — recordDecision now takes policyId: PolicyId (bind
+  // stage↔policy); supersedePending takes policyId: PolicyId. Both pinned here.
+  'lib/db/repositories/workflow_stages.ts': ['recordSubmission', 'listForPolicy', 'recordDecision', 'supersedePending'],
   // Phase 9 D-09-01 — ReviewDecisions.listForPolicy takes policyId: PolicyId.
   // `record(s, input)` takes a schema-inferred object input → out of brand
   // scope (ADR-028, like PolicyVersions.create / QaCitationGrants.upsert).

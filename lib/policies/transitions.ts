@@ -50,7 +50,11 @@ import {
   IllegalTransitionError,
   type PolicyStatus,
 } from './state-machine';
-import { PolicyNotFoundError, WorkflowIncompleteError } from './errors';
+import {
+  PolicyNotFoundError,
+  WorkflowIncompleteError,
+  StageNotActionableError,
+} from './errors';
 import type { PolicyId } from './types';
 
 // Narrowed row shape returned by Policies.findById. The drizzle column
@@ -124,6 +128,13 @@ export async function submitForReview(
   const ctx = await getAdminOrgContext();
   await withOrgScope(ctx, async (s) => {
     await loadAndAssertTransition(s, policyId, 'under_review');
+    // FIX-B (Phase 9 review): supersede any stale pending stage from a prior cycle
+    // BEFORE recording the new submission, so each policy carries AT MOST one
+    // pending stage. The admin reject() path leaves a pending row behind; without
+    // this, submit→admin-reject→edit→resubmit would accumulate 2 pending stages and
+    // wedge the publish gate (pending>0) forever. 'superseded' is projection-only —
+    // no ledger row, and the publish gate + reviewer queue both ignore it.
+    await WorkflowStages.supersedePending(s, policyId);
     // ADR-028: use the branded `policyId` (already in scope) rather than
     // `policy.id` (DB-row field typed as raw string) — semantically
     // identical (`policy.id` comes from a query keyed on `policyId`),
@@ -188,7 +199,13 @@ export async function recordReviewDecision(
 ): Promise<void> {
   const ctx = await getReviewerOrAdminOrgContext();
   await withOrgScope(ctx, async (s) => {
-    await WorkflowStages.recordDecision(s, stageId, decision, comment);
+    // FIX-A (Phase 9 review): recordDecision now binds policyId + status='pending'
+    // in its WHERE, so a crafted (policyId=B, stageId=A's-pending) POST or an
+    // already-decided stage hits ZERO rows. Assert that BEFORE the ledger insert
+    // so the whole tx rolls back with no misattributed immutable ledger row and
+    // no sibling-policy strand.
+    const updated = await WorkflowStages.recordDecision(s, policyId, stageId, decision, comment);
+    if (updated.length === 0) throw new StageNotActionableError(policyId);
     await ReviewDecisions.record(s, {
       policyId,
       stageId,

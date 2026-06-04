@@ -30,8 +30,9 @@ if (!DB_URL) {
 }
 
 // Tenant-scoped tables — RLS + org_isolation policy + 4 GRANTs to authenticated.
-// Phase 4 added batch_jobs; Phase 5 added qa_citation_grants. Keep this in
-// lockstep with scripts/check-schema.ts and scripts/check-rls.ts.
+// Phase 4 added batch_jobs; Phase 5 added qa_citation_grants; Phase 9 added
+// review_decisions (D-09-01 / FIX-C). Keep this in lockstep with
+// scripts/check-schema.ts and scripts/check-rls.ts.
 const TENANT_TABLES = [
   'organizations',
   'users',
@@ -45,6 +46,7 @@ const TENANT_TABLES = [
   'workflow_stages',
   'batch_jobs',
   'qa_citation_grants',
+  'review_decisions',
 ] as const;
 
 // Service-role tables — webhook idempotency state, no RLS.
@@ -416,6 +418,44 @@ async function main(): Promise<void> {
       });
     }
 
+    // 12b. Phase 9 D-09-01 (FIX-C) — review_decisions is an immutable audit ledger
+    // whose RLS + GRANT are HAND-WRITTEN in drizzle/0013_review_decisions.sql
+    // (Drizzle does not emit them). Existence + RLS-enabled + org_isolation policy
+    // + 4 GRANTs are already covered by the per-table loop (review_decisions is now
+    // in TENANT_TABLES); pin the security-bearing depth here: wrapped-RLS form +
+    // the two btree indexes. Column-shape is intentionally NOT pinned — it is
+    // covered by the typed repository insert + the append-only immutability gate.
+    const rdPolicy = await sql<{ qual: string | null }[]>`
+      SELECT qual FROM pg_policies
+      WHERE tablename = 'review_decisions' AND policyname = 'org_isolation'
+    `;
+    if (rdPolicy.length !== 1) {
+      failures.push({
+        check: 'review_decisions org_isolation policy exists',
+        detail: `${rdPolicy.length} policy row(s) (expected 1)`,
+      });
+    } else {
+      const qual = rdPolicy[0]!.qual ?? '';
+      if (!qual.includes('SELECT') || !qual.includes('auth.jwt(')) {
+        failures.push({
+          check: 'review_decisions wrapped RLS policy',
+          detail: `qual=${qual || '(null)'} — expected wrapped (SELECT auth.jwt()) form per 0008`,
+        });
+      }
+    }
+    const rdIdx = await sql<{ indexname: string }[]>`
+      SELECT indexname FROM pg_indexes
+      WHERE schemaname = 'public'
+        AND tablename = 'review_decisions'
+        AND indexname IN ('review_decisions_org_id_idx', 'review_decisions_policy_id_idx')
+    `;
+    if (rdIdx.length !== 2) {
+      failures.push({
+        check: 'review_decisions indexes',
+        detail: `${rdIdx.length} of 2 expected (got: ${rdIdx.map((r) => r.indexname).join(', ') || '(none)'})`,
+      });
+    }
+
     // 13. Phase 6 D-13: organizations billing column shape from 0012.
     const billingCols = await sql<{
       column_name: string;
@@ -493,6 +533,7 @@ async function main(): Promise<void> {
         `Phase 4 column shape + partial-unique index present, ` +
         `Phase 3 G3 + Phase 4/5 unique constraints present, ` +
         `qa_citation_grants columns + wrapped RLS + indexes present, ` +
+        `review_decisions wrapped RLS + indexes present, ` +
         `Phase 6 billing columns + partial unique indexes present.`,
     );
     process.exit(0);
