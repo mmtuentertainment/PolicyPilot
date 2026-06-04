@@ -65,27 +65,55 @@ describe('lib/stripe/catalog', () => {
     expect(priceIdToTier('unmapped-catalog-sentinel')).toBeUndefined();
   });
 
-  it('fails closed on a missing price env var without leaking configured values', async () => {
+  // ── Cause-B-class build-coupling regression ───────────────────────────────
+  // Importing the module MUST be side-effect-free: Next 15's `next build`
+  // evaluates route modules during "Collecting page data", and the Stripe
+  // webhook route imports this module transitively
+  // (app/api/webhooks/stripe/route.ts -> lib/stripe/normalize.ts -> here). An
+  // import-time throw (price ids absent in the build env, e.g. the Vercel
+  // Production scope) detonates the build. The lazy singleton defers the env
+  // read + fail-closed throw to first ACCESS.
+  it('does NOT throw at import when a STRIPE_PRICE_* is absent (build-coupling guard)', async () => {
     stubCompleteCatalogEnv({ STRIPE_PRICE_GROWTH_MONTHLY: undefined });
 
-    await expect(importCatalog()).rejects.toMatchObject({
-      name: 'StripeCatalogConfigError',
-      message: expect.stringContaining('STRIPE_PRICE_GROWTH_MONTHLY'),
-    });
-    await expect(importCatalog()).rejects.not.toThrow(PRICE_ENV.STRIPE_PRICE_STARTER_MONTHLY);
+    await expect(importCatalog()).resolves.toBeDefined();
   });
 
-  it('fails closed on duplicate price IDs without leaking the duplicate value', async () => {
+  it('fails closed on FIRST ACCESS when a price env var is absent, without leaking other values', async () => {
+    stubCompleteCatalogEnv({ STRIPE_PRICE_GROWTH_MONTHLY: undefined });
+    const { priceIdToTier } = await importCatalog();
+
+    let thrown: unknown;
+    try {
+      priceIdToTier('any-price-id');
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).name).toBe('StripeCatalogConfigError');
+    expect((thrown as Error).message).toContain('STRIPE_PRICE_GROWTH_MONTHLY');
+    expect((thrown as Error).message).not.toContain(PRICE_ENV.STRIPE_PRICE_STARTER_MONTHLY);
+  });
+
+  it('fails closed on FIRST ACCESS for duplicate price IDs, without leaking the duplicate value', async () => {
     const duplicateValue = 'duplicated_catalog_sentinel';
     stubCompleteCatalogEnv({
       STRIPE_PRICE_STARTER_MONTHLY: duplicateValue,
       STRIPE_PRICE_GROWTH_MONTHLY: duplicateValue,
     });
+    const { tierAndIntervalToPriceId } = await importCatalog();
 
-    await expect(importCatalog()).rejects.toMatchObject({
-      name: 'StripeCatalogConfigError',
-      message: expect.stringContaining('STRIPE_PRICE_GROWTH_MONTHLY'),
-    });
-    await expect(importCatalog()).rejects.not.toThrow(duplicateValue);
+    let thrown: unknown;
+    try {
+      tierAndIntervalToPriceId('starter', 'monthly');
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).name).toBe('StripeCatalogConfigError');
+    expect((thrown as Error).message).toContain('STRIPE_PRICE_GROWTH_MONTHLY');
+    expect((thrown as Error).message).not.toContain(duplicateValue);
   });
 });

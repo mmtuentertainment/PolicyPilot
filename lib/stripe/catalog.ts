@@ -53,16 +53,40 @@ export function buildCatalog(): readonly CatalogEntry[] {
   return Object.freeze(catalog);
 }
 
-export const PRICE_CATALOG: readonly CatalogEntry[] = buildCatalog();
+// LAZY SINGLETON — Cause-B-class build-coupling fix (companion to the lib/db
+// lazy-init fix in PR #37; lib/db/index.ts is still eager on this branch).
+//
+// `buildCatalog()` reads the six STRIPE_PRICE_* env vars and throws
+// StripeCatalogConfigError when any is missing or duplicated (fail-closed).
+// Calling it at module top level made *importing* this module a throwing side
+// effect. Next 15's `next build` evaluates every route module during the
+// "Collecting page data" phase, and the Stripe webhook route pulls this module
+// in transitively (app/api/webhooks/stripe/route.ts -> lib/stripe/normalize.ts
+// -> here), so the import-time throw detonates the build whenever the price ids
+// are absent from the build environment — exactly the case in the Vercel
+// Production scope (it holds none of the six). `export const dynamic =
+// 'force-dynamic'` on the route does NOT exempt evaluation: Next still loads the
+// module to read the directive, so only removing the import-time side effect is
+// durable.
+//
+// Defer the build to first ACCESS: importing is now side-effect-free, while the
+// fail-closed throw still fires on the first RUNTIME use (a checkout Server
+// Action or a webhook normalize call) — where the vars ARE configured. The cache
+// holds only on success, so a misconfigured environment is not memoized.
+let cachedCatalog: readonly CatalogEntry[] | undefined;
+
+export function getPriceCatalog(): readonly CatalogEntry[] {
+  return (cachedCatalog ??= buildCatalog());
+}
 
 export function priceIdToTier(priceId: string): PlanTier | undefined {
-  return PRICE_CATALOG.find((entry) => entry.priceId === priceId)?.tier;
+  return getPriceCatalog().find((entry) => entry.priceId === priceId)?.tier;
 }
 
 export function tierAndIntervalToPriceId(
   tier: PlanTier,
   interval: PriceInterval,
 ): string | undefined {
-  return PRICE_CATALOG.find((entry) => entry.tier === tier && entry.interval === interval)
+  return getPriceCatalog().find((entry) => entry.tier === tier && entry.interval === interval)
     ?.priceId;
 }
