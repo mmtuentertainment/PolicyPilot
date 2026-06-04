@@ -91,6 +91,7 @@
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "15.5.18",
+    "fallow": "^2.87.0",
     "js-yaml": "^4.1.1",
     "jsdom": "^24",
     "tailwindcss": "^4",

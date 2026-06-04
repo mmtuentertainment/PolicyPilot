@@ -1,0 +1,56 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+
+  // PolicyPilot is Next.js 15 (App Router) + Drizzle + Clerk + Stripe + Tailwind + Vitest/Playwright.
+  // fallow's built-in plugins auto-detect entry points (page/route/layout, Server Actions,
+  // drizzle.config, middleware, etc.), so no manual `entry` list is needed. fallow already skips
+  // gitignored paths (.next, node_modules, scratch, secrets, audit-report, test-results) and
+  // non-allowlisted dotdirs like .planning (ADR-006 — .planning is TRACKED, not gitignored; it is
+  // skipped as a non-allowlisted dotdir), so they need no entry here.
+
+  // --- Duplication: suppress INTENTIONAL / structural repetition ----------------------------
+  // Why: tests and the scripts/check-* verification harness legitimately repeat setup + assertion
+  // shapes; lib/db/schema.ts repeats Drizzle column groups (org_id, timestamps) per table. None of
+  // these are refactoring debt. Genuine product-code clones (api/ai/* routes, dashboard vs policies
+  // page, webhooks/stripe vs lib/stripe/normalize, ai_generations vs stripe/products) stay VISIBLE.
+  "duplicates": {
+    "ignore": [
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "**/*.spec.ts",
+      "**/*.spec.tsx",
+      "**/*.vitest.config.ts",
+      "tests/**",
+      "scripts/**",
+      "lib/db/schema.ts"
+    ]
+  },
+
+  // --- Complexity / health: exclude tests + verification scripts ----------------------------
+  // Why: complexity in tests and the scripts/check-* gates is not product-runtime risk. App, lib,
+  // and components are still measured for hotspots and the health score.
+  "health": {
+    "ignore": [
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "**/*.spec.ts",
+      "**/*.spec.tsx",
+      "tests/**",
+      "scripts/**"
+    ]
+  },
+
+  // --- Staged adoption (per fallow's compliance happy-path) ---------------------------------
+  // Why: this is an existing codebase. Surface cleanup findings as advisory `warn` (exit 0) so
+  // nothing is hidden, while keeping ARCHITECTURAL + RESOLUTION rules hard-failing (`error`,
+  // inherited from defaults): circular-dependencies, boundary-violation, unresolved-imports,
+  // unlisted-dependencies, duplicate-exports. Promote the rules below to `error` as cleanup lands.
+  "rules": {
+    "unused-files": "warn",
+    "unused-exports": "warn",
+    "unused-types": "warn",
+    "unused-class-members": "warn",
+    "unused-dependencies": "warn",
+    "unused-dev-dependencies": "warn"
+  }
+}

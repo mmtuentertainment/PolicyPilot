@@ -84,3 +84,7 @@ audit-report/audit-report.sarif
 
 # Dev server logs (UAT smoke runs, real-key probes)
 localhost-*.log
+
+# fallow (codebase intelligence) — local cache, base-snapshot worktrees, impact history.
+# The .fallowrc.json config IS tracked; only fallow's runtime/local data is ignored.
+.fallow/
