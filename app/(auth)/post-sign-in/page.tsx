@@ -17,7 +17,8 @@ import {
  *
  *   - no orgId / no role on session (getOrgContext throws) → /onboarding/create-org (D-08)
  *   - role === 'admin'                                    → /dashboard
- *   - role === 'employee' | 'reviewer'                    → /my-policies (Phase 5 stub OK)
+ *   - role === 'reviewer'                                 → /reviewer (Phase 9 / R-017)
+ *   - role === 'employee'                                 → /my-policies
  *
  * getOrgContext() throws when sessionClaims.publicMetadata.role is missing
  * (Phase 2 contract — see lib/auth/context.ts asRole()). The catch routes
@@ -83,5 +84,6 @@ export default async function PostSignInPage(): Promise<never> {
     redirect('/onboarding/create-org');
   }
   if (ctx.role === 'admin') redirect('/dashboard');
+  if (ctx.role === 'reviewer') redirect('/reviewer');
   redirect('/my-policies');
 }

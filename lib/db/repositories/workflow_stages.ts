@@ -19,7 +19,7 @@
 //   `stageName` migration and update this repository.
 import 'server-only';
 import type { OrgScope } from '@/lib/db/scoped';
-import { workflowStages } from '@/lib/db/schema';
+import { workflowStages, policies } from '@/lib/db/schema';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { PolicyId } from '@/lib/policies/types';
 
@@ -41,6 +41,39 @@ export const WorkflowStages = {
           eq(workflowStages.status, 'pending'),
         ),
       ),
+
+  /**
+   * Phase 9 (R-017 / D-09-01) — shared org review queue: every PENDING stage in
+   * the org, joined to its policy title + status, ordered by stage order DESC.
+   * Feeds the /reviewer queue. MVP uses a SHARED queue (any reviewer or admin
+   * can action any pending review) rather than per-reviewer assignment — the
+   * per-reviewer `listPendingForReviewer` seam above is retained for a future
+   * reviewer-assignment-UI follow-up. Scoped by orgId on BOTH tables (+ RLS).
+   */
+  listPendingForOrg: (s: OrgScope) =>
+    s.tx
+      .select({
+        stageId: workflowStages.id,
+        policyId: workflowStages.policyId,
+        policyTitle: policies.title,
+        policyStatus: policies.status,
+        comment: workflowStages.comment,
+      })
+      .from(workflowStages)
+      .innerJoin(
+        policies,
+        and(
+          eq(policies.id, workflowStages.policyId),
+          eq(policies.orgId, s.orgId),
+        ),
+      )
+      .where(
+        and(
+          eq(workflowStages.orgId, s.orgId),
+          eq(workflowStages.status, 'pending'),
+        ),
+      )
+      .orderBy(desc(workflowStages.stageOrder)),
 
   /**
    * INSERT a workflow row when a draft enters under_review. reviewerId

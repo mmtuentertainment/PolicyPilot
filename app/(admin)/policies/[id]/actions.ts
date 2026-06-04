@@ -39,6 +39,7 @@ import {
   editPublished,
 } from '@/lib/policies/transitions';
 import { IllegalTransitionError } from '@/lib/policies/state-machine';
+import { WorkflowIncompleteError } from '@/lib/policies/errors';
 import { PolicyIdSchema, type PolicyId } from '@/lib/policies/types';
 
 export type ActionState = { ok: true } | { ok: false; error: string };
@@ -115,6 +116,16 @@ const INVALID_PAYLOAD: ActionState = { ok: false, error: 'Invalid action payload
 function handleTransitionError(err: unknown): ActionState {
   if (err instanceof IllegalTransitionError) {
     return { ok: false, error: err.message };
+  }
+  // Phase 9 (R-017 / D-09-01) — a Growth+ publish blocked by an incomplete
+  // approval workflow surfaces as a clean toast (409/422 semantics), NEVER a
+  // 403 upgrade prompt. A friendly message is used instead of err.message so
+  // the policyId + raw counts in the error are not shown to the user.
+  if (err instanceof WorkflowIncompleteError) {
+    return {
+      ok: false,
+      error: 'This policy still needs reviewer approval before it can be published.',
+    };
   }
   throw err;
 }

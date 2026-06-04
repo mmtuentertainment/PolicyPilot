@@ -1,4 +1,4 @@
-// Drizzle schema — 14 tables: 12 tenant-scoped + 2 service-role aux (stripe_events, clerk_events).
+// Drizzle schema — 15 tables: 13 tenant-scoped + 2 service-role aux (stripe_events, clerk_events).
 //
 // Phase 2 schema amendments on top of reference/SCHEMA.md frozen contract:
 //   - D-02: org_id denormalized onto policy_versions, policy_assignments,
@@ -285,6 +285,31 @@ export const qaCitationGrants = pgTable(
     index('qa_citation_grants_user_policy_idx').on(table.userId, table.policyId),
   ],
 );
+
+// Phase 9 (R-017 / D-09-01) — append-only reviewer-decision audit ledger.
+// ②b data model: workflow_stages stays the mutable current-state projection
+// (drives the reviewer queue); review_decisions is the immutable ledger of
+// every Approve/Reject. Both written atomically in one tx (recordReviewDecision,
+// lib/policies/transitions.ts). Append-only is enforced at the APP layer
+// (ADR-018): the ReviewDecisions repository exposes insert+select only, the
+// table is in scripts/check-acknowledgment-immutability.ts IMMUTABLE_TABLES,
+// and tests/types.ts pins the no-update/no-delete invariant. RLS (wrapped
+// (SELECT auth.jwt()->>'org_id') form) + GRANT ship hand-written in
+// drizzle/0013_review_decisions.sql; this table is added to
+// scripts/check-rls.ts TENANT_TABLES.
+export const reviewDecisions = pgTable('review_decisions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }), // D-02 denormalization
+  policyId: uuid('policy_id').notNull().references(() => policies.id),
+  stageId: uuid('stage_id').notNull().references(() => workflowStages.id),
+  reviewerId: uuid('reviewer_id').notNull().references(() => users.id),
+  decision: text('decision').notNull(), // 'approved' | 'rejected' — app-layer union (plain text like workflow_stages.status; no DB CHECK). Named 'decision' (not 'status') because this ledger is immutable, not a mutable current-state.
+  comment: text('comment'),
+  decidedAt: timestamp('decided_at').defaultNow().notNull(),
+}, (table) => [
+  index('review_decisions_org_id_idx').on(table.orgId),
+  index('review_decisions_policy_id_idx').on(table.policyId),
+]);
 
 export const stripeEvents = pgTable('stripe_events', {
   // Service-role only idempotency table for Stripe webhook deliveries.

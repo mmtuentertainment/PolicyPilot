@@ -52,7 +52,8 @@ export type PolicyDomainErrorCode =
   | 'POLICY_NOT_FOUND'
   | 'POLICY_ARCHIVED'
   | 'POLICY_NOT_ASSIGNED'
-  | 'ACKNOWLEDGMENT_NOT_RECORDED';
+  | 'ACKNOWLEDGMENT_NOT_RECORDED'
+  | 'WORKFLOW_INCOMPLETE';
 
 /**
  * Marker abstract base for errors that lib/policies/ throws during
@@ -121,5 +122,37 @@ export class AcknowledgmentNotRecordedError extends PolicyDomainError {
   constructor(public readonly policyId: string) {
     super(`Acknowledgment not recorded: ${policyId}`);
     this.name = 'AcknowledgmentNotRecordedError';
+  }
+}
+
+/**
+ * Phase 9 (R-017 / D-09-01) — a Growth+ policy cannot be published because its
+ * approval workflow is not complete. Thrown INSIDE publish() (lib/policies/
+ * transitions.ts) when `approvalWorkflows` is enabled (Growth+) and EITHER:
+ *   - the policy is not currently `under_review` (require-submission-first:
+ *     direct draft→published is blocked for Growth+, which also prevents
+ *     republishing on a STALE approval after archive→restore→edit), OR
+ *   - the current review cycle is not complete (needs >=1 'approved' AND 0
+ *     'pending').
+ *
+ * Distinct from TierLimitExceededError (403 upgrade): a paying Growth customer
+ * is shown a workflow message, NEVER an upgrade prompt. handleTransitionError
+ * (app/(admin)/policies/[id]/actions.ts) maps it to a clean { ok:false } toast.
+ *
+ * INFO-DISCLOSURE BOUNDARY: policyId in the message is acceptable (the admin
+ * already has it from URL navigation); orgId/userId never appear. `pending` and
+ * `approved` are non-sensitive counts for the admin's diagnostic UI.
+ */
+export class WorkflowIncompleteError extends PolicyDomainError {
+  readonly code = 'WORKFLOW_INCOMPLETE';
+  constructor(
+    public readonly policyId: string,
+    public readonly pending: number,
+    public readonly approved: number,
+  ) {
+    super(
+      `Policy workflow incomplete: ${policyId} (pending=${pending}, approved=${approved})`,
+    );
+    this.name = 'WorkflowIncompleteError';
   }
 }
