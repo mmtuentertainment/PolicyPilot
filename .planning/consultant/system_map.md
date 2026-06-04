@@ -1,6 +1,6 @@
 # Consultant System Map — PolicyPilot
 
-Updated: 2026-05-31 - Phase 6 shipped via PR #32
+Updated: 2026-06-04 - dead-branch retention claim retired (`gsd/phase-6-billing` deleted); approvalWorkflows tier-gate gap noted (R-017)
 
 ## Product Boundary
 
@@ -80,7 +80,7 @@ Phase 8 Validation      pending
 
 Phase 5 shipped via PR #27 at `3344847`. Phase 6 shipped via PR #32 at squash commit `243067e9f259561a595230e5e7d3e97634040157` after prior PR head `1abca44dff89ccc7151d59b07fe1a93ce3d7be81` passed the hosted pre-merge gate. Plans 06-01 through 06-06 are complete: catalog/client/mask helpers exist, the additive billing-state migration is applied to the approved TEST/dev Supabase target, the Stripe webhook route verifies raw bodies, handles the 5 locked events, re-fetches canonical subscriptions where required, writes idempotently, `maxUsers` uses a real org-scoped user count, the admin checkout Server Action creates Stripe Checkout Sessions from server-derived org/price/metadata, public pricing carries only non-authoritative tier/interval intent, `/settings` is admin-gated, the admin billing page opens Stripe Customer Portal sessions from the DB-stored customer ID only, and `verify:phase-6` plus the hosted workflow/UAT checklist are wired. Local `pnpm db:verify`, pre-merge `pnpm verify:phase-6`, Stripe test-mode UAT rows 1-11, hosted pre-merge PR #32 checks, and post-merge targeted checks are green/acceptable. Hosted CI mutates only the approved dev/test Supabase target through TRUNCATE/seed; staging/prod remain operator-gated.
 
-Post-ship topology note: `gsd/phase-6-billing` contained local docs/topology work after the PR branch was published. The product/security scoped diff between that branch and `gsd/phase-6-stripe-uat-complete` was checked empty on 2026-05-31 before carrying over only safe docs. The remote PR branch was deleted by merge. Retire local `gsd/phase-6-billing` only after Matthew approves branch deletion.
+Post-ship topology note: `gsd/phase-6-billing` contained local docs/topology work after the PR branch was published. The product/security scoped diff between that branch and `gsd/phase-6-stripe-uat-complete` was checked empty on 2026-05-31 before carrying over only safe docs. The remote PR branch was deleted by merge, and local `gsd/phase-6-billing` has since been deleted (no longer divergent).
 
 ---
 
