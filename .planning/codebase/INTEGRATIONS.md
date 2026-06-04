@@ -55,7 +55,7 @@ scan_mode: fast (tech+arch)
 
 **Purpose:** Primary data store; Row-Level Security enforces tenant isolation at DB layer.
 
-**SDK:** `@supabase/supabase-js ^2.105.4` (client-side + service-role); `drizzle-orm ^0.45.2` (primary query interface); `postgres ^3.4.9` (driver)
+**SDK:** `drizzle-orm ^0.45.2` (primary query interface) over `postgres ^3.4.9` (driver). NOTE: `@supabase/supabase-js ^2.105.4` is pinned in `package.json` but currently UNUSED in app code (fallow flags it an unused dep) — all DB access is via Drizzle/`postgres`, and RLS claims are injected through `set_config` in `lib/db/scoped.ts`, not this client.
 
 **Surface:**
 - `lib/db/index.ts` — Drizzle singleton over `postgres` driver; LAZY-INITIALIZED (PR #37, 2026-06-03) so `next build` doesn't crash without `DATABASE_URL`; `prepare: false` required for Supabase Transaction pooler
@@ -271,7 +271,7 @@ Both are scaffolded in environment configuration and CI workflows for future act
 
 **GitHub Actions Workflows:**
 - `.github/workflows/verify.yml` — general PR + push verification
-- `.github/workflows/verify-phase-6.yml` — Phase 6 full verification (runs `pnpm verify:phase-6` with all secrets); triggers on PR, push to `main`/`gsd/**`, workflow_dispatch
+- `.github/workflows/verify-phase-6.yml` — Phase 6 full verification (runs `pnpm verify:phase-6` with all secrets); triggers on `pull_request`, `push` to `main` only (`gsd/**` push was removed — concurrent push+PR jobs deadlocked on TRUNCATE against the shared verification DB; see workflow comment), and `workflow_dispatch`
 - `.github/workflows/migrate.yml` — migration application pipeline
 
 **Vercel:**

@@ -68,7 +68,7 @@ scan_mode: fast (tech+arch)
 - `@clerk/nextjs ^7.3.4` — Auth + organization management; middleware at `middleware.ts`
 - `stripe ^22.2.0` — Stripe Checkout, Customer Portal, Webhooks (Phase 6)
 - `svix 1.93.0` — Svix webhook verification for Clerk events (pinned exact)
-- `@supabase/supabase-js ^2.105.4` — Supabase client (primarily used for RLS JWT injection; runtime queries go through Drizzle)
+- `@supabase/supabase-js ^2.105.4` — installed but currently UNUSED in app code (fallow flags it an unused dependency; no import in `app/`/`lib/`/`components/`, only a string literal in `scripts/check-artifacts.ts`). RLS JWT injection is done via Drizzle/`postgres` `set_config('request.jwt.claims', …)` in `lib/db/scoped.ts`, NOT this client. Cleanup candidate.
 - `zod ^3.23.5` — Input validation at API and Server Action boundaries
 
 **Infrastructure:**
@@ -79,7 +79,7 @@ scan_mode: fast (tech+arch)
 
 **TypeScript (`tsconfig.json`):**
 - `strict: true` — full strict mode
-- `noUncheckedIndexAccess: true` — array/object index access returns `T | undefined`
+- `noUncheckedIndexedAccess: true` — array/object index access returns `T | undefined`
 - `noImplicitOverride: true` — explicit `override` keyword required
 - `noEmit: true` — type-check only, Next.js handles emit
 - `moduleResolution: bundler` — Next.js 15 bundler resolution
@@ -98,7 +98,7 @@ scan_mode: fast (tech+arch)
 
 **Linting (`eslint.config.mjs`):**
 - Extends `next/core-web-vitals` + `next/typescript` via `@eslint/eslintrc` FlatCompat
-- Ignores: `node_modules/**`, `.next/**`, `.tmp/**`, `Designprototypes/**`, `out/**`, `build/**`
+- Ignores: `node_modules/**`, `.next/**`, `.tmp/**`, `Designprototypes/**`, `out/**`, `build/**`, `next-env.d.ts`
 
 **PostCSS (`postcss.config.mjs`):**
 - Single plugin: `@tailwindcss/postcss` (Tailwind v4 form)

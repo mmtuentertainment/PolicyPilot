@@ -44,7 +44,7 @@ scan_mode: fast (concerns)
 - Fix: Add an explicit missing-key check in `getAnthropicClient()` matching the `StripeConfigError` pattern in `lib/stripe/client.ts`.
 
 **No HTTP security headers configured** (MEDIUM)
-- Risk: `next.config.ts` is an empty stub (4 lines, no `headers()` config). There is no `Content-Security-Policy`, `X-Frame-Options`, `Strict-Transport-Security`, or `X-Content-Type-Options` response header. Pre-production requirement before any staging/prod deploy.
+- Risk: `next.config.ts` is an empty stub (7 lines; the `NextConfig` body has no options and no `headers()` config). There is no `Content-Security-Policy`, `X-Frame-Options`, `Strict-Transport-Security`, or `X-Content-Type-Options` response header. Pre-production requirement before any staging/prod deploy.
 - Files: `next.config.ts`
 - Fix: Add `async headers()` block in `next.config.ts` per Next.js docs. CSP needs careful construction to allow Clerk's embedded iframes and Stripe Checkout redirect. Phase 8 or a standalone hardening PR.
 
@@ -80,7 +80,7 @@ scan_mode: fast (concerns)
 
 **SF-CASCADE-AUDIT — org-delete cascade with no audit event** (HIGH)
 - Status: **OPEN OBLIGATION** — no app-level org-delete code path exists today; becomes a blocker when tenant-lifecycle UI ships.
-- Issue: `drizzle/0003_fk_hardening.sql` adds `ON DELETE CASCADE` to every `org_id` FK across 10 tenant tables. A Postgres-level org-row delete silently wipes acknowledgments, `ai_generations`, `policy_assignments`, `policy_versions`, `qa_citation_grants`, `notifications`, `workflow_stages`, and `batch_jobs` in one transaction with no application-layer signal. ADR-018's append-only contract is app-layer; the cascade bypasses it entirely.
+- Issue: `drizzle/0003_fk_hardening.sql` adds `ON DELETE CASCADE` to the `org_id` FK on 9 tenant tables (acknowledgments, ai_generations, departments, notifications, policies, policy_assignments, policy_versions, users, workflow_stages). Later migrations extend the cascade set: `batch_jobs` (`0005`) and `qa_citation_grants` (`0011`). Cumulatively, a Postgres-level org-row delete silently wipes acknowledgments, `ai_generations`, `policy_assignments`, `policy_versions`, `qa_citation_grants`, `notifications`, `workflow_stages`, and `batch_jobs` in one transaction with no application-layer signal. ADR-018's append-only contract is app-layer; the cascade bypasses it entirely.
 - When it matters: Phase 6+ adds subscription cancellation. If a "cancel + delete org" code path ever lands without the audit guard, acknowledgment audit trails are destroyed with no record.
 - Files: `lib/db/schema.ts:11`, `app/api/webhooks/clerk/route.ts:363-371`
 - Fix approach: When org-delete route lands, the handler MUST: (1) count rows per table, (2) emit a structured audit event with row counts, (3) THEN allow the cascade to fire. See STATE.md § Carry-forward queue.
@@ -138,18 +138,13 @@ scan_mode: fast (concerns)
 - Current mitigation: Bounded `any` is limited to this single definition; all consumer call sites use the typed `OrgScope` alias.
 
 **`lib/ai/summary.ts:53` raw `Error` throw inside `withOrgScope`** (LOW)
-- Issue: `lib/ai/summary.ts:53` throws `throw new Error('Policy not found')`. This is inside a `withOrgScope` callback where the project convention (enforced by `scripts/check-error-discipline.ts` for `lib/auth/**`) expects typed domain errors. The policy-not-found path here should throw `PolicyNotFoundError` from `lib/policies/errors.ts`. The `check-error-discipline.ts` gate only covers `lib/auth/` not `lib/ai/`, so this slips through.
+- Issue: `lib/ai/summary.ts:53` throws `throw new Error('Policy not found')`. This is inside a `withOrgScope` callback where the project convention (enforced by `scripts/check-error-discipline.ts`) expects typed domain errors. The policy-not-found path here should throw `PolicyNotFoundError` from `lib/policies/errors.ts`. The `check-error-discipline.ts` gate covers `lib/auth/` + `lib/stripe/` + `lib/policies/` (scope at lines 89-129) but NOT `lib/ai/`, so this slips through.
 - Files: `lib/ai/summary.ts:53`, `lib/policies/errors.ts:73-85`
 - Impact: Structured-log triage in Phase 7+ cannot discriminate this error type without the named class.
 
 ---
 
 ## Test Coverage Gaps
-
-**Stripe webhook handler — Customer Portal session tests absent** (MEDIUM)
-- What's not tested: `createPortalSessionAction` in `app/(admin)/settings/actions.ts:47-68`. The `createCheckoutSessionAction` has test coverage in `app/(admin)/settings/actions.test.ts`, but the portal session action (which calls `stripe.billingPortal.sessions.create`) has no automated test verifying the "no stripeCustomerId → redirect to setup" branch or the Stripe API error branch.
-- Files: `app/(admin)/settings/actions.ts:47-68`, `app/(admin)/settings/actions.test.ts`
-- Risk: Regression on portal session creation could silently break the Manage Subscription UX.
 
 **Stripe webhook — `customer.subscription.updated` canonical re-fetch path** (MEDIUM)
 - What's not tested: The `handleSubscriptionUpdated` function at `app/api/webhooks/stripe/route.ts:410-425` always calls `retrieveSubscription(stripe, eventSubscription.id)` — it ignores the event object's inline subscription and re-fetches the canonical version. This canonical-retrieve pattern has no test for the path where `retrieveSubscription` returns `null` (Stripe API failure → retry 500).
@@ -162,8 +157,8 @@ scan_mode: fast (concerns)
 
 **Verify scripts have silent-failure gaps (SF-H1, SF-H2, SF-H3, SF-M5)** (LOW)
 - What's not tested / what's fragile:
-  - `scripts/check-foundation.ts:62-73, 178-192` — `spawnSync` ENOENT/EACCES errors mask as generic `"tsc failed"` instead of surfacing `result.error.code` + `result.error.message` (SF-H1).
-  - `scripts/check-foundation.ts:175, 191` — signal-killed `result.status === null` reported as `"unknown"` rather than `result.signal` (SF-H2).
+  - `scripts/check-foundation.ts:33-46` — `checkTypecheck()`'s `spawnSync` result handling masks ENOENT/EACCES as the generic `detail || "tsc failed"` fallback (:45) instead of surfacing `result.error.code` + `result.error.message` (SF-H1).
+  - `scripts/check-foundation.ts:151` — a signal-killed `result.status === null` collapses to the literal `"unknown"` in the `check:db exited …` detail string rather than surfacing `result.signal` (SF-H2).
   - `scripts/check-artifacts.ts:776-784` — server-only walker has no `try/catch` around `readdirSync`/`readFileSync` and no symlink skip; a mid-walk permission error crashes all 114+ assertions (SF-H3).
   - `scripts/check-artifacts.ts:28-30` — `read()` has no `try/catch`; TOCTOU between `exists()` and `read()` can silently nuke assertions (SF-M5).
 - Files: `scripts/check-foundation.ts`, `scripts/check-artifacts.ts`
