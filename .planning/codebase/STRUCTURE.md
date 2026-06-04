@@ -1,6 +1,12 @@
+---
+last_mapped_commit: 6f17412a2df1218e9a618d7b58df00fe1e595a7a
+last_mapped_date: 2026-06-04
+scan_mode: fast (tech+arch)
+---
+
 # Codebase Structure
 
-**Analysis Date:** 2026-05-30
+**Analysis Date:** 2026-06-04
 
 ## Directory Layout
 
@@ -108,7 +114,7 @@ policypilot/                          # Next.js 15 project root
 │   │   ├── errors.ts                 # BootstrapError hierarchy
 │   │   └── bootstrap-errors.ts       # matchesErrorClass() helper
 │   ├── db/                           # Data access
-│   │   ├── index.ts                  # db singleton (Drizzle + postgres-js)
+│   │   ├── index.ts                  # db singleton (Drizzle + postgres-js) — LAZY-INIT (PR #37)
 │   │   ├── schema.ts                 # All 14 Drizzle table definitions
 │   │   ├── scoped.ts                 # withOrgScope() + OrgScope type
 │   │   └── repositories/             # Per-aggregate DB access
@@ -132,7 +138,7 @@ policypilot/                          # Next.js 15 project root
 │   │   └── types.ts                  # PolicyId branded type
 │   ├── stripe/                       # Stripe integration
 │   │   ├── client.ts                 # getStripeClient() singleton
-│   │   ├── catalog.ts                # PRICE_CATALOG, priceIdToTier(), tierAndIntervalToPriceId()
+│   │   ├── catalog.ts                # LAZY SINGLETON (PR #38) — getPriceCatalog()
 │   │   ├── normalize.ts              # normalizeSubscription() → NormalizedSubscription
 │   │   ├── products.ts               # TIER_LIMITS, checkTierLimit(), requireTierLimit()
 │   │   ├── mask.ts                   # maskCustomerId(), maskSubscriptionId()
@@ -155,7 +161,7 @@ policypilot/                          # Next.js 15 project root
 │   ├── 0012_billing_state.sql        # Phase 6 — billing columns + partial unique indexes
 │   └── meta/                         # Drizzle snapshot journal (source of truth)
 │       ├── _journal.json
-│       └── 0000_snapshot.json … 0011_snapshot.json
+│       └── 0000_snapshot.json … 0012_snapshot.json
 │
 ├── scripts/                          # CI/CD + verification scripts
 │   ├── check-foundation.ts           # Phase 1 verifier
@@ -212,6 +218,8 @@ policypilot/                          # Next.js 15 project root
 ├── tailwind.config.ts                # Tailwind config
 ├── drizzle.config.ts                 # Drizzle Kit config
 ├── vitest.config.ts                  # Vitest config
+├── .fallowrc.json                    # Fallow codebase analysis config (NEW — PR #36)
+├── .mcp.json                         # MCP server config (includes fallow — PR #36)
 └── package.json                      # Dependencies + scripts
 ```
 
@@ -248,12 +256,12 @@ policypilot/                          # Next.js 15 project root
 
 **`lib/db/`:**
 - Purpose: Database client, schema, OrgScope bridge, per-aggregate repositories.
-- Key files: `lib/db/index.ts`, `lib/db/schema.ts`, `lib/db/scoped.ts`
+- Key files: `lib/db/index.ts` (LAZY-INIT, PR #37), `lib/db/schema.ts`, `lib/db/scoped.ts`
 - Rule: Only `lib/db/index.ts`, `lib/db/scoped.ts`, `app/api/webhooks/clerk/route.ts`, and `lib/stripe/products.ts` may import raw `db`.
 
 **`lib/stripe/`:**
 - Purpose: All Stripe integration — client, price catalog, subscription normalization, tier gating.
-- Key files: `lib/stripe/catalog.ts`, `lib/stripe/normalize.ts`, `lib/stripe/products.ts`
+- Key files: `lib/stripe/catalog.ts` (LAZY-INIT, PR #38), `lib/stripe/normalize.ts`, `lib/stripe/products.ts`
 
 **`lib/policies/`:**
 - Purpose: Policy domain — state machine, transition orchestrators, acknowledgment logic.
@@ -291,7 +299,7 @@ policypilot/                          # Next.js 15 project root
 - `app/api/webhooks/stripe/route.ts` — Stripe webhook handler
 - `app/(admin)/settings/page.tsx` — billing settings UI
 - `app/(admin)/settings/actions.ts` — checkout + portal server actions
-- `lib/stripe/catalog.ts` — price ID ↔ tier mapping
+- `lib/stripe/catalog.ts` — price ID ↔ tier mapping (LAZY, PR #38)
 - `lib/stripe/normalize.ts` — subscription state normalization
 - `lib/stripe/products.ts` — tier limits + `requireTierLimit()`
 - `lib/stripe/client.ts` — Stripe SDK singleton
@@ -318,6 +326,10 @@ policypilot/                          # Next.js 15 project root
 - `tests/setup.ts` — global test setup
 - `tests/ai-mocks.ts` — Anthropic mock helpers
 - `tests/stubs/server-only.ts` — `server-only` stub for test environment
+
+**Codebase Analysis (NEW — PR #36):**
+- `.fallowrc.json` — fallow rules config (duplication, health, staged adoption)
+- `.mcp.json` — MCP servers including `fallow` CLI integration
 
 ## Naming Conventions
 
@@ -420,8 +432,8 @@ policypilot/                          # Next.js 15 project root
 - Generated: Yes.
 - Committed: No (gitignored).
 
-**`audit-cache/`, `audit-report/`:**
-- Purpose: Static analysis audit artifacts.
+**`audit-cache/`, `audit-report/`, `.fallow/`:**
+- Purpose: Static analysis audit artifacts (fallow cache added PR #36).
 - Generated: Yes (by audit tooling).
 - Committed: Check `.gitignore`; generally not committed.
 
@@ -436,4 +448,4 @@ policypilot/                          # Next.js 15 project root
 
 ---
 
-*Structure analysis: 2026-05-30*
+*Structure analysis: 2026-06-04*

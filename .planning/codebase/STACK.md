@@ -1,6 +1,12 @@
+---
+last_mapped_commit: 6f17412a2df1218e9a618d7b58df00fe1e595a7a
+last_mapped_date: 2026-06-04
+scan_mode: fast (tech+arch)
+---
+
 # Technology Stack
 
-**Analysis Date:** 2026-05-30
+**Analysis Date:** 2026-06-04
 
 ## Languages
 
@@ -50,6 +56,9 @@
 - ts-morph 28.0.0 — TypeScript AST analysis for custom verify scripts
 - js-yaml / ajv — YAML parsing + JSON schema validation used in artifact checks
 
+**Codebase Intelligence (NEW — added PR #36, 2026-06-03):**
+- fallow `^2.87.0` — deterministic structural analysis for TS/JS; answers dead-code, duplication, circular-deps, complexity without AI
+
 ## Key Dependencies
 
 **Critical:**
@@ -70,7 +79,7 @@
 
 **TypeScript (`tsconfig.json`):**
 - `strict: true` — full strict mode
-- `noUncheckedIndexedAccess: true` — array/object index access returns `T | undefined`
+- `noUncheckedIndexAccess: true` — array/object index access returns `T | undefined`
 - `noImplicitOverride: true` — explicit `override` keyword required
 - `noEmit: true` — type-check only, Next.js handles emit
 - `moduleResolution: bundler` — Next.js 15 bundler resolution
@@ -95,6 +104,17 @@
 - Single plugin: `@tailwindcss/postcss` (Tailwind v4 form)
 - Vitest overrides this to empty plugin list so unit tests skip CSS compilation
 
+**Fallow Codebase Analysis (`.fallowrc.json`, PR #36):**
+- Entry points auto-detected (Next.js App Router, Drizzle, Clerk, Server Actions)
+- Duplication rules: ignore tests, verification scripts, `lib/db/schema.ts` (intentional repetition)
+- Health rules: ignore tests and `scripts/**` (complexity in verification gates is not product-runtime risk)
+- Staged adoption: unused exports/dependencies surface as `warn` (exit 0); circular deps, boundary violations stay `error`
+
+**MCP Servers (`.mcp.json`, added fallow):**
+- `supabase` — HTTP MCP for Supabase project introspection
+- `stripe` — HTTP MCP for Stripe API reference
+- `fallow` — stdio MCP for codebase analysis via `fallow` CLI
+
 ## Scripts
 
 | Script | Purpose |
@@ -114,6 +134,7 @@
 | `check:rls` | RLS policy presence check |
 | `check:ai-layer` | Vitest integration harness against live DB |
 | `check:acknowledgment-immutability` | Append-only audit trail invariant |
+| `check:db-imports` | Enforce raw-db import allow-list |
 
 ## Platform Requirements
 
@@ -132,4 +153,4 @@
 
 ---
 
-*Stack analysis: 2026-05-30*
+*Stack analysis: 2026-06-04*

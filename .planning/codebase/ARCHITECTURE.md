@@ -1,7 +1,12 @@
-<!-- refreshed: 2026-05-30 -->
+---
+last_mapped_commit: 6f17412a2df1218e9a618d7b58df00fe1e595a7a
+last_mapped_date: 2026-06-04
+scan_mode: fast (tech+arch)
+---
+
 # Architecture
 
-**Analysis Date:** 2026-05-30
+**Analysis Date:** 2026-06-04
 
 ## System Overview
 
@@ -12,7 +17,7 @@
 │  (marketing)/   (auth)/   (onboarding)/   (admin)/   (employee)/            │
 │  Public pages   Clerk UI  Create org      Admin UI   Employee UI            │
 │  `app/(marketing)` `app/(auth)` `app/(onboarding)` `app/(admin)` `app/(employee)` │
-└──────────┬───────────────────────────────────────────────────┬──────────────┘
+└──────────┬───────────────────────────────────────────────────────┬──────────┘
            │  Server Actions / API Route Handlers              │
            ▼                                                   ▼
 ┌──────────────────────────────┐    ┌─────────────────────────────────────────┐
@@ -24,7 +29,7 @@
 │  ├── webhooks/clerk          │    │  ├── policies/state-machine.ts         │
 │  └── webhooks/stripe         │    │  ├── stripe/products.ts (tier gating)  │
 └──────────┬───────────────────┘    │  ├── stripe/client.ts                  │
-           │                        │  ├── stripe/catalog.ts                 │
+           │                        │  ├── stripe/catalog.ts (lazy)          │
            ▼                        │  ├── stripe/normalize.ts               │
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │  Data Layer                                                                  │
@@ -120,7 +125,7 @@
 - Purpose: Stripe subscription lifecycle management and tier-feature gating.
 - Location: `lib/stripe/`
 - `client.ts` — lazy singleton `getStripeClient()` from `STRIPE_SECRET_KEY`.
-- `catalog.ts` — `PRICE_CATALOG` built from 6 env vars at startup (`STRIPE_PRICE_{TIER}_{INTERVAL}`). Maps price IDs ↔ tier + interval.
+- `catalog.ts` — LAZY SINGLETON (PR #38); `getPriceCatalog()` called on first use, reads 6 env vars, throws `StripeCatalogConfigError` if misconfigured.
 - `normalize.ts` — `normalizeSubscription()` maps a Stripe `Subscription` to a discriminated union: `entitled` (active/trialing → write `planTier`), `preserve-tier` (past_due → keep existing tier), `downgrade` (canceled/unpaid → set `starter`), `link-only` (incomplete → store IDs only).
 - `products.ts` — `TIER_LIMITS` constant, `checkTierLimit()`, `requireTierLimit()`. Reads `organizations.plan_tier` from DB via `readPlanTier()` helper (spyable for tests via self-namespace import pattern).
 - `errors.ts` — `TierLimitExceededError` (statusCode 429 for usage-bound, 403 for tier-bound), `StripeConfigError`, `StripeCatalogConfigError`.
@@ -239,7 +244,10 @@
 ## Architectural Constraints
 
 - **Threading:** Single-threaded Node.js event loop on Vercel serverless functions. Anthropic client configured with `maxRetries: 0` and `timeout: 25_000ms` to prevent function monopolization.
-- **Global state:** Module-level singletons for `stripeClient` (`lib/stripe/client.ts`), `anthropicClient` (`lib/ai/client.ts`), and `db` (`lib/db/index.ts`). All lazy-initialized.
+- **Global state (Lazy Modules):** Module-level singletons for `db` (`lib/db/index.ts`), `stripeClient` (`lib/stripe/client.ts`), and `anthropicClient` (`lib/ai/client.ts`). `db` and Stripe price catalog are LAZY-INITIALIZED (PRs #37 & #38) so `next build` doesn't crash on missing env vars.
+  - `lib/db/index.ts`: `db` is a Proxy that defers connection until first property access via `resolveDb()`.
+  - `lib/stripe/catalog.ts`: `getPriceCatalog()` function defers `buildCatalog()` until first call, caches on success.
+  - Both allow build-time evaluation of route modules without side effects; the throw fires on first RUNTIME use where env vars ARE configured.
 - **RLS + SET LOCAL ordering:** `SET LOCAL ROLE authenticated` MUST precede `set_config('request.jwt.claims', ..., true)` within the transaction. `is_local = true` is required to prevent claim leakage across pooled connections. (`lib/db/scoped.ts:61-66`)
 - **Raw body requirement:** Both webhook routes call `request.text()` before any `request.json()` — body streams are readable only once. (`app/api/webhooks/stripe/route.ts:453`, `app/api/webhooks/clerk/route.ts:161`)
 - **Circular imports:** `lib/stripe/products.ts` uses a self-namespace import (`import * as self from './products'`) so `vi.spyOn` can intercept exported helper calls made inside the module. This is the one intentional self-reference in the codebase.
@@ -344,4 +352,4 @@ Seed state for new orgs (set by `organization.created` Clerk webhook):
 
 ---
 
-*Architecture analysis: 2026-05-30*
+*Architecture analysis: 2026-06-04*
