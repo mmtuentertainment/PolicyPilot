@@ -1,6 +1,6 @@
 # Runbook: Deploy Migrations to Staging / Production
 
-**Last updated:** 2026-05-22 (Phase 4 deploy-prep, Issue #16 carry)
+**Last updated:** 2026-06-03 (journal-count staleness fix — 13 entries 0000..0012; prior: 2026-05-22 Phase 4 deploy-prep, Issue #16 carry)
 **Audience:** Operator (Matthew); future on-call ops if PolicyPilot scales beyond solo.
 **Scope:** Applying Drizzle migrations to a Supabase Postgres database that is NOT the local dev DB.
 
@@ -10,7 +10,7 @@
 
 Run this BEFORE deploying any code that depends on a not-yet-applied migration. PolicyPilot's policy: **code cannot ship to an environment whose DB has not been migrated to that code's schema**. Without that ordering, the deployed code's first request to the new schema 503s (missing table / missing column / missing index).
 
-PolicyPilot's `drizzle/meta/_journal.json` currently has 10 entries (0000..0009): 5 from Phase 1-3, 3 from Phase 4 (0005-0007 including the destructive 0007 `DROP COLUMN tokens_used`), and 2 post-Phase-4 deploy-prep RLS-perf additions (0008 subquery-wrap + 0009 btree(org_id), both additive). Future migrations append to the journal and follow this same procedure.
+PolicyPilot's `drizzle/meta/_journal.json` currently has 13 entries (0000..0012): 5 from Phase 1-3 (0000-0004), 3 from Phase 4 (0005-0007 including the destructive 0007 `DROP COLUMN tokens_used`), 2 post-Phase-4 deploy-prep RLS-perf additions (0008 subquery-wrap + 0009 btree(org_id), both additive), 2 from Phase 5 (0010_phase5_uniques + 0011_qa_citation_grants), and 1 from Phase 6 (0012_billing_state). Future migrations append to the journal and follow this same procedure.
 
 **Prod project not yet provisioned.** `scripts/deploy-config.json` carries a `REPLACE_WITH_PROD_PROJECT_REF` placeholder in the `prod` block; `scripts/with-deploy-creds.ps1` rejects this string explicitly (line 75-77) to prevent accidental use against the wrong env. When the prod Supabase project is created (Pro tier + PITR add-on required for the append-only audit-trail invariant per ADR-018), populate the placeholder with the real `project_ref` + store the password via `./scripts/store-deploy-password.ps1 prod` before running any `pnpm db:*:prod` command.
 
@@ -213,14 +213,14 @@ pnpm db:migrate:staging
 
 This invokes the Pattern 3 wrapper — `scripts/with-deploy-creds.ps1 staging tsx node_modules/drizzle-kit/bin.cjs migrate`. The wrapper retrieves the password from SecretStore, materializes `DATABASE_URL` + `DIRECT_URL` for the child process only, and drizzle-kit reads the journal, computes the diff against `drizzle.__drizzle_migrations` on the target DB, and applies pending entries in order inside a single transaction (PostgreSQL DDL is transactional — a failure mid-migration rolls back all changes).
 
-Expected output applies whichever entries in `drizzle/meta/_journal.json` are not yet present in the target's `drizzle.__drizzle_migrations` table. The journal currently has 10 entries (0000..0009). For example, a staging DB already at 0007 receiving the post-Phase-4 deploy-prep additions:
+Expected output applies whichever entries in `drizzle/meta/_journal.json` are not yet present in the target's `drizzle.__drizzle_migrations` table. The journal currently has 13 entries (0000..0012). For example, a staging DB already at 0007 receiving the post-Phase-4 deploy-prep additions:
 
 ```text
 > drizzle-kit migrate
 2 migrations applied: 0008_rls_subquery_wrap, 0009_org_id_indexes
 ```
 
-On a virgin DB, all 10 entries 0000..0009 apply. The Phase-4 first-deploy window (0005..0007) is now historical — present-day deploys catch the target up to the journal HEAD regardless of starting point.
+On a virgin DB, all 13 entries 0000..0012 apply. The Phase-4 first-deploy window (0005..0007) is now historical — present-day deploys catch the target up to the journal HEAD regardless of starting point.
 
 (Note: drizzle-kit's exact phrasing may vary; the key signal is exit 0.)
 
@@ -233,17 +233,19 @@ pnpm db:verify:staging
 Invokes `scripts/with-deploy-creds.ps1 staging tsx scripts/check-deploy-schema.ts` — same Pattern 3 wrapper materializes `DIRECT_URL` from SecretStore for the child process, and the verifier asserts:
 
 - Journal entry count matches applied count
-- All 11 tenant tables exist with RLS + `org_isolation` policy + 4 GRANTs
+- All 12 tenant tables exist with RLS + `org_isolation` policy + 4 GRANTs
 - 2 service-role tables exist with RLS **disabled**
 - `ai_generations` has the 5 Phase 4 columns
 - `ai_generations` has the `ai_generations_org_idempotency_key` partial-unique index
 - `policy_versions` has UNIQUE(policy_id, version_number)
 - `batch_jobs` has UNIQUE(anthropic_batch_id)
+- `qa_citation_grants` (Phase 5) columns + wrapped RLS + indexes present
+- `organizations` (Phase 6) billing columns + partial-unique indexes present
 
 Expected output:
 
 ```text
-OK — deploy schema audit passed: 10 migrations applied, 11 tenant-scoped tables (RLS + policy + 4 GRANTs each), 2 service-role tables (no RLS), Phase 4 column shape + partial-unique index present, Phase 3 G3 + Phase 4 unique constraints present.
+OK — deploy schema audit passed: 13 migrations applied, 12 tenant-scoped tables (RLS + policy + 4 GRANTs each), 2 service-role tables (no RLS), Phase 4 column shape + partial-unique index present, Phase 3 G3 + Phase 4/5 unique constraints present, qa_citation_grants columns + wrapped RLS + indexes present, Phase 6 billing columns + partial unique indexes present.
 ```
 
 ### 3. Operator approval gate

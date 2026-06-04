@@ -138,6 +138,7 @@ Post-ship topology note: `gsd/phase-6-billing` contained local docs/topology wor
 - `middleware.ts`: auth, role routing, webhook exemptions, cron gate.
 - `lib/auth/context.ts`: Clerk-to-internal context resolution.
 - `lib/db/scoped.ts`: transaction, JWT claim injection, RLS enforcement.
+- `lib/db/index.ts`: lazy Proxy barrel — side-effect-free import; resolves the Postgres client + `DATABASE_URL` check on first runtime access (Cause-B build-crash fix; keeps `next build` from evaluating a connecting module).
 - `lib/db/repositories/*`: app-layer org scoping.
 - `app/api/ai/*`: AI route security, logging, tier gates.
 - `app/api/webhooks/*`: signature verification and idempotency.
