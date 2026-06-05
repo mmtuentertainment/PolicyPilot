@@ -43,3 +43,15 @@ GSD stage: post-ship report / state reconcile
 - Backlog rank-18 per-reviewer assignment UI remains deferred.
 - Backlog rank-20 DB-tier `REVOKE UPDATE, DELETE` on `review_decisions` remains ASK-FIRST.
 - Tier B production deploy remains operator-gated.
+
+---
+
+## Follow-up (s25, 2026-06-05) — post-review presentation polish of `.planning/STATE.md`
+
+ChatGPT Pro 5.5 reviewed the reconcile commit `abecb35` (documented above): verdict **clean / no inaccuracies**, with 2 minor presentation nits, both in `.planning/STATE.md`. Both applied in this follow-up commit (still docs-only):
+
+- **N2 (accuracy):** the `Branch:` + `Main HEAD:` lines now label `1122da5` as the **"last runtime/feature commit"** instead of "current HEAD" — the literal `git` HEAD is the docs state-reconcile commit on top. Fixes the recurring *HEAD-self-reference-goes-stale* class (the same class the original `abecb35` edit fixed for the old `6f17412`).
+- **N1 (convention/consistency):** `status:` reverted from the bespoke `main_reconciled_phase9_reviewer_shipped` to the canonical **`phase_6_shipped`**, consistent with `completed_phases: 6` and the `6/8` bar. Phase 9 remains fully documented in Current focus / Current Position / the dedicated Phase 9 line + `last_updated: 2026-06-05`, so the canonical scalar does not re-introduce staleness. (Bare scalar chosen over an inline YAML comment because this repo's GSD finalizers are known-flaky/hand-edited.)
+
+Boundaries: still docs-only — no runtime/schema/migration/env/secret change; Phase 7 not started.
+Consultant keep-current: **NO-CHANGE** — this is bookkeeping-of-bookkeeping; `risk_register` / `backlog` / `feature_inventory` / `system_map` / `working_context` all remain accurate as written in `abecb35`.

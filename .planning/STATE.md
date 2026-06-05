@@ -2,7 +2,7 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: main_reconciled_phase9_reviewer_shipped
+status: phase_6_shipped
 last_updated: "2026-06-05T08:22:11Z"
 progress:
   total_phases: 8
@@ -33,8 +33,8 @@ GSD session state. Updated each time a phase or plan transitions. Source of trut
 
 Phase: Phase 6 Billing remains SHIPPED on `main` via PR #32 squash commit `243067e9f259561a595230e5e7d3e97634040157`; out-of-band Phase 9 Reviewer / approval-workflow MVP shipped via PR #42 at `1122da5` and mitigates R-017 live on `main`.
 Plan: 6 / 6 plans executed + committed; Phase 7 has not started and requires Matthew's explicit next-phase authorization
-Branch: `main` at `1122da5` (current HEAD after PR #42 merge). Local `main` and `origin/main` match. The remote `gsd/phase-9-reviewer` branch was deleted after merge; local `gsd/phase-6-billing` has already been deleted.
-Main HEAD: `1122da5`. Phase 6 remains the last shipped locked assembly phase at PR #32 squash `243067e` (`Phase 6: Billing`). Shipped since Phase 6: PRs #33–#40 operating/tooling/prep commits, then PR #42 Phase 9 Reviewer / approval-workflow MVP at `1122da5`; PR #41 was closed as superseded by #42.
+Branch: `main` — last runtime/feature commit `1122da5` (PR #42 merge); the literal current `git` HEAD is the docs state-reconcile commit on top. Local `main` and `origin/main` match. The remote `gsd/phase-9-reviewer` branch was deleted after merge; local `gsd/phase-6-billing` has already been deleted.
+Main HEAD: last runtime/feature commit `1122da5` (the literal current `git` HEAD is this docs state-reconcile commit on top). Phase 6 remains the last shipped locked assembly phase at PR #32 squash `243067e` (`Phase 6: Billing`). Shipped since Phase 6: PRs #33–#40 operating/tooling/prep commits, then PR #42 Phase 9 Reviewer / approval-workflow MVP at `1122da5`; PR #41 was closed as superseded by #42.
 
 - **Phase 1** — Foundation **complete** (2026-05-16; 5/5 plans; PR #1 merged)
 - **Phase 2** — Data Layer **complete** (2026-05-18; 7/7 plans = 6 main + 02-07 hotfix; verify:phase-2 8/8 OK; PR #2 squash-merged to `main` @ `130b8ab` on 2026-05-19)
