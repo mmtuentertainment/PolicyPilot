@@ -906,7 +906,9 @@ return Response.json({ reviewReminders, ackReminders });
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All three are addressed in the planning artifacts: (1) the cron `userId=''` FK audit is an explicit deliverable in 07-04 Task 1; (2) `window_date` uses `date('window_date', { mode: 'string' })` per 07-02 + 07-PATTERNS; (3) `policy_updated` rapid-retrigger is naturally gated by the `policy_versions` version-unique constraint per 07-06 Task 1. Recommendations below stand as the resolved guidance.
 
 1. **Synthesized OrgContext for cron: `userId` = empty string**
    - What we know: `withOrgScope` injects `{ sub, org_id, role }` JWT claims. `sub` is the `userId` field. RLS predicates only check `org_id`. No existing code writes `sub` in a cron context.
