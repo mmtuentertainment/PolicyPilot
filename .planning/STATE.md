@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: phase_6_shipped
-last_updated: "2026-06-05T19:15:05Z"
+last_updated: "2026-06-05T22:17:50.905Z"
 progress:
   total_phases: 8
   completed_phases: 6
-  total_plans: 57
+  total_plans: 64
   completed_plans: 57
   percent: 75
 ---
@@ -24,7 +24,7 @@ GSD session state. Updated each time a phase or plan transitions. Source of trut
 - **Operator**: Matthew (MMTU Entertainment LLC) — `mmtuentertainment@gmail.com`
 - **Core value**: Replaces Google Drive / SharePoint for SMB policy management with AI drafting, append-only acknowledgment tracking, and audit-ready compliance trails — at a price an SMB can afford.
 - **Beat-manual gate**: Product must be demonstrably faster and more reliable than a Google Drive folder.
-- **Current focus**: `main` is at `1122da5` after PR #42 (`feat(phase-9): Reviewer / approval-workflow MVP — close the publish-leak + R-017 (D-09-01)`) shipped on 2026-06-05. Phase 6 Billing remains the last shipped locked assembly phase via PR #32 squash `243067e9f259561a595230e5e7d3e97634040157`; Phases 7 and 8 remain pending. Phase 9 Reviewer / approval-workflow MVP is an out-of-band R-017 mitigation now live on `main`: Growth+ `approvalWorkflows` is enforced at the true publish boundary inside `publish()` (covering `approve()`), Starter remains direct-publish by design, ADR-030 ratifies `(reviewer)` as a sanctioned route group, and the shared org reviewer queue is the ratified MVP. PR #41 was closed as superseded by PR #42. Phase 7 (Crons + Email) is now PLANNED — 7 plans across 4 waves on `gsd/phase-7-crons-email`, plan-checker PASSED (0 blockers, 2026-06-05); not yet executed and not pushed (operator owns push/PR + build routing).
+- **Current focus**: `main` is at `1122da5` after PR #42 (`feat(phase-9): Reviewer / approval-workflow MVP — close the publish-leak + R-017 (D-09-01)`) shipped on 2026-06-05. Phase 6 Billing remains the last shipped locked assembly phase via PR #32 squash `243067e9f259561a595230e5e7d3e97634040157`; Phases 7 and 8 remain pending. Phase 9 Reviewer / approval-workflow MVP is an out-of-band R-017 mitigation now live on `main`: Growth+ `approvalWorkflows` is enforced at the true publish boundary inside `publish()` (covering `approve()`), Starter remains direct-publish by design, ADR-030 ratifies `(reviewer)` as a sanctioned route group, and the shared org reviewer queue is the ratified MVP. PR #41 was closed as superseded by PR #42. Phase 7 (Crons + Email) is now PLANNED — 8 plans across 4 waves on `gsd/phase-7-crons-email`, plan-checker PASSED (0 blockers, 2026-06-05); not yet executed and not pushed (operator owns push/PR + build routing).
 - **Granularity**: standard (8 phases)
 
 ---
@@ -32,7 +32,7 @@ GSD session state. Updated each time a phase or plan transitions. Source of trut
 ## Current Position
 
 Phase: Phase 6 Billing remains SHIPPED on `main` via PR #32 squash commit `243067e9f259561a595230e5e7d3e97634040157`; out-of-band Phase 9 Reviewer / approval-workflow MVP shipped via PR #42 at `1122da5` and mitigates R-017 live on `main`.
-Plan: 6 / 6 plans executed + committed; Phase 7 (Crons + Email) is now PLANNED — 7 plans across 4 waves on `gsd/phase-7-crons-email`, plan-checker PASSED (0 blockers, 2026-06-05); not yet executed and not pushed (operator owns push/PR + build routing)
+Plan: 6 / 6 plans executed + committed; Phase 7 (Crons + Email) is now PLANNED — 8 plans across 4 waves on `gsd/phase-7-crons-email`, plan-checker PASSED (0 blockers, 2026-06-05); not yet executed and not pushed (operator owns push/PR + build routing)
 Branch: `main` — last runtime/feature commit `1122da5` (PR #42 merge); the literal current `git` HEAD is the docs state-reconcile commit on top. Local `main` and `origin/main` match. The remote `gsd/phase-9-reviewer` branch was deleted after merge; local `gsd/phase-6-billing` has already been deleted.
 Main HEAD: last runtime/feature commit `1122da5` (the literal current `git` HEAD is this docs state-reconcile commit on top). Phase 6 remains the last shipped locked assembly phase at PR #32 squash `243067e` (`Phase 6: Billing`). Shipped since Phase 6: PRs #33–#40 operating/tooling/prep commits, then PR #42 Phase 9 Reviewer / approval-workflow MVP at `1122da5`; PR #41 was closed as superseded by #42.
 
@@ -43,14 +43,14 @@ Main HEAD: last runtime/feature commit `1122da5` (the literal current `git` HEAD
 - **Phase 5** — Employee Portal **SHIPPED** (2026-05-27; PR #27 "Phase 5: Employee Portal" merged to `main` at `3344847`, parent `c50b317`; `gsd/phase-5-employee-portal` branch is gone).
 - **Phase 6** — Billing **SHIPPED** (2026-05-31; PR #32 squash-merged to `main` at `243067e`; 06-01..06-06 committed; local `pnpm db:verify` and pre-merge `pnpm verify:phase-6` green; live Stripe test-mode UAT 11/11 rows PASS; hosted pre-merge PR #32 checks green/acceptable at `1abca44`; post-merge targeted checks PASS).
 - **Phase 9** — Reviewer / approval-workflow MVP **SHIPPED out-of-band** (2026-06-05; PR #42 squash-merged to `main` at `1122da5`; closes R-017 with Growth+ approval-completeness enforcement in `publish()`, ADR-030 `(reviewer)` route-group ratification, and shared org reviewer queue MVP).
-- **Phase 7** — Crons + Email **PLANNED** (2026-06-05; 7 plans across 4 waves on `gsd/phase-7-crons-email`; SPEC/CONTEXT/RESEARCH/PATTERNS/VALIDATION committed; plan-checker PASSED, 0 blockers; migration `0014_reminder_sends` authored-pending operator-signed header, dev/TEST apply only; NOT executed, NOT pushed — operator owns push/PR + build routing).
+- **Phase 7** — Crons + Email **PLANNED** (2026-06-05; 8 plans across 4 waves on `gsd/phase-7-crons-email`; SPEC/CONTEXT/RESEARCH/PATTERNS/VALIDATION committed; UI-SPEC approved 2026-06-05 (gsd-ui-checker 6/6 dims, 1 non-blocking Typography FLAG) reconciled from `07-BELL-UI-DESIGN.md`; 07-08 bell-UI gap plan added (markAllReadForUser + NotificationBell, wave 2, depends 07-01/02/04) — gsd-plan-checker PASSED 0 blockers; migration `0014_reminder_sends` authored-pending operator-signed header, dev/TEST apply only; NOT executed, NOT pushed — operator owns push/PR + build routing).
 - **Progress**: 6 / 8 phases shipped (75%); Phase 7 PLANNED (7 plans, not executed); Phase 8 not started.
 
 ```text
 [######--] 6/8 phases shipped - Foundation done / Data Layer done / Admin UI done / AI Layer done / Employee Portal shipped / Billing shipped
 ```
 
-**Next action**: Phase 7 (Crons + Email) is PLANNED — 7 plans across 4 waves. Recommended next: `/gsd-ui-phase 7` for the bell UI-SPEC (D-12 deferred the bell UX to after planning), then `/gsd-execute-phase 7`. Build routing (Claude vs Codex) is the operator's ASK-FIRST call. Phase 7 migration `0014_reminder_sends` is additive/forward-only, authored pending the operator-signed header, dev/TEST apply only (staging/prod operator-gated); `resend@6.12.3` + `react-email@6.1.5` install is ASK-FIRST (verified ≥14-day-old). Phase 9 does not change the locked Phase 7/8 sequence. Future live Stripe UAT must use the app test-account CLI override or a CLI profile logged into the intended test account; the default CLI profile remains mismatched. Migration note: `0012_billing_state` is applied and verified on the approved TEST/dev target only; staging/prod remain operator-gated by the migration discipline. CI Phase 6 verification mutates only the approved dev/test target through TRUNCATE/seed. SF-WHSEC-1 remains an operator follow-up before any future live webhook smoke if the current `CLERK_WEBHOOK_SECRET` was used before rotation.
+**Next action**: Phase 7 (Crons + Email) is PLANNED — 8 plans across 4 waves. UI-SPEC approved 2026-06-05 and 07-08 bell-UI gap plan added + plan-checker PASSED (0 blockers) — `/gsd-ui-phase 7` and `/gsd-plan-phase 7 --gaps` are DONE. Recommended next: `/gsd-execute-phase 7`. Build routing (Claude vs Codex) is the operator's ASK-FIRST call (unresolved — see checkpoint). Phase 7 migration `0014_reminder_sends` is additive/forward-only, authored pending the operator-signed header, dev/TEST apply only (staging/prod operator-gated); `resend@6.12.3` + `react-email@6.1.5` install is ASK-FIRST (verified ≥14-day-old). Phase 9 does not change the locked Phase 7/8 sequence. Future live Stripe UAT must use the app test-account CLI override or a CLI profile logged into the intended test account; the default CLI profile remains mismatched. Migration note: `0012_billing_state` is applied and verified on the approved TEST/dev target only; staging/prod remain operator-gated by the migration discipline. CI Phase 6 verification mutates only the approved dev/test target through TRUNCATE/seed. SF-WHSEC-1 remains an operator follow-up before any future live webhook smoke if the current `CLERK_WEBHOOK_SECRET` was used before rotation.
 
 **Fast-follow PR backlog** (3 sequential PRs, originally scoped from PR #3 carry-forward):
 
