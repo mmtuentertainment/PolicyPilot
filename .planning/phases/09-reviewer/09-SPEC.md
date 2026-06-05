@@ -277,7 +277,9 @@ All actions follow the canonical shape: `getOrgContext()` → `requireXFromCtx(c
 |---|---|---|---|
 | `approveStageAction(prev, formData)` | `app/(reviewer)/.../actions.ts` | `requireReviewerOrAdminFromCtx` | parse `policyId`(branded)+`stageId`(uuid)+`comment` → `recordReviewDecision(policyId, stageId, 'approved', comment)` → revalidate `/reviewer` (+ `/reviewer/[policyId]`) |
 | `rejectStageAction(prev, formData)` | same | `requireReviewerOrAdminFromCtx` | same → `recordReviewDecision(policyId, stageId, 'rejected', comment)` (orchestrator resets policy→draft) → revalidate |
-| queue read | `app/(reviewer)/page.tsx` (server component) | `requireReviewerOrAdmin` | `withOrgScope(ctx, (s) => WorkflowStages.listPendingForReviewer(s, ctx.userId))` |
+| queue read | `app/(reviewer)/page.tsx` (server component) | `requireReviewerOrAdmin` | `withOrgScope(ctx, (s) => WorkflowStages.listPendingForOrg(s))` — **MVP shared org queue (D-09-01); per-reviewer `listPendingForReviewer(s, ctx.userId)` deferred to rank-18, see reconciliation note below** |
+
+> **AS-SHIPPED RECONCILIATION (MVP, D-09-01, 2026-06-05).** The queue read ships as `WorkflowStages.listPendingForOrg(s)` — a **shared org-scoped** review queue (every `pending` stage whose policy is `under_review` in the caller's org, actionable by any reviewer or admin) — NOT the per-reviewer `listPendingForReviewer(s, ctx.userId)` written in the design above. The MVP intentionally ships no reviewer-assignment UI, so `workflow_stages.reviewer_id` is never populated and a `reviewer_id = self` filter would dark the queue; the per-reviewer seam is retained (dead) as the **backlog rank-18** implementation hook. Tenant isolation is unaffected — `listPendingForOrg` binds `org_id` to the caller's org on both `workflow_stages` and `policies` + RLS (no cross-tenant read), and the immutable `review_decisions` ledger records the actual approver. Mirrors `REQUIREMENTS.md` reviewer-surface acceptance + **ADR-030**.
 
 - Reviewer actions return the same `ActionState = {ok:true}|{ok:false;error}` shape as the admin actions; validate `stageId` as a UUID at the boundary (mirror `OptionalReviewerIdSchema`), `policyId` via `PolicyIdSchema`.
 
@@ -336,7 +338,7 @@ export class WorkflowIncompleteError extends PolicyDomainError {
 
 `app/(reviewer)/` route group (mirror `(admin)`/`(employee)` conventions — internals read at build time, no invented symbols):
 - `layout.tsx` — `requireReviewerOrAdmin()` page-gate; reviewer shell (no admin-only links).
-- `page.tsx` — pending-review queue (shadcn Table): policy title, submitted, reviewer, action link. From `listPendingForReviewer(s, ctx.userId)`.
+- `page.tsx` — pending-review queue (shadcn Table): policy title, submitted, reviewer, action link. From `listPendingForOrg(s)` — **MVP shared org queue (D-09-01)**; per-reviewer `listPendingForReviewer(s, ctx.userId)` is the retained dead seam, deferred to rank-18 (no assignment UI in the MVP). See the §8 reconciliation note.
 - `[policyId]/page.tsx` — detail: **read-only render via `components/policy/PolicyView.tsx`** of the policy draft, existing `comment`, a comment field, **Approve / Reject** buttons → `approveStageAction`/`rejectStageAction` (carry `policyId` + the pending `stageId`).
 - **Post-sign-in routing** (`app/(auth)/post-sign-in/page.tsx:85-86`): add `if (ctx.role === 'reviewer') redirect('/reviewer');` before the `/my-policies` fallback (admin→`/dashboard` stays first).
 - Middleware: confirm `(reviewer)` paths are authenticated (read `middleware.ts` at build; add a reviewer route matcher if admin paths are pattern-gated there).
@@ -420,7 +422,7 @@ If the operator is silent on 13a, build proceeds with the defaults above.
 - **Growth, submitted-not-approved:** `publish()` throws `WorkflowIncompleteError` (clean toast, not upgrade).
 - **Growth, stale-approval (regression):** publish an approved policy → archive → restore → edit → `publish()` directly throws `WorkflowIncompleteError` (status≠under_review); must resubmit.
 - **Append-only:** `review_decisions` rows never mutated; `check:acknowledgment-immutability` + self-test green with 3 tables.
-- **Multi-tenancy:** reviewer in Org A never sees Org B's queue or ledger (`reviewerId`+`orgId` app filter + org RLS; `check:rls` covers `review_decisions`).
+- **Multi-tenancy:** reviewer in Org A never sees Org B's queue or ledger (`org_id` app filter on both `workflow_stages` and `policies` + org RLS; `check:rls` covers `review_decisions`). *(As shipped the queue is org-scoped, not `reviewer_id`-scoped — see §8 reconciliation note + ADR-030.)*
 - `tsc` clean; no new deps.
 
 ---

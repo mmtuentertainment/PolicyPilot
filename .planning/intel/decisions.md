@@ -108,6 +108,7 @@ ASSEMBLY proceeds in 8 sequential phases. Phase N+1 cannot start until Phase N c
 - source: `BLUEPRINT.md` § 2
 - status: locked
 - scope: repo structure
+- amended-by: ADR-030 — adds the `(reviewer)` route group (2026-06-05, D-09-01)
 
 ### Decision
 
@@ -894,7 +895,7 @@ if (!userRow) {
 
 ### Carry-forward
 
-- `OrgScope` itself remains `{ tx, orgId: string, userId: string }`. Branding `OrgScope.orgId` / `OrgScope.userId` is deferred to a future PR with explicit ADR (ADR-030+ — ADR-029 is now taken by the phase-parallelization amendment) when friction warrants.
+- `OrgScope` itself remains `{ tx, orgId: string, userId: string }`. Branding `OrgScope.orgId` / `OrgScope.userId` is deferred to a future PR with explicit ADR (ADR-031+ — ADR-029 is the phase-parallelization amendment, ADR-030 the `(reviewer)` route-group amendment) when friction warrants.
 - `scripts/check-policy-id-brand.ts` covers the 6 files listed in §(1). If future repository files (e.g. when Phase 5's `Acknowledgments.findByPolicyId` lands) add policyId parameters, the gate's hardcoded file list must be extended in the same PR — failure to extend leaves a silent gap. Matches `check-error-discipline.ts`'s hardcoded scope pattern.
 - Phase-7+ structured-logging consumers can now route on `UserNotProvisionedError.subCode` without parsing message strings. Future log-router PR should document the routing table.
 - The 2 deferred MEDIUMs from PR #7's 4-agent review (`UserNotProvisionedError subCode discriminant` + `orgRow.id exposure in error message`) are CLOSED by this ADR — discriminant per §(3), info-disclosure boundary per §(4).
@@ -991,4 +992,34 @@ The amendment doesn't change file-overlap risk; it changes how the operator mana
 - Locked decision count: 28 → 29.
 
 Full text mirrored in `.planning/PROJECT.md` short-form ADR-029.
+
+---
+
+## ADR-030: `(reviewer)` Route Group for the Phase 9 Reviewer Surface (amends ADR-008)
+
+- source: operator decision 2026-06-05 (D-09-01) at the Phase 9 PR #42 ship gate, ratifying the s22 verification finding (`wf_abccf908-39f`) over CodeRabbit's "relocate the route" suggestion
+- status: locked (2026-06-05; amends ADR-008 — does not supersede)
+- scope: App Router route-group SET (extends ADR-008's enumeration); auth-boundary classification under ADR-009
+
+### Decision
+
+ADR-008's route-group enumeration is amended to add a fifth UI route group: **`(reviewer)`**. The sanctioned set is now `(marketing)`, `(auth)`, `(admin)`, `(employee)`, `(reviewer)`. The reviewer surface (`app/(reviewer)/` — `layout.tsx`, `reviewer/page.tsx`, `reviewer/[policyId]/page.tsx`, `reviewer/actions.ts`, `ReviewDecisionForm.tsx`) stays where it is; it is NOT relocated under `(admin)`.
+
+Under ADR-009 the reviewer surface is classified as an **auth-only-at-the-edge** route (same class as `(employee)`): `middleware.ts` does not pattern-gate `/reviewer` by role (it is excluded from `ADMIN_URL_PATTERNS`, so it flows through the default authenticated chokepoint like `/my-policies`), and the authoritative role gate is the page-level `requireReviewerOrAdmin()` in `app/(reviewer)/layout.tsx` (admits `role ∈ {reviewer, admin}`). ADR-009's auth chokepoint, public-route list, and `/(admin)/*` admin-only rule are all unchanged.
+
+### Rationale
+
+- **The role boundary is distinct from `(admin)`.** `app/(admin)/layout.tsx` calls `requireAdmin()` (admin-only); `app/(reviewer)/layout.tsx` calls `requireReviewerOrAdmin()` (reviewer OR admin — intentionally widened per SPEC §13(d) self-approval). A Next.js parent layout runs unconditionally for every descendant, so folding `(reviewer)` under `(admin)` would force the reviewer surface under the admin-only gate — darking it for every non-admin reviewer — or require weakening the shared `(admin)` gate to admit reviewers, which widens the privilege boundary across the entire admin surface (dashboard, policies, settings). Relocation is a functional/security regression, not a cleanup.
+- **It would re-introduce a removed hole.** A prior per-path conditional bypass of `requireAdmin()` inside `(admin)` (the old `(admin)/onboarding` `x-pathname` trick) was deliberately removed (CR-PR3-#16, 2026-05-20) because header-derived role-bypass inside the admin group was a vulnerability. Making reviewer paths bypass `requireAdmin()` inside `(admin)` recreates exactly that anti-pattern.
+- **Precedent.** ADR-008's literal list was already stale before Phase 9: `(onboarding)` and `(employee)` exist as real groups, and `(employee)` was treated as ADR-008-honored in `05-VERIFICATION.md`. A documentation amendment (not a code move) is the in-process, narrowest-reversible way to keep the locked enumeration truthful.
+
+### Consequences
+
+- No code change. `app/(reviewer)/` stays in place; `middleware.ts` unchanged.
+- ADR-008 carries an `amended-by: ADR-030` pointer; its locked Decision text is not retracted.
+- `.planning/PROJECT.md` short-form mirrors this as ADR-030.
+- Locked decision count: 29 → 30.
+- Open housekeeping (non-blocking): `(onboarding)` remains an undocumented deviation from ADR-008's literal list — optional future amendment.
+
+Full text mirrored in `.planning/PROJECT.md` short-form ADR-030.
 
