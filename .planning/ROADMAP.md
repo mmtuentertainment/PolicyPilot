@@ -182,7 +182,15 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
   3. All 4 notification types (`policy_assigned`, `policy_updated`, `review_due`, `ack_reminder`) send via Resend using React Email templates and insert a corresponding `notifications` row.
   4. Re-running the same cron window does not send duplicate emails for the same `(user, policy, type)` tuple — idempotency verified.
   5. The in-app notification bell shows the correct unread count from `notifications.read = false` and marking-as-read updates immediately.
-**Plans**: TBD
+**Plans**: 7 plans
+- [ ] 07-01-PLAN.md — Wave 0: RED test scaffolding (TEST-DB integration harness + cron auth + email dispatch unit tests)
+- [ ] 07-02-PLAN.md — Wave 0: ASK-FIRST resend/react-email install + additive 0014 reminder_sends migration (operator-signed header) + schema export + dev/TEST apply
+- [ ] 07-03-PLAN.md — Wave 1: lib/email layer (Resend singleton, typed errors, base layout + 4 templates, typed dispatch)
+- [ ] 07-04-PLAN.md — Wave 1: Notifications.create/markRead (bell backend) + org-wide ack/review queries + next_review_date writer + cron FK audit
+- [ ] 07-05-PLAN.md — Wave 2: GET /api/cron/reminders — auth gate + per-org withOrgScope loop + record-then-send idempotency
+- [ ] 07-06-PLAN.md — Wave 2: policy_assigned/policy_updated event emission + dependency-free Railway worker + railway.json
+- [ ] 07-07-PLAN.md — Wave 3: T8 Clerk 409/catch vitest + schema/artifact gate extensions + cumulative verify:phase-7 + CI job
+**UI hint**: yes (bell UI surface deferred to /gsd-ui-phase 7)
 
 ### Phase 8: Validation
 **Goal**: All 8 numbered acceptance criteria from REQUIREMENTS.md §10 pass with real data on a populated org, the admin compliance dashboard renders the Recharts donut + CSV export, and the product is demonstrably faster and more reliable than a Google Drive folder.
