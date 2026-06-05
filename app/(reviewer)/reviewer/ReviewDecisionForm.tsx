@@ -23,7 +23,7 @@ export function ReviewDecisionForm({
 }: {
   policyId: string;
   stageId: string;
-}) {
+}): React.JSX.Element {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [comment, setComment] = useState('');

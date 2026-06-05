@@ -14,15 +14,19 @@ This delta records **(a)** the additive `0013_review_decisions` migration applie
 ## What changed this session
 
 ### Env prep
+
 - **Migration `0013_review_decisions` applied to the dev DB** (`pnpm db:migrate`, `.env.local`). It was applied to the test DB at build time but the dev DB was 1 behind (0012), so `pnpm db:verify` (which targets the dev DB) failed on migration-count independent of any fix. 0013 is **additive** (CREATE TABLE `review_decisions` + FKs + 2 indexes + wrapped RLS + GRANT; the Phase-6 billing re-adds were stripped) and **operator-approved (D-09-01**, recorded in the migration header) and already on test → applying it to dev is the routine completion of that approval, not a new ASK-FIRST. Dev `db:verify` now reports 14 migrations / 13 tenant tables.
 
 ### FIX-A — bind stage↔policy + status, assert row-count before the ledger (was: sev medium→high)
+
 `recordDecision(s, **policyId**, stageId, decision, comment?)` WHERE now binds `orgId AND policyId AND id AND status='pending'` (`lib/db/repositories/workflow_stages.ts`). `recordReviewDecision` asserts `updated.length > 0` (throws the new **`StageNotActionableError`**, `lib/policies/errors.ts`) **before** the `ReviewDecisions.record` ledger insert and before the reject status-flip, all in one `withOrgScope` tx (`lib/policies/transitions.ts`). `handleReviewError` (`app/(reviewer)/reviewer/actions.ts`) maps it to a benign toast (not a 500). Brand gate + a 0-row unit test added. → A crafted same-org POST `(policyId=B, stageId=A's-pending)` is now a 0-row UPDATE → throw → no misattributed immutable ledger row, no sibling-policy strand/reset; already-decided stages can't be re-flipped.
 
 ### FIX-B — supersede stale pending stages at submit (was: sev high)
+
 New `supersedePending(s, policyId)` (`status 'pending'→'superseded'`, scoped `orgId+policyId+status='pending'`). `submitForReview` calls it inside `withOrgScope` **before** `recordSubmission`. `workflow_stages.status` is plain `text` (no enum/CHECK; `drizzle/0000_initial.sql:116`) so `'superseded'` needs **no migration**. → The admin `reject()` path (which leaves a pending row) can no longer produce a 2-pending publish-gate wedge; `'superseded'` is projection-only (ignored by the publish gate filters + the `/reviewer` queue, writes no ledger row).
 
 ### FIX-C — `review_decisions` in the deploy-gate siblings (was: sev medium)
+
 Added `'review_decisions'` to `TENANT_TABLES` in `scripts/check-deploy-schema.ts` + `scripts/check-schema.ts` (lockstep with `scripts/check-rls.ts`, which already had it) + wrapped-RLS-form + index depth checks mirroring `qa_citation_grants` (the 0013 RLS+GRANT is hand-written). Column-shape intentionally not pinned (covered by the typed insert + the append-only immutability gate). → A future drift on the append-only audit ledger's RLS/GRANT/indexes can no longer ship past `pnpm db:verify`.
 
 ## Verification (all green — real output)

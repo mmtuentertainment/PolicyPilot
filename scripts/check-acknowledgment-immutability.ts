@@ -71,7 +71,7 @@ const FIXTURE_FILE = 'tests/fixtures/ack-mutation-attempt.ts';
 // positives on comments/docs). Documented secondary gap mitigated by ADR-018
 // review discipline + tests/types.ts D-07 type-system invariant.
 const RAW_SQL_PATTERN =
-  /\bsql\s*`[^`]*?\b(UPDATE|DELETE\s+FROM)\s+(?:"(acknowledgments|qa_citation_grants|review_decisions)"|(acknowledgments|qa_citation_grants|review_decisions))\b[^`]*?`/gi;
+  /\bsql\s*`[^`]*?\b(UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+(?:"(acknowledgments|qa_citation_grants|review_decisions)"|(acknowledgments|qa_citation_grants|review_decisions))\b[^`]*?`/gi;
 
 type Violation = {
   file: string;
