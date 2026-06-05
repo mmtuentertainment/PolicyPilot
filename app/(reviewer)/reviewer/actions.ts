@@ -34,11 +34,14 @@ function parseDecisionPayload(
 }
 
 function handleReviewError(err: unknown): ActionState {
-  // reject() can throw IllegalTransitionError if the policy is not under_review.
+  // Defensive fallback: recordReviewDecision no longer throws IllegalTransitionError
+  // on this path — the decision-time under_review guard throws StageNotActionableError
+  // instead (handled below). Kept in case a future transition re-introduces it.
   if (err instanceof IllegalTransitionError) return { ok: false, error: err.message };
-  // FIX-A (Phase 9 review): a crafted/stale (policyId, stageId) mismatch or an
-  // already-decided stage rolls back as StageNotActionableError — surface a
-  // benign "no longer available" message instead of bubbling to a 500.
+  // FIX-A + the decision-time guard (Phase 9 review): a crafted/stale (policyId,
+  // stageId) mismatch, an already-decided/superseded stage, or a policy an admin
+  // returned to draft rolls back as StageNotActionableError — surface a benign
+  // "no longer available" message instead of bubbling to a 500.
   if (err instanceof StageNotActionableError) {
     return { ok: false, error: 'This review item is no longer available.' };
   }
@@ -59,6 +62,9 @@ export async function approveStageAction(
   }
   revalidatePath('/reviewer');
   revalidatePath(`/reviewer/${parsed.policyId}`);
+  // Phase 9 review fix — also revalidate the admin policy-detail surface so an admin
+  // viewing /policies/[id] sees the post-decision status without a manual refresh.
+  revalidatePath(`/policies/${parsed.policyId}`);
   return { ok: true };
 }
 
@@ -75,5 +81,8 @@ export async function rejectStageAction(
   }
   revalidatePath('/reviewer');
   revalidatePath(`/reviewer/${parsed.policyId}`);
+  // Phase 9 review fix — also revalidate the admin policy-detail surface so an admin
+  // viewing /policies/[id] sees the post-decision status without a manual refresh.
+  revalidatePath(`/policies/${parsed.policyId}`);
   return { ok: true };
 }

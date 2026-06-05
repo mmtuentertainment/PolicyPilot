@@ -65,6 +65,12 @@ export const WorkflowStages = {
         and(
           eq(policies.id, workflowStages.policyId),
           eq(policies.orgId, s.orgId),
+          // Phase 9 review (belt-and-suspenders) — only surface stages whose policy
+          // is actively under_review. With the reject() supersede fix a pending stage
+          // should never outlive its policy's under_review state, but this guarantees
+          // the shared queue can never present a non-actionable item (pairs with the
+          // decision-time status guard in recordReviewDecision).
+          eq(policies.status, 'under_review'),
         ),
       )
       .where(

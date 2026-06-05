@@ -325,6 +325,19 @@ describe('reject', () => {
     ]);
     await expect(reject(POLICY_ID_FIXTURE)).rejects.toBeInstanceOf(IllegalTransitionError);
   });
+
+  it('supersedes the policy’s pending stage when sending it back to draft (queue-hygiene fix)', async () => {
+    // Phase 9 review fix — admin reject() ("send back to draft") now supersedes the
+    // still-pending workflow_stages row of this policy (mirrors submitForReview), so
+    // it leaves the shared /reviewer queue and can never be approved against a draft
+    // policy. Without it the stage was orphaned (policy=draft, stage=pending).
+    findByIdMock.mockResolvedValueOnce([
+      { id: 'p1', status: 'under_review', currentVersion: 1, contentJson: {} },
+    ]);
+    await expect(reject(POLICY_ID_FIXTURE)).resolves.toBeUndefined();
+    expect(wfSupersedePendingMock).toHaveBeenCalledWith(expect.anything(), POLICY_ID_FIXTURE);
+    expect(txUpdateMock).toHaveBeenCalled(); // status still flipped to draft
+  });
 });
 
 describe('archive + restore', () => {
@@ -603,11 +616,22 @@ describe('publish — Phase 9 approval-workflow gate (D-09-01)', () => {
       expect.anything(),
       expect.objectContaining({ policyId: 'p1', versionNumber: 2 }),
     );
+    // tests-4 (Phase 9 review) — pin the literal entitlement key. A typo here would
+    // silently disable the Growth+ approval gate (checkTierLimit on an unknown key
+    // returns allowed:false → gate skipped → publish-leak reopens) while every test
+    // still passes. Assert publish() reads exactly 'approvalWorkflows'.
+    expect(checkTierLimitMock).toHaveBeenCalledWith('org_1', 'approvalWorkflows');
   });
 });
 
 describe('recordReviewDecision (Phase 9, D-09-01)', () => {
   it('approve: writes the stage decision + immutable ledger row; does NOT flip policy status', async () => {
+    // Phase 9 review fix — recordReviewDecision now loads the policy and requires
+    // it to be `under_review` at decision time (BOTH approve and reject) before
+    // touching the immutable ledger. Seed an under_review policy so the guard passes.
+    findByIdMock.mockResolvedValueOnce([
+      { id: 'p1', status: 'under_review', currentVersion: 1, contentJson: {} },
+    ]);
     await expect(
       recordReviewDecision(POLICY_ID_FIXTURE, 's1', 'approved', 'lgtm'),
     ).resolves.toBeUndefined();
@@ -628,8 +652,10 @@ describe('recordReviewDecision (Phase 9, D-09-01)', () => {
         comment: 'lgtm',
       }),
     );
-    // approve does NOT transition the policy — no load, no status flip.
-    expect(findByIdMock).not.toHaveBeenCalled();
+    // The decision-time guard LOADS the policy (defends the ledger from a draft).
+    expect(findByIdMock).toHaveBeenCalled();
+    // …but approve still does NOT flip the policy status — it stays under_review;
+    // the admin publishes separately (the ②b model).
     expect(txUpdateMock).not.toHaveBeenCalled();
   });
 
@@ -656,16 +682,19 @@ describe('recordReviewDecision (Phase 9, D-09-01)', () => {
     );
   });
 
-  it('reject when the →draft transition is illegal throws IllegalTransitionError (e.g. already draft)', async () => {
-    // The reject path flips status to 'draft'; draft→draft is the one illegal
-    // case (archived/published/under_review → draft are all legal). A reject on
-    // an already-draft policy therefore rolls back the whole tx.
+  it('decision on a policy that is no longer under_review (e.g. already draft) throws StageNotActionableError', async () => {
+    // Phase 9 review fix — the decision-time guard requires the policy to be
+    // under_review. A reject (or approve) on an already-draft policy — e.g. an
+    // orphaned pending stage left in the queue after an admin "send back to draft"
+    // — is no longer actionable: the guard throws StageNotActionableError and the
+    // whole tx rolls back BEFORE any immutable review_decisions row is written.
     findByIdMock.mockResolvedValueOnce([
       { id: 'p1', status: 'draft', currentVersion: 1, contentJson: {} },
     ]);
     await expect(
       recordReviewDecision(POLICY_ID_FIXTURE, 's1', 'rejected'),
-    ).rejects.toBeInstanceOf(IllegalTransitionError);
+    ).rejects.toBeInstanceOf(StageNotActionableError);
+    expect(reviewRecordMock).not.toHaveBeenCalled();
   });
 
   it('reviewer role is permitted (not only admin) — §13(d) self-approval allowed', async () => {
@@ -676,6 +705,10 @@ describe('recordReviewDecision (Phase 9, D-09-01)', () => {
       clerkUserId: 'clerk_test_user',
       role: 'reviewer' as const,
     });
+    // under_review so the decision-time status guard passes.
+    findByIdMock.mockResolvedValueOnce([
+      { id: 'p1', status: 'under_review', currentVersion: 1, contentJson: {} },
+    ]);
     await expect(
       recordReviewDecision(POLICY_ID_FIXTURE, 's1', 'approved'),
     ).resolves.toBeUndefined();
@@ -701,12 +734,45 @@ describe('recordReviewDecision (Phase 9, D-09-01)', () => {
     // A crafted/stale (policyId, stageId) mismatch or an already-decided stage
     // makes recordDecision a 0-row update; recordReviewDecision must throw BEFORE
     // the immutable ledger insert so no misattributed row is written and no
-    // sibling-policy state is changed.
+    // sibling-policy state is changed. The policy itself IS under_review here
+    // (the decision-time status guard passes) so this isolates the FIX-A 0-row
+    // path specifically.
+    findByIdMock.mockResolvedValueOnce([
+      { id: 'p1', status: 'under_review', currentVersion: 1, contentJson: {} },
+    ]);
     wfRecordDecisionMock.mockResolvedValueOnce([]);
     await expect(
       recordReviewDecision(POLICY_ID_FIXTURE, 's1', 'approved', 'lgtm'),
     ).rejects.toBeInstanceOf(StageNotActionableError);
     expect(reviewRecordMock).not.toHaveBeenCalled();
     expect(txUpdateMock).not.toHaveBeenCalled();
+    // The under_review guard PASSED here (policy was seeded under_review), so
+    // recordDecision WAS reached and returned 0 rows — this isolates the FIX-A path,
+    // distinct from the draft-status guard test above.
+    expect(wfRecordDecisionMock).toHaveBeenCalled();
+  });
+
+  it('approve on a policy returned to DRAFT (orphaned pending stage) throws StageNotActionableError and appends NO ledger row (audit-ledger integrity)', async () => {
+    // THE Phase 9 review defect (s19): the admin reject() path ("send back to
+    // draft") returned the policy to draft while leaving its workflow_stages row
+    // 'pending', so the shared /reviewer queue still surfaced it. Without the
+    // decision-time status guard, a reviewer Approve would append a PERMANENT,
+    // contradictory "approved" row to the immutable review_decisions ledger of a
+    // DRAFT policy. The guard requires under_review at decision time → the whole tx
+    // rolls back with ZERO ledger rows. (The reject() queue-hygiene fix supersedes
+    // the stage at the source; this status guard is the defense-in-depth backstop.)
+    findByIdMock.mockResolvedValueOnce([
+      { id: 'p1', status: 'draft', currentVersion: 1, contentJson: {} },
+    ]);
+    await expect(
+      recordReviewDecision(POLICY_ID_FIXTURE, 's1', 'approved', 'lgtm'),
+    ).rejects.toBeInstanceOf(StageNotActionableError);
+    // The immutable ledger was NOT touched (the whole point of R-017 / ②b).
+    expect(reviewRecordMock).not.toHaveBeenCalled();
+    // No status flip either.
+    expect(txUpdateMock).not.toHaveBeenCalled();
+    // The decision-time status guard fired BEFORE the stage mutation — recordDecision
+    // never ran (proves this is the under_review guard, not the FIX-A 0-row path).
+    expect(wfRecordDecisionMock).not.toHaveBeenCalled();
   });
 });

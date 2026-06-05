@@ -56,7 +56,7 @@ export default async function ReviewDetailPage({
         <PolicyView content={policy.contentJson as JSONContent} />
       </div>
 
-      {pending ? (
+      {pending && policy.status === 'under_review' ? (
         <div className="rounded border p-4">
           <h2 className="mb-3 font-medium">Your decision</h2>
           {pending.comment ? (

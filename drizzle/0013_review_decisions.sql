@@ -8,7 +8,7 @@
 --   discipline. Pre-paying-customer status per .planning/STATE.md.
 --
 -- DATA MODEL (②b): workflow_stages stays the mutable current-state projection
--- (drives the reviewer queue via listPendingForReviewer); review_decisions is
+-- (drives the shared reviewer queue via listPendingForOrg); review_decisions is
 -- the immutable ledger of every Approve/Reject. Both written atomically in one
 -- tx (recordReviewDecision, lib/policies/transitions.ts).
 --

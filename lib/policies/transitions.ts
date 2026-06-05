@@ -169,6 +169,15 @@ export async function reject(policyId: PolicyId, _reason?: string): Promise<void
   const ctx = await getAdminOrgContext();
   await withOrgScope(ctx, async (s) => {
     await loadAndAssertTransition(s, policyId, 'draft');
+    // Phase 9 review fix (queue hygiene at the source) — supersede this policy's
+    // still-pending stage as the admin sends it back to draft. Without it the
+    // pending workflow_stages row is orphaned (policy=draft, stage=pending): it
+    // lingers in the shared /reviewer queue (listPendingForOrg) where a reviewer
+    // could Approve it, appending a contradictory row to the immutable
+    // review_decisions ledger of a DRAFT policy. Mirrors submitForReview's supersede;
+    // 'superseded' is projection-only (no ledger row, ignored by both the publish
+    // gate and the reviewer queue).
+    await WorkflowStages.supersedePending(s, policyId);
     await s.tx
       .update(policies)
       .set({ status: 'draft', updatedAt: sql`now()` })
@@ -199,6 +208,20 @@ export async function recordReviewDecision(
 ): Promise<void> {
   const ctx = await getReviewerOrAdminOrgContext();
   await withOrgScope(ctx, async (s) => {
+    // Phase 9 review fix (audit-ledger integrity) — the policy must be actively
+    // `under_review` at decision time for BOTH approve and reject. Loaded ONCE here
+    // so both branches are guarded uniformly. This defends the immutable
+    // review_decisions ledger from recording a decision against a policy that the
+    // admin reject() path returned to draft while its pending stage lingered in the
+    // shared queue (the s19 review defect). A non-under_review policy → throw
+    // StageNotActionableError BEFORE any stage mutation or ledger insert, so the whole
+    // tx rolls back with ZERO rows. (under_review→draft for the reject branch below is
+    // always a legal transition, so no further canTransition check is needed there.)
+    const policyRows = await Policies.findById(s, policyId);
+    const policy = policyRows[0];
+    if (!policy || policy.status !== 'under_review') {
+      throw new StageNotActionableError(policyId);
+    }
     // FIX-A (Phase 9 review): recordDecision now binds policyId + status='pending'
     // in its WHERE, so a crafted (policyId=B, stageId=A's-pending) POST or an
     // already-decided stage hits ZERO rows. Assert that BEFORE the ledger insert
@@ -214,7 +237,6 @@ export async function recordReviewDecision(
       comment: comment ?? null,
     });
     if (decision === 'rejected') {
-      await loadAndAssertTransition(s, policyId, 'draft');
       await s.tx
         .update(policies)
         .set({ status: 'draft', updatedAt: sql`now()` })
