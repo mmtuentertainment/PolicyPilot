@@ -29,8 +29,9 @@ const TEST_URL: string = (() => {
   return v;
 })();
 
-// 12 tenant-scoped tables (10 from drizzle/0001_rls_policies.sql + 1 added in Phase 4
-// per drizzle/0006_rls_batch_jobs.sql + 1 added in Phase 5 per drizzle/0011_qa_citation_grants.sql).
+// 13 tenant-scoped tables (10 from drizzle/0001_rls_policies.sql + 1 added in Phase 4
+// per drizzle/0006_rls_batch_jobs.sql + 1 added in Phase 5 per drizzle/0011_qa_citation_grants.sql
+// + 1 added in Phase 9 per drizzle/0013_review_decisions.sql).
 // `organizations` uses `id` for RLS predicate; others use `org_id`.
 const TENANT_TABLES = [
   'organizations',
@@ -45,6 +46,7 @@ const TENANT_TABLES = [
   'workflow_stages',
   'batch_jobs', // Phase 4 D-29 / AC-24 — new tenant table for Consistency Check batch state.
   'qa_citation_grants', // Phase 5 D-29 — new tenant table for Q&A citation-referral grants per T-2(4c). RESEARCH gap-2 closure.
+  'review_decisions', // Phase 9 D-09-01 (R-017) — append-only reviewer-decision audit ledger.
 ] as const;
 
 /**
@@ -84,12 +86,20 @@ async function main(): Promise<void> {
   // string per org so the constraint is satisfied.
   const batchJobAId = randomUUID();
   const batchJobBId = randomUUID();
+  // Phase 9 D-09-01 — orgB workflow_stages + review_decisions rows so the cross-org
+  // negative loop actually exercises RLS on the two newest tenant tables (previously
+  // neither was ever seeded → their negative checks passed vacuously). stageBId is
+  // referenced as review_decisions.stage_id, so it is set explicitly rather than
+  // relying on the gen_random_uuid() default.
+  const stageBId = randomUUID();
+  const reviewDecisionBId = randomUUID();
 
   try {
     // Truncate then seed. CASCADE on truncate cleans children from earlier
     // runs. clerk_events + stripe_events also truncated to keep the DB tidy.
     await sql.begin(async (tx) => {
       const TRUNC = [
+        'review_decisions', // Phase 9 D-09-01 — child of workflow_stages/policies/users; truncate first (child→parent readability; CASCADE handles either order).
         'qa_citation_grants', // Phase 5 D-29 — truncate before seed (child of org/user/policy via FKs); ON DELETE CASCADE from 0011 handles either order but explicit ordering preserves child→parent readability.
         'acknowledgments',
         'workflow_stages',
@@ -127,6 +137,14 @@ async function main(): Promise<void> {
       // global-namespace IDs that the live submit endpoint would receive.
       await tx`INSERT INTO batch_jobs (id, org_id, anthropic_batch_id) VALUES (${batchJobAId}, ${orgAId}, ${'msgbatch_test_orgA_' + orgAId.slice(0, 8)})`;
       await tx`INSERT INTO batch_jobs (id, org_id, anthropic_batch_id) VALUES (${batchJobBId}, ${orgBId}, ${'msgbatch_test_orgB_' + orgBId.slice(0, 8)})`;
+
+      // Phase 9 D-09-01 — one orgB workflow_stages (pending) + one immutable
+      // review_decisions row, both org-scoped to orgB. orgA's JWT must see ZERO rows
+      // in either table; the negative loop below now asserts isolation on the actual
+      // new-table RLS policies (and the review_decisions 2-table FK chain) instead of
+      // passing trivially against an empty table.
+      await tx`INSERT INTO workflow_stages (id, org_id, policy_id, stage_order, reviewer_id, status) VALUES (${stageBId}, ${orgBId}, ${policyBId}, 1, ${userBId}, 'pending')`;
+      await tx`INSERT INTO review_decisions (id, org_id, policy_id, stage_id, reviewer_id, decision) VALUES (${reviewDecisionBId}, ${orgBId}, ${policyBId}, ${stageBId}, ${userBId}, 'approved')`;
     });
 
     // Now the actual property test. RESEARCH Pitfall 1: SET LOCAL ROLE
@@ -161,7 +179,7 @@ async function main(): Promise<void> {
         console.error(`POSITIVE CONTROL FAILED: orgA cannot see its own policy row (${positiveRows.length} rows). Likely cause: GRANT missing (L-04 in 0001_rls_policies.sql).`);
       }
 
-      // NEGATIVE: for each of the 12 tenant-scoped tables, orgA's user
+      // NEGATIVE: for each of the 13 tenant-scoped tables, orgA's user
       // must see ZERO rows whose org_id (or id, for organizations) is orgB's.
       for (const table of TENANT_TABLES) {
         const col = predicateColumnFor(table);
@@ -188,7 +206,7 @@ async function main(): Promise<void> {
     // seed lives in a separate sql.begin block — TRUNCATE here to keep
     // the test DB clean for the next run).
     await sql.begin(async (tx) => {
-      for (const t of ['qa_citation_grants', 'acknowledgments', 'workflow_stages', 'policy_assignments', 'notifications', 'ai_generations', 'batch_jobs', 'policy_versions', 'policies', 'departments', 'users', 'organizations']) {
+      for (const t of ['review_decisions', 'qa_citation_grants', 'acknowledgments', 'workflow_stages', 'policy_assignments', 'notifications', 'ai_generations', 'batch_jobs', 'policy_versions', 'policies', 'departments', 'users', 'organizations']) {
         await tx.unsafe(`TRUNCATE TABLE "${t}" CASCADE`);
       }
     });

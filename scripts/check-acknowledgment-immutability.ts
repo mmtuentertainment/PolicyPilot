@@ -46,6 +46,8 @@ const SCHEMA_SYMBOL_FILE = 'lib/db/schema.ts';
 const IMMUTABLE_TABLES = [
   { symbolName: 'acknowledgments', sqlName: 'acknowledgments' },
   { symbolName: 'qaCitationGrants', sqlName: 'qa_citation_grants' },
+  // Phase 9 D-09-01 (R-017) — append-only reviewer-decision audit ledger (②b).
+  { symbolName: 'reviewDecisions', sqlName: 'review_decisions' },
 ] as const;
 const IMMUTABLE_SYMBOL_NAMES: Set<string> = new Set(
   IMMUTABLE_TABLES.map((table) => table.symbolName),
@@ -69,7 +71,7 @@ const FIXTURE_FILE = 'tests/fixtures/ack-mutation-attempt.ts';
 // positives on comments/docs). Documented secondary gap mitigated by ADR-018
 // review discipline + tests/types.ts D-07 type-system invariant.
 const RAW_SQL_PATTERN =
-  /\bsql\s*`[^`]*?\b(UPDATE|DELETE\s+FROM)\s+(?:"(acknowledgments|qa_citation_grants)"|(acknowledgments|qa_citation_grants))\b[^`]*?`/gi;
+  /\bsql\s*`[^`]*?\b(UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+(?:"(acknowledgments|qa_citation_grants|review_decisions)"|(acknowledgments|qa_citation_grants|review_decisions))\b[^`]*?`/gi;
 
 type Violation = {
   file: string;

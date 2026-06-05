@@ -86,12 +86,12 @@ Cannot publish without passing through Draft first. On Growth+, cannot publish w
 **Scope:** Business rule — visibility.
 **Phase:** 3 — Admin UI (admin surface) — also enforced cross-surface in Phase 5
 
-Employees see only policies assigned to them or their department. Employees cannot see Draft or Under Review policies. Admins see all policies in all statuses. Reviewers see only their review queue.
+Employees see only policies assigned to them or their department. Employees cannot see Draft or Under Review policies. Admins see all policies in all statuses. Reviewers (and admins) see the organization's pending review queue — a shared queue in the MVP (see Acceptance).
 
 **Acceptance:**
 - Employee policy queries filter to `status = 'published'` AND assignment match.
 - Admin policy queries unfiltered by status (always scoped by `org_id`).
-- Reviewer surface lists only `workflow_stages` rows where `reviewer_id = self` AND `status = 'pending'`.
+- Reviewer surface (MVP, D-09-01 2026-06-05) lists `workflow_stages` rows where `org_id` = the caller's org AND `status = 'pending'` (policy `under_review`) — a **shared org-scoped review queue** (`WorkflowStages.listPendingForOrg`), actionable by any reviewer or admin. Per-reviewer `reviewer_id = self` filtering is **deferred to backlog rank-18** (the MVP ships no reviewer-assignment UI, so `workflow_stages.reviewer_id` is unpopulated and a self-filter would dark the queue). Tenant isolation holds — `org_id` is bound on both `workflow_stages` and `policies` + RLS, so no cross-org read — and the actual approver is recorded in the immutable `review_decisions` ledger via `reviewer_id`. The retained dead `listPendingForReviewer(s, ctx.userId)` seam is the rank-18 implementation hook.
 
 ---
 

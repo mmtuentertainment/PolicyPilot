@@ -1,13 +1,27 @@
 # ASK-FIRST Proposal — `approvalWorkflows` tier gate (DRAFT — no code applied)
 
 Date: 2026-06-04
-Status: **DRAFT — pending operator product-intent decision.** No code in this PR.
+Status: **RESOLVED (2026-06-04)** — the operator GO'd "gate it now"; the **Phase 9 Reviewer MVP** (`gsd/phase-9-reviewer`, decision **D-09-01**) implements the gate. See §0 below. The DRAFT analysis is retained for history.
 Tracked by: backlog rank 16 · risk register **R-017** · surfaced by the PR #39 codebase-map refresh (`.planning/codebase/ARCHITECTURE.md` "approvalWorkflows … is NOT currently enforced").
 
 > This is a **consultant proposal**, not an implementation. Per CLAUDE.md ASK-FIRST
 > (#4 "Any security-relevant decision") and the project's "trust DB for subscription
 > state / tier gating is app-layer" rules, **the code fix below is NOT applied here**
 > and must route through the normal ASK-FIRST → security path, never a doc PR.
+
+---
+
+## 0. Resolution (2026-06-04 — supersedes the DRAFT below)
+
+The operator chose **"gate it now,"** and the gate was BUILT as the **Phase 9 Reviewer MVP** (`gsd/phase-9-reviewer`, decision **D-09-01**) — pending operator PR. The chosen shape is a **variant of Option A** scoped at the true publish boundary rather than gating `submitForReview`/`approve`/`reject`:
+
+- `publish()` (`lib/policies/transitions.ts`) reads `checkTierLimit(ctx.orgId, 'approvalWorkflows')`. For Growth+ (`allowed:true`) it enforces an approval-**completeness** gate: the policy must be `under_review` with ≥1 approved and 0 pending workflow stages before it can publish. This also covers `approve()` (the literal alias of `publish()`), closing the publish-leak — which is stronger than gating `approve`/`submit` alone (those left a direct `publish()` bypass).
+- **Starter stays direct-publish** (the flag is non-binding for Starter) — chosen over a hard 403 so the Starter publish path is never broken; the smallest reversible enforcement that closes the gap.
+- A new shared `/reviewer` surface (`workflow_stages` projection) + an immutable `review_decisions` audit ledger (migration `0013`) back the workflow.
+
+**Deferred (→ backlog rank-17/18):** the submit-entitlement refinement (Starter-403 on reviewer-assignment / Growth+ must-assign, §13a-ii — the literal Option-A-on-`submitForReview`) and the per-reviewer assignment UI — both additive and non-security-bearing.
+
+R-017 is now **Mitigated**; backlog rank-16 is **Shipped (Phase 9)**. The DRAFT analysis below is retained for history.
 
 ---
 

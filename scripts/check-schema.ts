@@ -48,6 +48,11 @@ const TENANT_TABLES = [
   // below; column shape + UNIQUE + indexes + wrapped-form RLS predicate
   // asserted by the Phase 5 assertion block at the file tail.
   'qa_citation_grants',
+  // Phase 9 D-09-01 (FIX-C) — review_decisions append-only audit ledger. RLS,
+  // policy, and 4 GRANTs auto-asserted by the per-table loop; wrapped-RLS form +
+  // indexes asserted by the Phase 9 assertion block at the file tail (lockstep
+  // with check-rls.ts + check-deploy-schema.ts; 0013 RLS+GRANT hand-written).
+  'review_decisions',
 ] as const;
 
 const REQUIRED_PRIVS = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'] as const;
@@ -290,6 +295,46 @@ async function main(): Promise<void> {
       });
     }
 
+    // Phase 9 D-09-01 (FIX-C) — review_decisions immutable audit ledger: RLS +
+    // GRANT are hand-written in 0013_review_decisions.sql, so pin the
+    // security-bearing depth (wrapped-RLS form + the two btree indexes). Existence
+    // + RLS-enabled + org_isolation policy + 4 GRANTs are covered by the per-table
+    // loop above (review_decisions is now in TENANT_TABLES). Column-shape is left
+    // to the typed insert + append-only immutability gate.
+    const reviewPolicy = await sql<{ qual: string | null }[]>`
+      SELECT qual FROM pg_policies
+      WHERE tablename = 'review_decisions' AND policyname = 'org_isolation'
+    `;
+    if (reviewPolicy.length !== 1) {
+      failures.push({
+        table: 'review_decisions',
+        check: 'D-09-01 org_isolation policy exists',
+        detail: `${reviewPolicy.length} policy row(s) (expected 1)`,
+      });
+    } else {
+      const qual = reviewPolicy[0]!.qual ?? '';
+      if (!qual.includes('SELECT') || !qual.includes('auth.jwt(')) {
+        failures.push({
+          table: 'review_decisions',
+          check: 'D-09-01 RLS wrapped (SELECT auth.jwt()) form per 0008',
+          detail: `qual=${qual || '(null)'} — unwrapped auth.jwt() will trigger splinter lint and per-row JWT eval`,
+        });
+      }
+    }
+
+    const reviewIdx = await sql<{ indexname: string }[]>`
+      SELECT indexname FROM pg_indexes
+      WHERE tablename = 'review_decisions'
+        AND indexname IN ('review_decisions_org_id_idx', 'review_decisions_policy_id_idx')
+    `;
+    if (reviewIdx.length !== 2) {
+      failures.push({
+        table: 'review_decisions',
+        check: 'D-09-01 indexes (org_id_idx + policy_id_idx)',
+        detail: `${reviewIdx.length} of 2 expected (got: ${reviewIdx.map((r) => r.indexname).join(', ') || '(none)'})`,
+      });
+    }
+
     // Phase 6 D-13 - assert additive billing state columns and partial unique indexes.
     const billingCols = await sql<{
       column_name: string;
@@ -369,6 +414,7 @@ async function main(): Promise<void> {
       `OK — schema audit: ${TENANT_TABLES.length} tenant-scoped tables verified (exists + RLS + policy + 4 GRANTs); ` +
         `2 service-role tables verified (NO RLS); ` +
         `policy_versions UNIQUE + Phase 5 acknowledgments/policy_assignments UNIQUE + qa_citation_grants UNIQUE + columns + indexes + wrapped-RLS all present; ` +
+        `review_decisions wrapped-RLS + indexes present; ` +
         `Phase 6 billing columns + partial unique indexes present.`,
     );
     process.exit(0);

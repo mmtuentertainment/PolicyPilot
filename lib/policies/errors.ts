@@ -52,7 +52,9 @@ export type PolicyDomainErrorCode =
   | 'POLICY_NOT_FOUND'
   | 'POLICY_ARCHIVED'
   | 'POLICY_NOT_ASSIGNED'
-  | 'ACKNOWLEDGMENT_NOT_RECORDED';
+  | 'ACKNOWLEDGMENT_NOT_RECORDED'
+  | 'WORKFLOW_INCOMPLETE'
+  | 'STAGE_NOT_ACTIONABLE';
 
 /**
  * Marker abstract base for errors that lib/policies/ throws during
@@ -121,5 +123,62 @@ export class AcknowledgmentNotRecordedError extends PolicyDomainError {
   constructor(public readonly policyId: string) {
     super(`Acknowledgment not recorded: ${policyId}`);
     this.name = 'AcknowledgmentNotRecordedError';
+  }
+}
+
+/**
+ * Phase 9 (R-017 / D-09-01) — a Growth+ policy cannot be published because its
+ * approval workflow is not complete. Thrown INSIDE publish() (lib/policies/
+ * transitions.ts) when `approvalWorkflows` is enabled (Growth+) and EITHER:
+ *   - the policy is not currently `under_review` (require-submission-first:
+ *     direct draft→published is blocked for Growth+, which also prevents
+ *     republishing on a STALE approval after archive→restore→edit), OR
+ *   - the current review cycle is not complete (needs >=1 'approved' AND 0
+ *     'pending').
+ *
+ * Distinct from TierLimitExceededError (403 upgrade): a paying Growth customer
+ * is shown a workflow message, NEVER an upgrade prompt. handleTransitionError
+ * (app/(admin)/policies/[id]/actions.ts) maps it to a clean { ok:false } toast.
+ *
+ * INFO-DISCLOSURE BOUNDARY: policyId in the message is acceptable (the admin
+ * already has it from URL navigation); orgId/userId never appear. `pending` and
+ * `approved` are non-sensitive counts for the admin's diagnostic UI.
+ */
+export class WorkflowIncompleteError extends PolicyDomainError {
+  readonly code = 'WORKFLOW_INCOMPLETE';
+  constructor(
+    public readonly policyId: string,
+    public readonly pending: number,
+    public readonly approved: number,
+  ) {
+    super(
+      `Policy workflow incomplete: ${policyId} (pending=${pending}, approved=${approved})`,
+    );
+    this.name = 'WorkflowIncompleteError';
+  }
+}
+
+/**
+ * Phase 9 (R-017 / D-09-01) — FIX-A (Phase 9 adversarial review). A reviewer or
+ * admin POSTed a (policyId, stageId) pair whose targeted workflow_stages row is
+ * NOT an actionable PENDING stage of THIS policy: the stageId belongs to a
+ * different policy, the stage is no longer 'pending' (already approved / rejected
+ * / superseded), or it does not exist in this org. recordReviewDecision
+ * (lib/policies/transitions.ts) asserts WorkflowStages.recordDecision hit exactly
+ * one such row (returning().length > 0) BEFORE appending the immutable
+ * review_decisions ledger row — so a mismatched or crafted POST rolls back with
+ * NO misattributed ledger entry and NO sibling-policy state change. (Org RLS
+ * already held cross-tenant; this defends ledger integrity + sibling policies
+ * WITHIN an org.)
+ *
+ * handleReviewError (app/(reviewer)/reviewer/actions.ts) maps it to a benign
+ * "no longer available" toast — never a 500. INFO-DISCLOSURE BOUNDARY: policyId
+ * only (the reviewer already has it from the queue); orgId/userId never appear.
+ */
+export class StageNotActionableError extends PolicyDomainError {
+  readonly code = 'STAGE_NOT_ACTIONABLE';
+  constructor(public readonly policyId: string) {
+    super(`Workflow stage not actionable: ${policyId}`);
+    this.name = 'StageNotActionableError';
   }
 }

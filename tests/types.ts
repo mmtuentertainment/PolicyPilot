@@ -19,6 +19,7 @@ import { Acknowledgments } from '@/lib/db/repositories/acknowledgments';
 import { Policies } from '@/lib/db/repositories/policies';
 import { PolicyVersions } from '@/lib/db/repositories/policy_versions';
 import { QaCitationGrants } from '@/lib/db/repositories/qa_citation_grants';
+import { ReviewDecisions } from '@/lib/db/repositories/review_decisions';
 
 // Extract the OrgScope shape from Policies.create's first parameter so we
 // can supply a typed placeholder without reaching for `as any`. The third
@@ -58,6 +59,18 @@ void PolicyVersions.delete;
 void QaCitationGrants.update;
 // @ts-expect-error — QaCitationGrants must not expose `delete` (D-29 write-once grants)
 void QaCitationGrants.delete;
+
+// ---- Phase 9 D-09-01 review_decisions ledger immutability invariant ----
+// review_decisions is the immutable reviewer-decision audit ledger (②b). The
+// ReviewDecisions repository exposes record + listForPolicy only; mutating or
+// deleting a row would rewrite the audit trail (ADR-018 spirit). If the
+// repository ever grows update/delete, tsc SUCCEEDS on these lines and fails
+// the build — the intended inverted-polarity failure mode.
+
+// @ts-expect-error — ReviewDecisions must not expose `update` (ADR-018 spirit — immutable ledger)
+void ReviewDecisions.update;
+// @ts-expect-error — ReviewDecisions must not expose `delete` (ADR-018 spirit — immutable ledger)
+void ReviewDecisions.delete;
 
 // ---- ADR-028 PolicyId brand invariant ----
 // The branded `PolicyId` nominal type (from `lib/policies/types.ts`) MUST

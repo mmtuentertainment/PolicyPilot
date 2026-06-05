@@ -27,10 +27,12 @@
 // DB layer (ASK-FIRST per CLAUDE.md).
 import 'server-only';
 import { sql } from 'drizzle-orm';
-import { acknowledgments, qaCitationGrants } from '@/lib/db/schema';
+import { acknowledgments, qaCitationGrants, reviewDecisions } from '@/lib/db/schema';
 
 type FakeTx = {
-  update: (t: typeof acknowledgments | typeof qaCitationGrants) => {
+  update: (
+    t: typeof acknowledgments | typeof qaCitationGrants | typeof reviewDecisions,
+  ) => {
     set: (v: Record<string, unknown>) => Promise<unknown>;
   };
   execute: (q: unknown) => Promise<unknown>;
@@ -59,4 +61,17 @@ export function _violationFixtureGrantDrizzle(tx: FakeTx) {
 // Violation 4: Raw-SQL bypass for qa_citation_grants.
 export function _violationFixtureGrantRawSql(tx: FakeTx) {
   return tx.execute(sql`DELETE FROM qa_citation_grants WHERE true`);
+}
+
+// Violation 5: Drizzle-API .update(reviewDecisions) — Phase 9 D-09-01 immutable
+// ledger. Proves the AST path catches the new append-only review_decisions table.
+export function _violationFixtureReviewDrizzle(tx: FakeTx) {
+  return tx.update(reviewDecisions).set({});
+}
+
+// Violation 6: Raw-SQL bypass for review_decisions (Phase 9). Exercises the
+// Sub-pass 2 regex path for the third immutable table so --self-test's
+// IMMUTABLE_TABLES.every(...both paths...) holds.
+export function _violationFixtureReviewRawSql(tx: FakeTx) {
+  return tx.execute(sql`DELETE FROM review_decisions WHERE true`);
 }

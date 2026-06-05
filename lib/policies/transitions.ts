@@ -37,17 +37,24 @@ import { and, eq, sql } from 'drizzle-orm';
 import { withOrgScope, type OrgScope } from '@/lib/db/scoped';
 import { getOrgContext } from '@/lib/auth/context';
 import { requireAdminFromCtx } from '@/lib/auth/require-admin';
+import { requireReviewerOrAdminFromCtx } from '@/lib/auth/require-reviewer';
 import { Policies } from '@/lib/db/repositories/policies';
 import { PolicyVersions } from '@/lib/db/repositories/policy_versions';
 import { WorkflowStages } from '@/lib/db/repositories/workflow_stages';
+import { ReviewDecisions } from '@/lib/db/repositories/review_decisions';
 import { policies } from '@/lib/db/schema';
+import { checkTierLimit } from '@/lib/stripe/products';
 import { generateSummaryForPolicy } from '@/lib/ai/summary';
 import {
   canTransition,
   IllegalTransitionError,
   type PolicyStatus,
 } from './state-machine';
-import { PolicyNotFoundError } from './errors';
+import {
+  PolicyNotFoundError,
+  WorkflowIncompleteError,
+  StageNotActionableError,
+} from './errors';
 import type { PolicyId } from './types';
 
 // Narrowed row shape returned by Policies.findById. The drizzle column
@@ -64,6 +71,17 @@ type PolicyRow = {
 async function getAdminOrgContext() {
   const ctx = await getOrgContext();
   requireAdminFromCtx(ctx);
+  return ctx;
+}
+
+/**
+ * Phase 9 (R-017 / D-09-01) — resolve OrgContext and require reviewer OR admin.
+ * Used by recordReviewDecision. Admins are admitted because §13(d) allows
+ * self-approval (no separation-of-duties).
+ */
+async function getReviewerOrAdminOrgContext() {
+  const ctx = await getOrgContext();
+  requireReviewerOrAdminFromCtx(ctx);
   return ctx;
 }
 
@@ -110,6 +128,13 @@ export async function submitForReview(
   const ctx = await getAdminOrgContext();
   await withOrgScope(ctx, async (s) => {
     await loadAndAssertTransition(s, policyId, 'under_review');
+    // FIX-B (Phase 9 review): supersede any stale pending stage from a prior cycle
+    // BEFORE recording the new submission, so each policy carries AT MOST one
+    // pending stage. The admin reject() path leaves a pending row behind; without
+    // this, submit→admin-reject→edit→resubmit would accumulate 2 pending stages and
+    // wedge the publish gate (pending>0) forever. 'superseded' is projection-only —
+    // no ledger row, and the publish gate + reviewer queue both ignore it.
+    await WorkflowStages.supersedePending(s, policyId);
     // ADR-028: use the branded `policyId` (already in scope) rather than
     // `policy.id` (DB-row field typed as raw string) — semantically
     // identical (`policy.id` comes from a query keyed on `policyId`),
@@ -144,10 +169,79 @@ export async function reject(policyId: PolicyId, _reason?: string): Promise<void
   const ctx = await getAdminOrgContext();
   await withOrgScope(ctx, async (s) => {
     await loadAndAssertTransition(s, policyId, 'draft');
+    // Phase 9 review fix (queue hygiene at the source) — supersede this policy's
+    // still-pending stage as the admin sends it back to draft. Without it the
+    // pending workflow_stages row is orphaned (policy=draft, stage=pending): it
+    // lingers in the shared /reviewer queue (listPendingForOrg) where a reviewer
+    // could Approve it, appending a contradictory row to the immutable
+    // review_decisions ledger of a DRAFT policy. Mirrors submitForReview's supersede;
+    // 'superseded' is projection-only (no ledger row, ignored by both the publish
+    // gate and the reviewer queue).
+    await WorkflowStages.supersedePending(s, policyId);
     await s.tx
       .update(policies)
       .set({ status: 'draft', updatedAt: sql`now()` })
       .where(and(eq(policies.orgId, s.orgId), eq(policies.id, policyId)));
+  });
+}
+
+/**
+ * Phase 9 (R-017 / D-09-01) — record a reviewer's decision on a workflow stage.
+ * Reviewer-OR-admin scope (§13(d) allows self-approval). One transaction:
+ *   1. mutate the workflow_stages projection (drives the /reviewer queue), AND
+ *   2. append an immutable review_decisions ledger row (audit trail — ②b), AND
+ *   3. on 'rejected' ONLY, return the policy to draft (under_review → draft) so
+ *      the admin can revise + resubmit.
+ * On 'approved' the policy STAYS under_review; the admin publishes separately
+ * (the publish() gate then passes). The ledger's reviewerId is the ACTUAL
+ * approver (s.userId), independent of any workflow_stages.reviewerId assignment.
+ *
+ * Atomicity: all three steps run in ONE withOrgScope transaction. If the reject
+ * transition is illegal (policy not under_review) the IllegalTransitionError
+ * rolls back the decision + ledger writes too — no partial state.
+ */
+export async function recordReviewDecision(
+  policyId: PolicyId,
+  stageId: string,
+  decision: 'approved' | 'rejected',
+  comment?: string,
+): Promise<void> {
+  const ctx = await getReviewerOrAdminOrgContext();
+  await withOrgScope(ctx, async (s) => {
+    // Phase 9 review fix (audit-ledger integrity) — the policy must be actively
+    // `under_review` at decision time for BOTH approve and reject. Loaded ONCE here
+    // so both branches are guarded uniformly. This defends the immutable
+    // review_decisions ledger from recording a decision against a policy that the
+    // admin reject() path returned to draft while its pending stage lingered in the
+    // shared queue (the s19 review defect). A non-under_review policy → throw
+    // StageNotActionableError BEFORE any stage mutation or ledger insert, so the whole
+    // tx rolls back with ZERO rows. (under_review→draft for the reject branch below is
+    // always a legal transition, so no further canTransition check is needed there.)
+    const policyRows = await Policies.findById(s, policyId);
+    const policy = policyRows[0];
+    if (!policy || policy.status !== 'under_review') {
+      throw new StageNotActionableError(policyId);
+    }
+    // FIX-A (Phase 9 review): recordDecision now binds policyId + status='pending'
+    // in its WHERE, so a crafted (policyId=B, stageId=A's-pending) POST or an
+    // already-decided stage hits ZERO rows. Assert that BEFORE the ledger insert
+    // so the whole tx rolls back with no misattributed immutable ledger row and
+    // no sibling-policy strand.
+    const updated = await WorkflowStages.recordDecision(s, policyId, stageId, decision, comment);
+    if (updated.length === 0) throw new StageNotActionableError(policyId);
+    await ReviewDecisions.record(s, {
+      policyId,
+      stageId,
+      reviewerId: s.userId,
+      decision,
+      comment: comment ?? null,
+    });
+    if (decision === 'rejected') {
+      await s.tx
+        .update(policies)
+        .set({ status: 'draft', updatedAt: sql`now()` })
+        .where(and(eq(policies.orgId, s.orgId), eq(policies.id, policyId)));
+    }
   });
 }
 
@@ -165,8 +259,32 @@ export async function reject(policyId: PolicyId, _reason?: string): Promise<void
  */
 export async function publish(policyId: PolicyId): Promise<void> {
   const ctx = await getAdminOrgContext();
+  // Phase 9 (R-017 / D-09-01) — read the org's approval-workflow entitlement
+  // BEFORE opening the scope (D-37 pattern: tier reads use the raw-db helper,
+  // not s.tx). Starter → allowed:false → the completeness gate below is skipped
+  // (direct publish unchanged). Growth+ → allowed:true → gate enforced.
+  const approvalWorkflow = await checkTierLimit(ctx.orgId, 'approvalWorkflows');
   await withOrgScope(ctx, async (s) => {
     const policy = await loadAndAssertTransition(s, policyId, 'published');
+    // Phase 9 (R-017 / D-09-01) — tier-aware approval-workflow completeness
+    // gate. Lives INSIDE publish() so it also covers approve() (the literal
+    // alias below), closing the publish-leak. §13(c) require-submission-first:
+    if (approvalWorkflow.allowed) {
+      // (i) Growth+ may publish ONLY from under_review — direct draft→published
+      //     is blocked. This ALSO closes the stale-approval leak: a restored +
+      //     edited policy is 'draft', so an OLD approved stage from a prior
+      //     cycle cannot satisfy the gate; the admin must resubmit for review.
+      if (policy.status !== 'under_review') {
+        throw new WorkflowIncompleteError(policyId, 0, 0);
+      }
+      // (ii) The current review cycle must be complete: >=1 approved, 0 pending.
+      const stages = await WorkflowStages.listForPolicy(s, policyId);
+      const pending = stages.filter((st) => st.status === 'pending').length;
+      const approved = stages.filter((st) => st.status === 'approved').length;
+      if (pending > 0 || approved < 1) {
+        throw new WorkflowIncompleteError(policyId, pending, approved);
+      }
+    }
     // D-04: create policy_versions row capturing the about-to-be-published
     // content. L-05: append-only — PolicyVersions doesn't even export
     // update/delete, so this cannot accidentally mutate prior rows.

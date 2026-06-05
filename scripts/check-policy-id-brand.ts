@@ -57,7 +57,13 @@ const REPO_TARGETS: Record<string, string[]> = {
   'lib/db/repositories/policies.ts': ['findById', 'updateDraft', 'incrementVersion', 'updateSummary'],
   'lib/db/repositories/policy_versions.ts': ['listForPolicy', 'findByVersionNumber'],
   'lib/db/repositories/policy_assignments.ts': ['listForPolicy'],
-  'lib/db/repositories/workflow_stages.ts': ['recordSubmission', 'listForPolicy'],
+  // Phase 9 FIX-A/FIX-B — recordDecision now takes policyId: PolicyId (bind
+  // stage↔policy); supersedePending takes policyId: PolicyId. Both pinned here.
+  'lib/db/repositories/workflow_stages.ts': ['recordSubmission', 'listForPolicy', 'recordDecision', 'supersedePending'],
+  // Phase 9 D-09-01 — ReviewDecisions.listForPolicy takes policyId: PolicyId.
+  // `record(s, input)` takes a schema-inferred object input → out of brand
+  // scope (ADR-028, like PolicyVersions.create / QaCitationGrants.upsert).
+  'lib/db/repositories/review_decisions.ts': ['listForPolicy'],
   // Phase 5 RESEARCH gap-4 closure: qa_citation_grants.hasGrant takes
   // (s, userId, policyId: PolicyId) per D-27 access predicate at
   // /my-policies/[id]. `upsert(s, input)` takes a schema-inferred input
@@ -79,6 +85,7 @@ const ORCH_TARGETS: Record<string, string[]> = {
     'submitForReview',
     'approve',
     'reject',
+    'recordReviewDecision', // Phase 9 D-09-01 — first param policyId: PolicyId.
     'publish',
     'archive',
     'restore',

@@ -1,6 +1,6 @@
 # Consultant System Map — PolicyPilot
 
-Updated: 2026-06-04 - dead-branch retention claim retired (`gsd/phase-6-billing` deleted); approvalWorkflows tier-gate gap noted (R-017)
+Updated: 2026-06-04 - Phase 9 Reviewer MVP built (`gsd/phase-9-reviewer`, D-09-01): `(reviewer)` route group + `review_decisions` append-only audit ledger + `publish()` Growth+ approval-completeness gate (R-017 mitigated)
 
 ## Product Boundary
 
@@ -26,9 +26,11 @@ flowchart TD
   RG --> AUTH[(auth)]
   RG --> ADMIN[(admin)]
   RG --> EMP[(employee)]
+  RG --> REV[(reviewer)]
 
   ADMIN --> SA[Server Actions and API Routes]
   EMP --> SA
+  REV --> SA
   SA --> AUTHLIB[lib/auth: getOrgContext, requireAdmin, OrgScope]
   SA --> REPOS[lib/db/repositories: org-scoped aggregate access]
   REPOS --> DB[(Supabase Postgres + Drizzle + RLS)]
@@ -76,6 +78,7 @@ Phase 5 Employee Portal shipped
 Phase 6 Billing         shipped (PR #32 squash commit 243067e; 06-01 foundation + 06-02 webhook + 06-03 tier gates + 06-04 checkout/pricing + 06-05 Customer Portal/settings + 06-06 verifier complete; db:verify green; local UAT 11/11 PASS; hosted pre-merge checks green/acceptable at 1abca44; post-merge targeted checks PASS)
 Phase 7 Crons + Email   pending
 Phase 8 Validation      pending
+Phase 9 Reviewer        built / pending PR (gsd/phase-9-reviewer, D-09-01) — out-of-band feature closing R-017: (reviewer) route group + review_decisions append-only ledger + publish() Growth+ approval-completeness gate; gates green (tsc/build/check:rls 13/db:verify 13/33 unit tests + adversarial review)
 ```
 
 Phase 5 shipped via PR #27 at `3344847`. Phase 6 shipped via PR #32 at squash commit `243067e9f259561a595230e5e7d3e97634040157` after prior PR head `1abca44dff89ccc7151d59b07fe1a93ce3d7be81` passed the hosted pre-merge gate. Plans 06-01 through 06-06 are complete: catalog/client/mask helpers exist, the additive billing-state migration is applied to the approved TEST/dev Supabase target, the Stripe webhook route verifies raw bodies, handles the 5 locked events, re-fetches canonical subscriptions where required, writes idempotently, `maxUsers` uses a real org-scoped user count, the admin checkout Server Action creates Stripe Checkout Sessions from server-derived org/price/metadata, public pricing carries only non-authoritative tier/interval intent, `/settings` is admin-gated, the admin billing page opens Stripe Customer Portal sessions from the DB-stored customer ID only, and `verify:phase-6` plus the hosted workflow/UAT checklist are wired. Local `pnpm db:verify`, pre-merge `pnpm verify:phase-6`, Stripe test-mode UAT rows 1-11, hosted pre-merge PR #32 checks, and post-merge targeted checks are green/acceptable. Hosted CI mutates only the approved dev/test Supabase target through TRUNCATE/seed; staging/prod remain operator-gated.
@@ -131,6 +134,15 @@ Post-ship topology note: `gsd/phase-6-billing` contained local docs/topology wor
 3. Resend sends transactional emails.
 4. Reporting dashboard and CSV export expose audit evidence.
 
+### 6. Reviewer approval (Phase 9 — R-017 / D-09-01)
+
+1. Reviewer or admin signs in via Clerk; middleware routes reviewers to `/reviewer`.
+2. The shared org review queue lists every PENDING `workflow_stages` row (`listPendingForOrg`) — the MVP is a shared queue, not per-reviewer assignment.
+3. Reviewer opens a policy (read-only `PolicyView`) and Approves or Rejects.
+4. `recordReviewDecision` runs in ONE transaction: mutates the `workflow_stages` projection (bound to org + policy + a pending stage), appends an immutable `review_decisions` ledger row (the actual approver), and on Reject returns the policy to draft.
+5. For Growth+ orgs, `publish()` enforces an approval-completeness gate (must be `under_review` + ≥1 approved + 0 pending) — covering `approve()`, closing the publish-leak. Starter stays direct-publish.
+6. `review_decisions` is append-only (no update/delete), enforced by the immutability gate + RLS org-isolation; `submitForReview` supersedes any stale pending stage so the gate can never wedge.
+
 ---
 
 ## Hotspots for Future Consultants
@@ -144,6 +156,7 @@ Post-ship topology note: `gsd/phase-6-billing` contained local docs/topology wor
 - `app/api/webhooks/*`: signature verification and idempotency.
 - `drizzle/*`: migration source of truth.
 - `scripts/check-*`: executable project invariants.
+- `app/(reviewer)/*` + `lib/policies/transitions.ts` (`publish()` approval-completeness gate, `recordReviewDecision`) + `lib/db/repositories/{workflow_stages,review_decisions}.ts`: the Phase 9 reviewer/approval surface; `review_decisions` is an append-only audit ledger (R-017 / D-09-01).
 
 ---
 
