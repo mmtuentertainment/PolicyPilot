@@ -1,6 +1,6 @@
 # Consultant Feature Inventory — PolicyPilot
 
-Updated: 2026-06-04 - Phase 9 Reviewer / approval-workflow MVP built (`gsd/phase-9-reviewer`, D-09-01), pending operator PR; prior: Phase 6 shipped via PR #32
+Updated: 2026-06-05 - Phase 9 Reviewer / approval-workflow MVP shipped via PR #42 at `1122da5`; prior: Phase 6 shipped via PR #32
 
 Use this file to keep the product surface tied to revenue, risk, and the beat-manual gate. Update it whenever a feature ships, changes scope, moves phase, or becomes intentionally deferred.
 
@@ -44,7 +44,7 @@ Scoring:
 | Compliance dashboard | 8 | Pending | Admin/auditor | Direct | High | Medium | Important buyer-visible proof once acknowledgments exist. |
 | CSV export | 8 | Pending | Admin/auditor | Direct | High | Low | Small feature, high perceived value; likely a strong micro-batch. |
 | Full acceptance-test pass | 8 | Pending | Operator/system | Defensive | High | Medium | Required before confident launch/demo. |
-| Reviewer / approval workflow | 9 | Built / pending PR | Reviewer/admin | Direct | Medium | Medium | **Phase 9 Reviewer MVP** (`gsd/phase-9-reviewer`, D-09-01) — closes R-017: `publish()` enforces a Growth+ approval-completeness gate (status `under_review` + ≥1 approved + 0 pending), covering `approve()` (closes the publish-leak); Starter stays direct-publish. Shared `/reviewer` queue (`workflow_stages` projection) + immutable `review_decisions` ledger. Verified green (tsc/build/check:rls 13/db:verify 13/33 unit tests + adversarial review). Deferred → backlog rank-17/18: submit-entitlement + per-reviewer-assignment UI. |
+| Reviewer / approval workflow | 9 | Shipped / monitor | Reviewer/admin | Direct | Medium | Medium | **Phase 9 Reviewer MVP** shipped via PR #42 at `1122da5` (D-09-01) — closes R-017: `publish()` enforces a Growth+ approval-completeness gate (status `under_review` + ≥1 approved + 0 pending), covering `approve()` (closes the publish-leak); Starter stays direct-publish. Shared `/reviewer` queue (`workflow_stages` projection) + immutable `review_decisions` ledger. Deferred → backlog rank-17/18: submit-entitlement + per-reviewer-assignment UI. |
 
 ---
 

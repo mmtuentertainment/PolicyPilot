@@ -1,6 +1,6 @@
 # Consultant System Map — PolicyPilot
 
-Updated: 2026-06-04 - Phase 9 Reviewer MVP built (`gsd/phase-9-reviewer`, D-09-01): `(reviewer)` route group + `review_decisions` append-only audit ledger + `publish()` Growth+ approval-completeness gate (R-017 mitigated)
+Updated: 2026-06-05 - Phase 9 Reviewer MVP shipped via PR #42 at `1122da5` (D-09-01): `(reviewer)` route group + `review_decisions` append-only audit ledger + `publish()` Growth+ approval-completeness gate (R-017 mitigated live)
 
 ## Product Boundary
 
@@ -78,7 +78,7 @@ Phase 5 Employee Portal shipped
 Phase 6 Billing         shipped (PR #32 squash commit 243067e; 06-01 foundation + 06-02 webhook + 06-03 tier gates + 06-04 checkout/pricing + 06-05 Customer Portal/settings + 06-06 verifier complete; db:verify green; local UAT 11/11 PASS; hosted pre-merge checks green/acceptable at 1abca44; post-merge targeted checks PASS)
 Phase 7 Crons + Email   pending
 Phase 8 Validation      pending
-Phase 9 Reviewer        built / pending PR (gsd/phase-9-reviewer, D-09-01) — out-of-band feature closing R-017: (reviewer) route group + review_decisions append-only ledger + publish() Growth+ approval-completeness gate; gates green (tsc/build/check:rls 13/db:verify 13/33 unit tests + adversarial review)
+Phase 9 Reviewer        shipped / monitor (PR #42 @ 1122da5, D-09-01) — out-of-band feature closing R-017: (reviewer) route group + review_decisions append-only ledger + publish() Growth+ approval-completeness gate
 ```
 
 Phase 5 shipped via PR #27 at `3344847`. Phase 6 shipped via PR #32 at squash commit `243067e9f259561a595230e5e7d3e97634040157` after prior PR head `1abca44dff89ccc7151d59b07fe1a93ce3d7be81` passed the hosted pre-merge gate. Plans 06-01 through 06-06 are complete: catalog/client/mask helpers exist, the additive billing-state migration is applied to the approved TEST/dev Supabase target, the Stripe webhook route verifies raw bodies, handles the 5 locked events, re-fetches canonical subscriptions where required, writes idempotently, `maxUsers` uses a real org-scoped user count, the admin checkout Server Action creates Stripe Checkout Sessions from server-derived org/price/metadata, public pricing carries only non-authoritative tier/interval intent, `/settings` is admin-gated, the admin billing page opens Stripe Customer Portal sessions from the DB-stored customer ID only, and `verify:phase-6` plus the hosted workflow/UAT checklist are wired. Local `pnpm db:verify`, pre-merge `pnpm verify:phase-6`, Stripe test-mode UAT rows 1-11, hosted pre-merge PR #32 checks, and post-merge targeted checks are green/acceptable. Hosted CI mutates only the approved dev/test Supabase target through TRUNCATE/seed; staging/prod remain operator-gated.

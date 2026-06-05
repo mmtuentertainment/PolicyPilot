@@ -17,6 +17,8 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 - [ ] **Phase 7: Crons + Email** — Railway worker + Resend templates + idempotent reminders.
 - [ ] **Phase 8: Validation** — Compliance dashboard + CSV export + all 8 acceptance criteria green.
 
+> Out-of-band shipped mitigation: **Phase 9 Reviewer / approval-workflow MVP** shipped via PR #42 at `1122da5` on 2026-06-05, closing R-017 without changing the locked 8-phase assembly order. Phase 7 and Phase 8 remain not started.
+
 ---
 
 ## Phase Details

@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: phase_6_shipped
-last_updated: "2026-05-31T23:05:00Z"
+status: main_reconciled_phase9_reviewer_shipped
+last_updated: "2026-06-05T08:22:11Z"
 progress:
   total_phases: 8
   completed_phases: 6
@@ -24,17 +24,17 @@ GSD session state. Updated each time a phase or plan transitions. Source of trut
 - **Operator**: Matthew (MMTU Entertainment LLC) — `mmtuentertainment@gmail.com`
 - **Core value**: Replaces Google Drive / SharePoint for SMB policy management with AI drafting, append-only acknowledgment tracking, and audit-ready compliance trails — at a price an SMB can afford.
 - **Beat-manual gate**: Product must be demonstrably faster and more reliable than a Google Drive folder.
-- **Current focus**: Phase 6 Billing **SHIPPED** via PR #32 squash commit `243067e9f259561a595230e5e7d3e97634040157` (`Phase 6: Billing`) on `main`. PR #32 merged on 2026-05-31 from head `1abca44dff89ccc7151d59b07fe1a93ce3d7be81`; the remote PR branch was deleted by the guarded merge, and local `gsd/phase-6-billing` has since been deleted as well. spec->discuss->research->validate->plan complete; plans 06-01..06-06 are implemented and committed (`5c9f8c5`/`ebd5708`/`5abe38c`/`f300572`/`0baee19`/`1be117a`). The DB blocker is cleared: additive migration `0012_billing_state` was applied to the approved TEST/dev Supabase target and `pnpm db:verify` plus pre-merge `pnpm verify:phase-6` pass. Live Stripe test-mode UAT rows 1-11 PASS with masked-only evidence, including row 9 true test-clock renewal (`invoice.paid`, Growth/active) and row 10 test-clock payment failure (`invoice.payment_failed`, Growth/`past_due` at first failure). Stripe account mismatch was reconciled for local UAT by running the Stripe CLI/listener with the app test key via `STRIPE_API_KEY` override; the default CLI profile still points at a different account and must not be used for future Phase 6 UAT without override or relogin. Launch-blocking checkout bug fixed in `b92a15f`: new orgs seeded as `trialing` by Clerk `organization.created` can start first checkout unless a real `stripeCustomerId` exists. The hosted pre-merge gate was green/acceptable: `Phase 6 verifier` PASS, `Verify full gate` PASS, `Browser e2e smoke` PASS, `Live full verification` intentionally SKIPPED, CodeRabbit PASS/skipped, and `mergeStateStatus` CLEAN. Post-merge local checks passed: `pnpm tsc --noEmit`, `pnpm run test -- --run lib/stripe`, and `pnpm run test -- --run app/api/webhooks/stripe`. Post-merge `pnpm verify:phase-6` was skipped because this worktree lacks the approved ignored env; do not create/copy/read env files for that. Operator-approved exception: Claude Code configured repository Actions secrets from `.env.local` via stdin without printing or committing values; this was a one-off exception and not the default operating pattern. Operator-approved exception: Claude Code restricted verify workflow push triggers to `main` while preserving `pull_request` and main coverage to avoid duplicate branch+PR CI against the shared dev/test verification DB. CI Phase 6 verifier uses the approved dev/test Supabase target and may TRUNCATE/seed that target; it is not staging/prod. SF-WHSEC-1 remains an operator follow-up before any future live webhook smoke if the current `CLERK_WEBHOOK_SECRET` was used before rotation. Phase 7 has not started and requires Matthew's explicit next-phase authorization.
+- **Current focus**: `main` is at `1122da5` after PR #42 (`feat(phase-9): Reviewer / approval-workflow MVP — close the publish-leak + R-017 (D-09-01)`) shipped on 2026-06-05. Phase 6 Billing remains the last shipped locked assembly phase via PR #32 squash `243067e9f259561a595230e5e7d3e97634040157`; Phases 7 and 8 remain pending. Phase 9 Reviewer / approval-workflow MVP is an out-of-band R-017 mitigation now live on `main`: Growth+ `approvalWorkflows` is enforced at the true publish boundary inside `publish()` (covering `approve()`), Starter remains direct-publish by design, ADR-030 ratifies `(reviewer)` as a sanctioned route group, and the shared org reviewer queue is the ratified MVP. PR #41 was closed as superseded by PR #42. Phase 7 has not started and requires Matthew's explicit next-phase authorization.
 - **Granularity**: standard (8 phases)
 
 ---
 
 ## Current Position
 
-Phase: Phase 6 Billing — SHIPPED on `main` via PR #32 squash commit `243067e9f259561a595230e5e7d3e97634040157`; 06-01..06-06 committed; local verify:phase-6 + UAT 11/11 PASS before merge; hosted pre-merge gate green/acceptable; post-merge targeted checks PASS
+Phase: Phase 6 Billing remains SHIPPED on `main` via PR #32 squash commit `243067e9f259561a595230e5e7d3e97634040157`; out-of-band Phase 9 Reviewer / approval-workflow MVP shipped via PR #42 at `1122da5` and mitigates R-017 live on `main`.
 Plan: 6 / 6 plans executed + committed; Phase 7 has not started and requires Matthew's explicit next-phase authorization
-Branch: `main` at `6f17412` (current HEAD; post-Phase-6 prep). Phase 6 shipped via PR #32 squash `243067e9f259561a595230e5e7d3e97634040157` (head before merge `1abca44dff89ccc7151d59b07fe1a93ce3d7be81`); remote `gsd/phase-6-stripe-uat-complete` was deleted by merge; local `gsd/phase-6-billing` has since been deleted (no longer divergent)
-Main HEAD: `6f17412` (post-Phase-6 prep). Phase 6 remains the last shipped *phase* at PR #32 squash `243067e` (`Phase 6: Billing`); prep merged to `main` since: `fcac2ec` (state doc) + PRs #33–#38 (#33 `e2a7283` audit-output prune, #34 `9ef70bb` Linear tracking, #35 `8dc0a38` .audit/ gitignore, #36 `2bcbb12` fallow tooling, #37 `3b4bdb5` lazy `lib/db`, #38 `6f17412` lazy Stripe catalog)
+Branch: `main` at `1122da5` (current HEAD after PR #42 merge). Local `main` and `origin/main` match. The remote `gsd/phase-9-reviewer` branch was deleted after merge; local `gsd/phase-6-billing` has already been deleted.
+Main HEAD: `1122da5`. Phase 6 remains the last shipped locked assembly phase at PR #32 squash `243067e` (`Phase 6: Billing`). Shipped since Phase 6: PRs #33–#40 operating/tooling/prep commits, then PR #42 Phase 9 Reviewer / approval-workflow MVP at `1122da5`; PR #41 was closed as superseded by #42.
 
 - **Phase 1** — Foundation **complete** (2026-05-16; 5/5 plans; PR #1 merged)
 - **Phase 2** — Data Layer **complete** (2026-05-18; 7/7 plans = 6 main + 02-07 hotfix; verify:phase-2 8/8 OK; PR #2 squash-merged to `main` @ `130b8ab` on 2026-05-19)
@@ -42,13 +42,14 @@ Main HEAD: `6f17412` (post-Phase-6 prep). Phase 6 remains the last shipped *phas
 - **Phase 4** — AI Layer **SHIPPED** (2026-05-22; 14/14 plans; PR #15 squash-merged to `main` @ `f8207f4`; post-merge cleanup PR #17 @ `eda7bb4`; 60/60 STRIDE threats CLOSED; UAT 5/5 PASS with real-key Anthropic smoke verifying SPEC R4 cache mechanics)
 - **Phase 5** — Employee Portal **SHIPPED** (2026-05-27; PR #27 "Phase 5: Employee Portal" merged to `main` at `3344847`, parent `c50b317`; `gsd/phase-5-employee-portal` branch is gone).
 - **Phase 6** — Billing **SHIPPED** (2026-05-31; PR #32 squash-merged to `main` at `243067e`; 06-01..06-06 committed; local `pnpm db:verify` and pre-merge `pnpm verify:phase-6` green; live Stripe test-mode UAT 11/11 rows PASS; hosted pre-merge PR #32 checks green/acceptable at `1abca44`; post-merge targeted checks PASS).
+- **Phase 9** — Reviewer / approval-workflow MVP **SHIPPED out-of-band** (2026-06-05; PR #42 squash-merged to `main` at `1122da5`; closes R-017 with Growth+ approval-completeness enforcement in `publish()`, ADR-030 `(reviewer)` route-group ratification, and shared org reviewer queue MVP).
 - **Progress**: 6 / 8 phases shipped (75%); Phases 7-8 not started.
 
 ```text
 [######--] 6/8 phases shipped - Foundation done / Data Layer done / Admin UI done / AI Layer done / Employee Portal shipped / Billing shipped
 ```
 
-**Next action**: Matthew may authorize Phase 7 planning next. Do not start Phase 7 until that explicit authorization. Future live Stripe UAT must use the app test-account CLI override or a CLI profile logged into the intended test account; the default CLI profile remains mismatched. Migration note: `0012_billing_state` is applied and verified on the approved TEST/dev target only; staging/prod remain operator-gated by the migration discipline. CI Phase 6 verification mutates only the approved dev/test target through TRUNCATE/seed. SF-WHSEC-1 remains an operator follow-up before any future live webhook smoke if the current `CLERK_WEBHOOK_SECRET` was used before rotation. Branch topology note: local `gsd/phase-6-billing` has been deleted (no longer divergent).
+**Next action**: Matthew may authorize Phase 7 planning next. Do not start Phase 7 until that explicit authorization. Phase 9 does not change the locked Phase 7/8 sequence. Future live Stripe UAT must use the app test-account CLI override or a CLI profile logged into the intended test account; the default CLI profile remains mismatched. Migration note: `0012_billing_state` is applied and verified on the approved TEST/dev target only; staging/prod remain operator-gated by the migration discipline. CI Phase 6 verification mutates only the approved dev/test target through TRUNCATE/seed. SF-WHSEC-1 remains an operator follow-up before any future live webhook smoke if the current `CLERK_WEBHOOK_SECRET` was used before rotation.
 
 **Fast-follow PR backlog** (3 sequential PRs, originally scoped from PR #3 carry-forward):
 
