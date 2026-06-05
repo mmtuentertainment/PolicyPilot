@@ -56,7 +56,7 @@ All 13 decisions below are LOCKED from `/gsd-discuss-phase 7` (operator selectio
 ### Idempotency & Send Atomicity (R7-2)
 - **D-03 — Record-then-send + per-user isolation (at-most-once).** Inside the per-org `withOrgScope` tx: claim each `(org_id, user_id, policy_id, type, window_date)` via `reminder_sends … .onConflictDoNothing().returning()`, insert the `notifications` row for the winners, **COMMIT**; then send Resend per winner **AFTER commit**, with per-user `try/catch`. Email I/O is never held open inside the DB tx. This strictly satisfies the SPEC AC ("invoke twice for the same window → exactly one notifications row + one send"); a transient email failure self-heals the next day because `window_date` advances and the daily re-fire re-evaluates still-unacked work. Mirrors the `stripe_events`/`clerk_events` `onConflictDoNothing`-in-tx short-circuit (06 D-21, CONVENTIONS).
 - **D-04 — `reminder_sends` dedup scope = cron types only.** The daily `window_date` ledger gates `ack_reminder` + `review_due` (the recurring cron types). The event types are NOT gated by `reminder_sends`: `policy_assigned` fires only when a NEW `policy_assignments` row is actually inserted (RETURNING-gated, leveraging 05 D-15's `ON CONFLICT DO NOTHING`); `policy_updated` fires once per genuine republish (new `policy_version`). A second same-day republish/assign still notifies — it is a real event, and a daily window must not suppress it.
-- **D-05 — `reminder_sends` table shape + migration `0013`.** Columns `(org_id, user_id, policy_id, type, window_date, sent_at)`; natural-key UNIQUE on `(org_id, user_id, policy_id, type, window_date)`; `window_date` is a `date` (UTC calendar day) so the daily key is clean; `sent_at` `timestamptz`. Org-scoped → RLS `org_isolation` + `GRANT` + `org_id` index, mirroring `qa_citation_grants` (05 D-29). New migration `drizzle/0013_reminder_sends.sql` (next after `0012_billing_state`), additive / forward-only, with an operator-signed header (rationale + approval timestamp + decision ID), applied to dev/TEST only this phase (staging/prod operator-gated per migration discipline). **The operator pre-approved Claude AUTHORING this migration (s27 banked approval); the header sign-off is still required before commit.**
+- **D-05 — `reminder_sends` table shape + migration `0014`.** Columns `(org_id, user_id, policy_id, type, window_date, sent_at)`; natural-key UNIQUE on `(org_id, user_id, policy_id, type, window_date)`; `window_date` is a `date` (UTC calendar day) so the daily key is clean; `sent_at` `timestamptz`. Org-scoped → RLS `org_isolation` + `GRANT` + `org_id` index, mirroring `qa_citation_grants` (05 D-29). New migration `drizzle/0014_reminder_sends.sql` (next after `0013_review_decisions`; **note:** the earlier "0013" in this decision predated Phase 9 shipping `0013_review_decisions` — corrected to 0014, the next free immutable index), additive / forward-only, with an operator-signed header (rationale + approval timestamp + decision ID), applied to dev/TEST only this phase (staging/prod operator-gated per migration discipline). **The operator pre-approved Claude AUTHORING this migration (s27 banked approval); the header sign-off is still required before commit.**
 
 ### Reminder Semantics (R7-5, R7-8)
 - **D-06 — `review_due` recipient = org admins.** `review_due` is a governance/ownership alert, routed to org admin users (`users.role='admin'`): one notification + email per admin per due policy (`next_review_date ≤ now+14d`). Employees only acknowledge; they do not receive `review_due`. (The SPEC locks the trigger but not the recipient — this resolves it.)
@@ -125,7 +125,7 @@ The planner has flexibility within the constraints above on:
 - `scripts/check-db-imports.ts` §42 — cron route pre-allow-listed for raw `db` (ADR-023).
 
 ### Migration discipline
-- `drizzle/meta/_journal.json` — migration immutability; next index after `0012_billing_state` → `0013`.
+- `drizzle/meta/_journal.json` — migration immutability; next index after `0013_review_decisions` → `0014`.
 - `docs/runbooks/deploy-migrations.md` — additive migration procedure, operator-signed header pattern, post-prod audit-log entry.
 - `.planning/phases/05-employee-portal/05-CONTEXT.md` D-29 — `qa_citation_grants` migration (RLS `org_isolation` + GRANT + `org_id` index) — shape precedent for `reminder_sends` (D-05).
 
@@ -148,7 +148,7 @@ The planner has flexibility within the constraints above on:
 - **`withOrgScope` + `OrgContext`** (`lib/db/scoped.ts`, `lib/auth/context.ts`) — every cron DB path. The cron loops orgs and opens `withOrgScope({ orgId }, …)` per org (D-01).
 - **`stripe_events`/`clerk_events` idempotency** (`app/api/webhooks/stripe/route.ts`, `clerk/route.ts`) — the `insert(...).onConflictDoNothing().returning()` short-circuit D-03 mirrors for `reminder_sends`.
 - **`Policies.listAssignedAndPublishedForUser`** (05 D-01) — JOIN + 3-state `ackState` source for the new org-wide `ack_reminder` query (D-09); the publish action is the seam for the D-08 `next_review_date` writer.
-- **`qa_citation_grants` migration** (`drizzle/0011_…`, 05 D-29) — RLS + GRANT + index shape precedent for the additive `reminder_sends` migration `0013` (D-05).
+- **`qa_citation_grants` migration** (`drizzle/0011_…`, 05 D-29) — RLS + GRANT + index shape precedent for the additive `reminder_sends` migration `0014` (D-05).
 - **Lazy server-only singletons** (`getStripeClient`, `getAnthropicClient`, `getPriceCatalog`) — `getResendClient()` follows the same lazy pattern (D-10).
 - **`notifications` repo throw-stubs** (`lib/db/repositories/notifications.ts`) — `create()` / `markRead()` to fill (D-03, D-12).
 
@@ -166,7 +166,7 @@ The planner has flexibility within the constraints above on:
 - **`worker/trigger-reminders.mjs`** (NEW) + `railway.json`/`railway.toml` — the dependency-free HTTPS-GET trigger (D-11).
 - **Policy publish action** (Phase 3 `app/(admin)/policies/[id]/actions.ts`) — extended for the D-08 `next_review_date` writer + `policy_updated` emission (D-04).
 - **Assign action** (Phase 5 admin "Assign to department") — extended for `policy_assigned` emission, RETURNING-gated (D-04).
-- **`drizzle/0013_reminder_sends.sql`** (NEW) + `lib/db/schema.ts` `reminderSends` export.
+- **`drizzle/0014_reminder_sends.sql`** (NEW) + `lib/db/schema.ts` `reminderSends` export.
 - **`package.json`** — `verify:phase-7` + `check:crons-email`; **CI** — a required Phase 7 verification job (mirror `verify-phase-6.yml`).
 - **Schema gates** — `check-schema.ts` / `check-deploy-schema.ts` extended for `reminder_sends`; `check-artifacts.ts` for the new route/email/worker/templates/T8.
 
@@ -175,7 +175,7 @@ The planner has flexibility within the constraints above on:
 <specifics>
 ## Specific Ideas
 
-- **`reminder_sends` migration authoring is operator-pre-approved** (s27 banked): Claude may AUTHOR `drizzle/0013_reminder_sends.sql` (additive, forward-only), but the operator-signed header (rationale + approval timestamp + decision ID) is required before commit, and the migration is applied to dev/TEST only this phase — staging/prod are operator-gated per migration discipline.
+- **`reminder_sends` migration authoring is operator-pre-approved** (s27 banked): Claude may AUTHOR `drizzle/0014_reminder_sends.sql` (additive, forward-only), but the operator-signed header (rationale + approval timestamp + decision ID) is required before commit, and the migration is applied to dev/TEST only this phase — staging/prod are operator-gated per migration discipline.
 - **`reference/SCHEMA.md` notifications block is stale** (omits `org_id`) — build against `lib/db/schema.ts`; reconcile the frozen doc at Phase 7 ship (consultant keep-current).
 - **From address:** `RESEND_FROM_EMAIL` defaults to `noreply@policypilot.com` (already in `.env.local.example`). These reminders are transactional, not marketing — no unsubscribe/preference surface needed for MVP.
 - **`window_date` is a UTC calendar `date`** (the daily dedup window) — the natural key's daily granularity is what makes "daily re-fire, one send per day" work and lets a transient email failure self-heal next day.
