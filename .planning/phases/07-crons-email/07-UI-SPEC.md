@@ -1,7 +1,7 @@
 ---
 phase: 7
 slug: crons-email
-status: draft
+status: approved
 shadcn_initialized: true
 preset: base-nova / neutral / CSS-variables / no-prefix (components.json)
 created: 2026-06-05
@@ -147,14 +147,14 @@ Source: `components.json` (verified 2026-06-05). `"registries": {}` — empty ob
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS (FLAG — 3 weights 400/500/600; non-blocking, documented: 600 = panel header only, matches app's `font-semibold` convention)
+- [x] Dimension 5 Spacing: PASS (6px `px-1.5` exception documented, matches `dropdown-menu.tsx`)
+- [x] Dimension 6 Registry Safety: PASS (no third-party registry; `"registries": {}`)
 
-**Approval:** pending
+**Approval:** approved 2026-06-05 (gsd-ui-checker — 5 PASS / 1 non-blocking FLAG)
 
 ---
 
