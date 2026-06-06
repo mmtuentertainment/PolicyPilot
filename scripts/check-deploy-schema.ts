@@ -47,6 +47,7 @@ const TENANT_TABLES = [
   'batch_jobs',
   'qa_citation_grants',
   'review_decisions',
+  'reminder_sends',
 ] as const;
 
 // Service-role tables — webhook idempotency state, no RLS.

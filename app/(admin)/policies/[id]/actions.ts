@@ -29,6 +29,8 @@ import { withOrgScope } from '@/lib/db/scoped';
 import { Policies } from '@/lib/db/repositories/policies';
 import { Departments } from '@/lib/db/repositories/departments';
 import { PolicyAssignments } from '@/lib/db/repositories/policy_assignments';
+import { Notifications } from '@/lib/db/repositories/notifications';
+import { Reminders } from '@/lib/db/repositories/reminders';
 import {
   submitForReview,
   approve,
@@ -41,6 +43,9 @@ import {
 import { IllegalTransitionError } from '@/lib/policies/state-machine';
 import { WorkflowIncompleteError } from '@/lib/policies/errors';
 import { PolicyIdSchema, type PolicyId } from '@/lib/policies/types';
+import { sendNotificationEmail } from '@/lib/email/send';
+import { resolveRecipientEmail } from '@/lib/email/recipients';
+import { acknowledgeUrl } from '@/lib/email/urls';
 
 export type ActionState = { ok: true } | { ok: false; error: string };
 
@@ -446,8 +451,9 @@ export async function bulkAssignToDepartmentAction(
 
   const ctx = await getOrgContext();
   requireAdminFromCtx(ctx);
+  let insertedCount = 0;
   try {
-    await withOrgScope(ctx, async (s) => {
+    insertedCount = await withOrgScope(ctx, async (s) => {
       const policyRows = await Policies.findById(s, parsed.data.policyId);
       const departmentRows = await Departments.findById(
         s,
@@ -456,12 +462,13 @@ export async function bulkAssignToDepartmentAction(
       if (policyRows.length === 0 || departmentRows.length === 0) {
         throw new Error('Policy or department not found');
       }
-      await PolicyAssignments.create(s, {
+      const inserted = await PolicyAssignments.create(s, {
         policyId: parsed.data.policyId,
         assigneeType: 'department',
         assigneeId: parsed.data.departmentId,
         assignedBy: s.userId,
       });
+      return inserted.length;
       // D-15 — empty RETURNING on conflict is silent success.
       // The UNIQUE constraint blocks duplicate (policy_id, 'department',
       // department_id) rows. T-05-06-01 mitigation complete.
@@ -483,7 +490,52 @@ export async function bulkAssignToDepartmentAction(
   // Refresh the policy detail page (so PolicyAssignmentsPanel shows the
   // new row) and the employee dashboard (so the new assignee sees the
   // policy in /my-policies on next navigation per T-05-06-05).
+  if (insertedCount > 0) {
+    await emitPolicyAssignedNotifications(
+      ctx,
+      parsed.data.policyId,
+      parsed.data.departmentId,
+    );
+  }
+
   revalidatePath(`/policies/${parsed.data.policyId}`);
   revalidatePath('/my-policies');
   return { ok: true };
+}
+
+async function emitPolicyAssignedNotifications(
+  ctx: Awaited<ReturnType<typeof getOrgContext>>,
+  policyId: PolicyId,
+  departmentId: string,
+): Promise<void> {
+  try {
+    const recipients = await withOrgScope(ctx, (s) =>
+      Reminders.listDepartmentRecipientsForPolicy(s, policyId, departmentId),
+    );
+    for (const recipient of recipients) {
+      await withOrgScope(ctx, (s) =>
+        Notifications.create(s, {
+          userId: recipient.userId,
+          type: 'policy_assigned',
+          payloadJson: {
+            policyId: recipient.policyId,
+            policyTitle: recipient.policyTitle,
+          },
+          read: false,
+        }),
+      );
+      const email = await resolveRecipientEmail(recipient.clerkUserId);
+      if (!email) continue;
+      await sendNotificationEmail('policy_assigned', email, {
+        policyTitle: recipient.policyTitle,
+        orgName: recipient.orgName,
+        acknowledgeUrl: acknowledgeUrl(recipient.policyId),
+      });
+    }
+  } catch (err) {
+    console.error('[bulkAssignToDepartmentAction] policy_assigned emission failed', {
+      event: 'policy_assigned_emission_error',
+      error: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+  }
 }

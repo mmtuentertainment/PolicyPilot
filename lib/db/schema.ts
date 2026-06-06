@@ -41,6 +41,7 @@ import {
   text,
   integer,
   boolean,
+  date,
   timestamp,
   jsonb,
   foreignKey,
@@ -159,6 +160,28 @@ export const notifications = pgTable('notifications', {
   createdAt: timestamp('created_at').defaultNow(),
 }, (table) => [
   index('notifications_org_id_idx').on(table.orgId),
+]);
+
+// Phase 7 D-05 - at-most-once cron send ledger for review_due and ack_reminder.
+// windowDate is a UTC YYYY-MM-DD string, not a JS Date, to avoid timezone drift
+// in the daily dedup key.
+export const reminderSends = pgTable('reminder_sends', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id),
+  policyId: uuid('policy_id').notNull().references(() => policies.id),
+  type: text('type').notNull(), // 'review_due' | 'ack_reminder'
+  windowDate: date('window_date', { mode: 'string' }).notNull(),
+  sentAt: timestamp('sent_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('reminder_sends_org_id_idx').on(table.orgId),
+  unique('reminder_sends_dedup_key').on(
+    table.orgId,
+    table.userId,
+    table.policyId,
+    table.type,
+    table.windowDate,
+  ),
 ]);
 
 export const organizations = pgTable('organizations', {

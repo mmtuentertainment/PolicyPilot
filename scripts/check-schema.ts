@@ -53,6 +53,7 @@ const TENANT_TABLES = [
   // indexes asserted by the Phase 9 assertion block at the file tail (lockstep
   // with check-rls.ts + check-deploy-schema.ts; 0013 RLS+GRANT hand-written).
   'review_decisions',
+  'reminder_sends', // Phase 7 D-05 - cron send ledger for daily reminders.
 ] as const;
 
 const REQUIRED_PRIVS = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'] as const;

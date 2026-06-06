@@ -1,0 +1,143 @@
+name: Verify Phase 7
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: verify-phase-7-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  phase-7-verification:
+    name: Phase 7 verifier
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+      CLERK_WEBHOOK_SECRET: ${{ secrets.CLERK_WEBHOOK_SECRET }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      STRIPE_PRICE_STARTER_MONTHLY: ${{ secrets.STRIPE_PRICE_STARTER_MONTHLY }}
+      STRIPE_PRICE_STARTER_ANNUAL: ${{ secrets.STRIPE_PRICE_STARTER_ANNUAL }}
+      STRIPE_PRICE_GROWTH_MONTHLY: ${{ secrets.STRIPE_PRICE_GROWTH_MONTHLY }}
+      STRIPE_PRICE_GROWTH_ANNUAL: ${{ secrets.STRIPE_PRICE_GROWTH_ANNUAL }}
+      STRIPE_PRICE_BUSINESS_MONTHLY: ${{ secrets.STRIPE_PRICE_BUSINESS_MONTHLY }}
+      STRIPE_PRICE_BUSINESS_ANNUAL: ${{ secrets.STRIPE_PRICE_BUSINESS_ANNUAL }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      NEXT_PUBLIC_POSTHOG_KEY: ${{ secrets.NEXT_PUBLIC_POSTHOG_KEY }}
+      NEXT_PUBLIC_POSTHOG_HOST: ${{ secrets.NEXT_PUBLIC_POSTHOG_HOST }}
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@d15e628ca66d93ee5f352c71671a7bc6a97af5c9
+        with:
+          version: 9.15.9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Write verification environment
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          required=(
+            NEXT_PUBLIC_SUPABASE_URL
+            NEXT_PUBLIC_SUPABASE_ANON_KEY
+            SUPABASE_SERVICE_ROLE_KEY
+            DATABASE_URL
+            DIRECT_URL
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+            CLERK_SECRET_KEY
+            CLERK_WEBHOOK_SECRET
+            ANTHROPIC_API_KEY
+            NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+            STRIPE_SECRET_KEY
+            STRIPE_WEBHOOK_SECRET
+            STRIPE_PRICE_STARTER_MONTHLY
+            STRIPE_PRICE_STARTER_ANNUAL
+            STRIPE_PRICE_GROWTH_MONTHLY
+            STRIPE_PRICE_GROWTH_ANNUAL
+            STRIPE_PRICE_BUSINESS_MONTHLY
+            STRIPE_PRICE_BUSINESS_ANNUAL
+          )
+
+          missing=()
+          for name in "${required[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              missing+=("$name")
+            fi
+          done
+
+          if [ "${#missing[@]}" -ne 0 ]; then
+            printf '::error::Cannot run Phase 7 verification; missing repository secrets: %s\n' "${missing[*]}"
+            exit 1
+          fi
+
+          write_env_file() {
+            local file="$1"
+            {
+              printf 'NEXT_PUBLIC_SUPABASE_URL=%s\n' "$NEXT_PUBLIC_SUPABASE_URL"
+              printf 'NEXT_PUBLIC_SUPABASE_ANON_KEY=%s\n' "$NEXT_PUBLIC_SUPABASE_ANON_KEY"
+              printf 'SUPABASE_SERVICE_ROLE_KEY=%s\n' "$SUPABASE_SERVICE_ROLE_KEY"
+              printf 'DATABASE_URL=%s\n' "$DATABASE_URL"
+              printf 'DIRECT_URL=%s\n' "$DIRECT_URL"
+              printf 'DATABASE_URL_TEST=%s\n' "${DATABASE_URL_TEST:-$DATABASE_URL}"
+              printf 'DIRECT_URL_TEST=%s\n' "${DIRECT_URL_TEST:-$DIRECT_URL}"
+              printf 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=%s\n' "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"
+              printf 'CLERK_SECRET_KEY=%s\n' "$CLERK_SECRET_KEY"
+              printf 'CLERK_WEBHOOK_SECRET=%s\n' "$CLERK_WEBHOOK_SECRET"
+              printf 'NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/post-sign-in\n'
+              printf 'NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=/post-sign-in\n'
+              printf 'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=%s\n' "$NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"
+              printf 'STRIPE_SECRET_KEY=%s\n' "$STRIPE_SECRET_KEY"
+              printf 'STRIPE_WEBHOOK_SECRET=%s\n' "$STRIPE_WEBHOOK_SECRET"
+              printf 'STRIPE_PRICE_STARTER_MONTHLY=%s\n' "$STRIPE_PRICE_STARTER_MONTHLY"
+              printf 'STRIPE_PRICE_STARTER_ANNUAL=%s\n' "$STRIPE_PRICE_STARTER_ANNUAL"
+              printf 'STRIPE_PRICE_GROWTH_MONTHLY=%s\n' "$STRIPE_PRICE_GROWTH_MONTHLY"
+              printf 'STRIPE_PRICE_GROWTH_ANNUAL=%s\n' "$STRIPE_PRICE_GROWTH_ANNUAL"
+              printf 'STRIPE_PRICE_BUSINESS_MONTHLY=%s\n' "$STRIPE_PRICE_BUSINESS_MONTHLY"
+              printf 'STRIPE_PRICE_BUSINESS_ANNUAL=%s\n' "$STRIPE_PRICE_BUSINESS_ANNUAL"
+              printf 'ANTHROPIC_API_KEY=%s\n' "$ANTHROPIC_API_KEY"
+              printf 'RESEND_API_KEY=%s\n' "${RESEND_API_KEY:-}"
+              printf 'RESEND_FROM_EMAIL=%s\n' "${RESEND_FROM_EMAIL:-noreply@policypilot.com}"
+              printf 'NEXT_PUBLIC_APP_URL=http://localhost:3000\n'
+              printf 'CRON_SECRET=%s\n' "${CRON_SECRET:-}"
+              printf 'NEXT_PUBLIC_POSTHOG_KEY=%s\n' "${NEXT_PUBLIC_POSTHOG_KEY:-}"
+              printf 'NEXT_PUBLIC_POSTHOG_HOST=%s\n' "${NEXT_PUBLIC_POSTHOG_HOST:-https://app.posthog.com}"
+              printf 'SENTRY_DSN=%s\n' "${SENTRY_DSN:-}"
+            } > "$file"
+          }
+
+          write_env_file .env.local
+          write_env_file .env.local.test
+
+      - name: Run Phase 7 verifier
+        run: pnpm verify:phase-7
