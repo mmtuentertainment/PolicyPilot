@@ -31,6 +31,28 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./tests/setup.ts'],
     include: ['**/*.{test,spec}.{ts,tsx}'],
+    // Load-tolerant timeouts (Phase 7 verify:phase-7 flake fix, 2026-06-06).
+    //
+    // ROOT CAUSE: the full-suite `pnpm test` (inherited by verify:phase-3..7)
+    // runs 39 files in parallel, each in a heavy jsdom environment. On a COLD
+    // run (fresh checkout / CI / cleared FS cache) or a CPU-contended machine,
+    // jsdom-env creation + Vite transform serialize behind the scheduler and
+    // starve test event loops. The heaviest tests (AI route handlers building
+    // prompt XML, the Stripe webhook handler) then exceed Vitest's DEFAULT 5s
+    // testTimeout and abort mid-flight — surfacing as "Test timed out in
+    // 5000ms" plus collateral 503/spy-count assertion failures when an aborted
+    // route falls through to its catch-all. Proven flaky: identical parallel
+    // runs alternate red/green; `--no-file-parallelism` is 100% green; a tight
+    // `--testTimeout=500` reproduces the same timeout set on demand. The tests
+    // are CORRECT (each passes in <1s of real work) — only the default budget
+    // is miscalibrated for this suite's cold+parallel worst case.
+    //
+    // FIX (does NOT weaken the gate — no skips/quarantine; every test must
+    // still pass): give correct-but-starved tests realistic headroom. 30s is
+    // ~6x the heaviest observed cold-run test wall-clock, yet short enough that
+    // a genuine hang still fails well inside the 45-min CI job budget.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     // Phase 4 — scripts/check-ai-layer.test.ts is the WARNING-6 integration harness; it has
     // its own dedicated config (scripts/check-ai-layer.vitest.config.ts) that runs in node env
     // with TEST_DATABASE_URL passthrough. Excluding it from the default `pnpm test` glob keeps
