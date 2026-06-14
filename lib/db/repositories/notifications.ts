@@ -2,6 +2,11 @@
 // L-03 + D-06: per-aggregate Notifications repository.
 // D-02: INSERT copies scope.orgId into the row.
 // RESEARCH Pitfall 6: NO raw `db` import. See policies.ts header.
+//
+// Phase 7 FK audit: cron calls repository methods with a synthesized
+// OrgContext whose userId is intentionally empty. Notifications.create never
+// writes s.userId; it injects only s.orgId. reminder_sends.user_id is sourced
+// from the candidate recipient row, not from the scoped caller.
 import 'server-only';
 import type { OrgScope } from '@/lib/db/scoped';
 import { notifications } from '@/lib/db/schema';
@@ -31,15 +36,29 @@ export const Notifications = {
         ),
       ),
 
-  create: (_s: OrgScope, _input: NotificationCreateInput) => {
-    void _s;
-    void _input;
-    throw new Error('Not yet implemented — Phase 7 (Crons + Email)');
-  },
+  create: (s: OrgScope, input: NotificationCreateInput) =>
+    s.tx
+      .insert(notifications)
+      .values({ ...input, orgId: s.orgId })
+      .returning(),
 
-  markRead: (_s: OrgScope, _id: string) => {
-    void _s;
-    void _id;
-    throw new Error('Not yet implemented — Phase 7 (Crons + Email)');
-  },
+  markRead: (s: OrgScope, id: string) =>
+    s.tx
+      .update(notifications)
+      .set({ read: true })
+      .where(and(eq(notifications.orgId, s.orgId), eq(notifications.id, id)))
+      .returning({ id: notifications.id }),
+
+  markAllReadForUser: (s: OrgScope, userId: string) =>
+    s.tx
+      .update(notifications)
+      .set({ read: true })
+      .where(
+        and(
+          eq(notifications.orgId, s.orgId),
+          eq(notifications.userId, userId),
+          eq(notifications.read, false),
+        ),
+      )
+      .returning({ id: notifications.id }),
 };

@@ -42,9 +42,14 @@ import { Policies } from '@/lib/db/repositories/policies';
 import { PolicyVersions } from '@/lib/db/repositories/policy_versions';
 import { WorkflowStages } from '@/lib/db/repositories/workflow_stages';
 import { ReviewDecisions } from '@/lib/db/repositories/review_decisions';
+import { Notifications } from '@/lib/db/repositories/notifications';
+import { Reminders } from '@/lib/db/repositories/reminders';
 import { policies } from '@/lib/db/schema';
 import { checkTierLimit } from '@/lib/stripe/products';
 import { generateSummaryForPolicy } from '@/lib/ai/summary';
+import { sendNotificationEmail } from '@/lib/email/send';
+import { resolveRecipientEmail } from '@/lib/email/recipients';
+import { acknowledgeUrl } from '@/lib/email/urls';
 import {
   canTransition,
   IllegalTransitionError,
@@ -63,9 +68,11 @@ import type { PolicyId } from './types';
 // stay typed against the policy lifecycle.
 type PolicyRow = {
   id: string;
+  title: string;
   status: PolicyStatus;
   currentVersion: number;
   contentJson: unknown;
+  reviewIntervalMonths: number | null;
 };
 
 async function getAdminOrgContext() {
@@ -106,9 +113,11 @@ async function loadAndAssertTransition(
   if (!row) throw new PolicyNotFoundError(policyId);
   const policy: PolicyRow = {
     id: row.id,
+    title: typeof row.title === 'string' ? row.title : 'Policy',
     status: row.status as PolicyStatus,
     currentVersion: row.currentVersion,
     contentJson: row.contentJson,
+    reviewIntervalMonths: row.reviewIntervalMonths ?? 12,
   };
   if (!canTransition(policy.status, to)) {
     throw new IllegalTransitionError(policy.status, to);
@@ -264,7 +273,7 @@ export async function publish(policyId: PolicyId): Promise<void> {
   // not s.tx). Starter → allowed:false → the completeness gate below is skipped
   // (direct publish unchanged). Growth+ → allowed:true → gate enforced.
   const approvalWorkflow = await checkTierLimit(ctx.orgId, 'approvalWorkflows');
-  await withOrgScope(ctx, async (s) => {
+  const publishedPolicy = await withOrgScope(ctx, async (s) => {
     const policy = await loadAndAssertTransition(s, policyId, 'published');
     // Phase 9 (R-017 / D-09-01) — tier-aware approval-workflow completeness
     // gate. Lives INSIDE publish() so it also covers approve() (the literal
@@ -297,11 +306,29 @@ export async function publish(policyId: PolicyId): Promise<void> {
       contentJson: policy.contentJson,
       createdBy: s.userId,
     });
+    const publishedAt = new Date();
+    const nextReviewDate = new Date(publishedAt);
+    nextReviewDate.setUTCMonth(
+      nextReviewDate.getUTCMonth() + (policy.reviewIntervalMonths ?? 12),
+    );
     await s.tx
       .update(policies)
-      .set({ status: 'published', updatedAt: sql`now()` })
+      .set({
+        status: 'published',
+        updatedAt: sql`now()`,
+        // Phase 7 D-08: forward-only writer; no backfill for existing rows.
+        nextReviewDate,
+      })
       .where(and(eq(policies.orgId, s.orgId), eq(policies.id, policyId)));
+    return {
+      title: policy.title,
+      currentVersion: policy.currentVersion,
+    };
   });
+
+  if (publishedPolicy.currentVersion > 1) {
+    await emitPolicyUpdatedNotifications(ctx, policyId);
+  }
 
   // Phase 4 D-19 + SPEC R3 — post-commit AI auto-trigger.
   //
@@ -343,6 +370,45 @@ export async function publish(policyId: PolicyId): Promise<void> {
       });
     }
     throw error;
+  }
+}
+
+async function emitPolicyUpdatedNotifications(
+  ctx: Awaited<ReturnType<typeof getAdminOrgContext>>,
+  policyId: PolicyId,
+): Promise<void> {
+  try {
+    const recipients = await withOrgScope(ctx, (s) =>
+      Reminders.listRecipientsForPolicy(s, policyId),
+    );
+    for (const recipient of recipients) {
+      await withOrgScope(ctx, (s) =>
+        Notifications.create(s, {
+          userId: recipient.userId,
+          type: 'policy_updated',
+          payloadJson: {
+            policyId: recipient.policyId,
+            policyTitle: recipient.policyTitle,
+            versionNumber: recipient.versionNumber,
+          },
+          read: false,
+        }),
+      );
+      const email = await resolveRecipientEmail(recipient.clerkUserId);
+      if (!email) continue;
+      await sendNotificationEmail('policy_updated', email, {
+        policyTitle: recipient.policyTitle,
+        orgName: recipient.orgName,
+        acknowledgeUrl: acknowledgeUrl(recipient.policyId),
+      });
+    }
+  } catch (err) {
+    console.error('[publish] policy_updated emission failed', {
+      // Phase 7 D-04: event types are not gated by reminder_sends; the
+      // policy_versions unique constraint naturally gates real republishes.
+      event: 'policy_updated_emission_error',
+      error: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
   }
 }
 

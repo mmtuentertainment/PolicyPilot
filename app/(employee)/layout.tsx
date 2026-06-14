@@ -24,6 +24,7 @@
 // level gate honest.
 import type { ReactNode } from "react";
 import { UserButton } from "@clerk/nextjs";
+import { NotificationBellServer } from "@/components/notifications/NotificationBellServer";
 import { getOrgContext } from "@/lib/auth/context";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +41,10 @@ export default async function EmployeeLayout({
       <header className="border-b">
         <div className="container mx-auto flex items-center justify-between p-4">
           <span className="font-semibold">My Policies</span>
-          <UserButton />
+          <div className="flex items-center gap-2">
+            <NotificationBellServer persona="employee" />
+            <UserButton />
+          </div>
         </div>
       </header>
       <main className="container mx-auto p-6">{children}</main>

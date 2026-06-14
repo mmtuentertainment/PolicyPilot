@@ -32,10 +32,15 @@ name which stages were represented and which checks were unavailable.
 
 ## Current Phase State
 
-`.planning/STATE.md` is the source of truth for phase state. As of PR #30,
-Phase 5 Employee Portal shipped via PR #27 at commit `3344847`, and Phase 6 is
-pending/planning-only. Do not treat a Phase 6 branch, phase directory, or
-handoff as permission to start Phase 6 implementation.
+`.planning/STATE.md` is the source of truth for phase state; the consultant
+files (`working_context.md`, `system_map.md`, `feature_inventory.md`,
+`risk_register.md`, `backlog.md`) carry the current detail. As of 2026-06-14:
+Phases 1-6 are shipped on `main`; Phase 9 Reviewer/approval-workflow MVP shipped
+via PR #42 at `1122da5`; Phase 7 Crons + Email is executed and verify-green on
+`gsd/phase-7-crons-email`, published as draft PR #44 (NOT merged — operator owns
+the un-draft/merge); Phase 8 Validation is the only unstarted phase. Do not
+treat a phase branch, phase directory, or handoff as permission to start a phase
+the operator has not authorized.
 
 ## Keep Current
 

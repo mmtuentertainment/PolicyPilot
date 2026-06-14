@@ -5,6 +5,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { AdminTopbar } from "@/components/admin/AdminTopbar";
+import { NotificationBellServer } from "@/components/notifications/NotificationBellServer";
 import { requireAdmin } from "@/lib/auth/require-admin";
 
 // Every admin route reads Clerk's session via requireAdmin() → headers(),
@@ -59,6 +60,7 @@ export default async function AdminLayout({
         <AdminSidebar />
         <main className="flex flex-col flex-1 min-h-screen">
           <AdminTopbar>
+            <NotificationBellServer persona="admin" />
             <OrganizationSwitcher hidePersonal />
             <UserButton />
           </AdminTopbar>

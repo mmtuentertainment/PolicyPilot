@@ -853,6 +853,8 @@ function checkServerOnlyBoundary(): Check[] {
     "./app/api/webhooks/clerk/route.ts",
     "app/api/webhooks/stripe/route.ts",
     "./app/api/webhooks/stripe/route.ts",
+    "app/api/cron/reminders/route.ts",
+    "./app/api/cron/reminders/route.ts",
     // 03-G1 ADR-023 allow-list entry: getOrgContext now imports the raw db
     // barrel to translate Clerk text ids → internal UUIDs per gap-closure.
     "lib/auth/context.ts",
@@ -2747,6 +2749,80 @@ function checkPhase6BillingVerifier(): Check[] {
   return out;
 }
 
+function checkPhase7CronsEmailVerifier(): Check[] {
+  const out: Check[] = [];
+
+  for (const rel of [
+    "app/api/cron/reminders/route.ts",
+    "app/api/cron/reminders/route.test.ts",
+    "lib/email/client.ts",
+    "lib/email/send.ts",
+    "lib/email/errors.ts",
+    "lib/email/recipients.ts",
+    "lib/email/templates/base-layout.tsx",
+    "lib/email/templates/policy-assigned.tsx",
+    "lib/email/templates/policy-updated.tsx",
+    "lib/email/templates/review-due.tsx",
+    "lib/email/templates/ack-reminder.tsx",
+    "components/notifications/NotificationBell.tsx",
+    "components/notifications/NotificationBellServer.tsx",
+    "components/notifications/notification-href.ts",
+    "worker/trigger-reminders.mjs",
+    "railway.json",
+    "scripts/check-crons-email.ts",
+    "scripts/check-crons-email.vitest.config.ts",
+    "drizzle/0014_reminder_sends.sql",
+  ]) {
+    assert(out, exists(rel), `${rel} exists (Phase 7 verifier)`, "required Phase 7 artifact missing");
+  }
+
+  if (exists("railway.json")) {
+    let railway: { deploy?: { cronSchedule?: unknown; startCommand?: unknown } } | null = null;
+    try {
+      railway = JSON.parse(read("railway.json"));
+    } catch {
+      railway = null;
+    }
+    assert(
+      out,
+      railway?.deploy?.cronSchedule === "0 8 * * *",
+      "railway.json deploy.cronSchedule is 0 8 * * *",
+      "Phase 7 Railway cron must run at 08:00 UTC",
+    );
+    assert(
+      out,
+      railway?.deploy?.startCommand === "node worker/trigger-reminders.mjs",
+      "railway.json deploy.startCommand runs trigger-reminders",
+      "startCommand missing or changed",
+    );
+  }
+
+  if (exists("package.json")) {
+    let pkgJson: { scripts?: Record<string, string> } | null = null;
+    try {
+      pkgJson = JSON.parse(read("package.json")) as { scripts?: Record<string, string> };
+    } catch {
+      pkgJson = null;
+    }
+    assert(
+      out,
+      typeof pkgJson?.scripts?.["check:crons-email"] === "string",
+      "package.json declares check:crons-email",
+      "check:crons-email script missing",
+    );
+    assert(
+      out,
+      typeof pkgJson?.scripts?.["verify:phase-7"] === "string" &&
+        pkgJson.scripts["verify:phase-7"].includes("verify:phase-6") &&
+        pkgJson.scripts["verify:phase-7"].includes("check:crons-email"),
+      "package.json declares cumulative verify:phase-7",
+      "verify:phase-7 must wrap verify:phase-6 and add check:crons-email",
+    );
+  }
+
+  return out;
+}
+
 function main(): void {
   console.log("─── Foundation — artifact regression gate ───");
   console.log(`Repo root: ${REPO_ROOT}`);
@@ -2788,6 +2864,8 @@ function main(): void {
     ...checkPhase5Scaffold(),
     // Phase 6 (Billing) - Plan 06-06 verifier/UAT spine:
     ...checkPhase6BillingVerifier(),
+    // Phase 7 (Crons + Email) - verifier/artifact spine:
+    ...checkPhase7CronsEmailVerifier(),
   ];
 
   let passed = 0;

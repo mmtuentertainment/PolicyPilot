@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: phase_6_shipped
-last_updated: "2026-06-05T08:22:11Z"
+status: phase_7_verified_pending_ship
+last_updated: "2026-06-14T14:23:05.621Z"
 progress:
   total_phases: 8
-  completed_phases: 6
-  total_plans: 57
-  completed_plans: 57
-  percent: 75
+  completed_phases: 7
+  total_plans: 64
+  completed_plans: 65
+  percent: 88
 ---
 
 # STATE — PolicyPilot
@@ -24,17 +24,17 @@ GSD session state. Updated each time a phase or plan transitions. Source of trut
 - **Operator**: Matthew (MMTU Entertainment LLC) — `mmtuentertainment@gmail.com`
 - **Core value**: Replaces Google Drive / SharePoint for SMB policy management with AI drafting, append-only acknowledgment tracking, and audit-ready compliance trails — at a price an SMB can afford.
 - **Beat-manual gate**: Product must be demonstrably faster and more reliable than a Google Drive folder.
-- **Current focus**: `main` is at `1122da5` after PR #42 (`feat(phase-9): Reviewer / approval-workflow MVP — close the publish-leak + R-017 (D-09-01)`) shipped on 2026-06-05. Phase 6 Billing remains the last shipped locked assembly phase via PR #32 squash `243067e9f259561a595230e5e7d3e97634040157`; Phases 7 and 8 remain pending. Phase 9 Reviewer / approval-workflow MVP is an out-of-band R-017 mitigation now live on `main`: Growth+ `approvalWorkflows` is enforced at the true publish boundary inside `publish()` (covering `approve()`), Starter remains direct-publish by design, ADR-030 ratifies `(reviewer)` as a sanctioned route group, and the shared org reviewer queue is the ratified MVP. PR #41 was closed as superseded by PR #42. Phase 7 has not started and requires Matthew's explicit next-phase authorization.
+- **Current focus**: `main` is at `1122da5` after PR #42 (`feat(phase-9): Reviewer / approval-workflow MVP - close the publish-leak + R-017 (D-09-01)`) shipped on 2026-06-05. Phase 6 Billing remains the last shipped locked assembly phase via PR #32 squash `243067e9f259561a595230e5e7d3e97634040157`; Phase 8 remains pending. Phase 9 Reviewer / approval-workflow MVP is an out-of-band R-017 mitigation now live on `main`. Phase 7 (Crons + Email) has been executed locally on `gsd/phase-7-crons-email` across plans 07-01..07-08, including the additive `0014_reminder_sends` migration, Resend/React Email layer, cron route, Railway worker, event emission, notification bell, verification scripts, and CI workflow. `verify:phase-7` is now **green at `5d304b4`** — the earlier cumulative full-suite RED was a CPU-starvation flake against Vitest's 5s default `testTimeout`, fixed by raising the shared `vitest.config` `testTimeout`/`hookTimeout` to 30s (gate not weakened; no logic/pollution issue). Ship-review (`wf_0fa4b84e-ad3`) returned **ship / 0 must-fix + 4 Codex follow-ups**. **PUBLISHED 2026-06-14:** branch pushed, **draft PR #44** open to `main`, FU-2 (`6fd033a`, vitest env→node + jsdom-glob) + FU-4 (`aa6d8ab`, complete schema mock + `vi.stubEnv` env-leak fix) folded in as commits with `verify:phase-7` re-run **green at `aa6d8ab`** (39 files / 332 tests); FU-1 confirmed a false positive (no commit). **OPEN BLOCKER (FU-3):** the hosted `verify-phase-6`/`verify-phase-7` CI is **RED** — but for an *environmental* reason, not a Phase 7 defect: `check:rls` positive-control fails on the CI runner (`orgA cannot see its own policy row (0 rows)` → GRANT/migration state on the DB behind the CI `DATABASE_URL` secret, on Phase 2's `0001_rls_policies.sql`), and `RESEND_API_KEY`/`CRON_SECRET` CI secrets are empty. The same `check:rls` gated green for Phase 6 (PR #32), so the CI Supabase DB/secret has degraded since (free-tier auto-pause class, [[gate-needs-two-supabase-projects]]). Local full gate is green. Operator must reconcile the CI Supabase secret/project before un-drafting on green CI. The operator owns the final un-draft/merge.
 - **Granularity**: standard (8 phases)
 
 ---
 
 ## Current Position
 
-Phase: Phase 6 Billing remains SHIPPED on `main` via PR #32 squash commit `243067e9f259561a595230e5e7d3e97634040157`; out-of-band Phase 9 Reviewer / approval-workflow MVP shipped via PR #42 at `1122da5` and mitigates R-017 live on `main`.
-Plan: 6 / 6 plans executed + committed; Phase 7 has not started and requires Matthew's explicit next-phase authorization
-Branch: `main` — last runtime/feature commit `1122da5` (PR #42 merge); the literal current `git` HEAD is the docs state-reconcile commit on top. Local `main` and `origin/main` match. The remote `gsd/phase-9-reviewer` branch was deleted after merge; local `gsd/phase-6-billing` has already been deleted.
-Main HEAD: last runtime/feature commit `1122da5` (the literal current `git` HEAD is this docs state-reconcile commit on top). Phase 6 remains the last shipped locked assembly phase at PR #32 squash `243067e` (`Phase 6: Billing`). Shipped since Phase 6: PRs #33–#40 operating/tooling/prep commits, then PR #42 Phase 9 Reviewer / approval-workflow MVP at `1122da5`; PR #41 was closed as superseded by #42.
+Phase: Phase 6 Billing remains SHIPPED on `main` via PR #32 squash commit `243067e9f259561a595230e5e7d3e97634040157`; out-of-band Phase 9 Reviewer / approval-workflow MVP shipped via PR #42 at `1122da5` and mitigates R-017 live on `main`. Phase 7 is locally executed, **verify-green, ship-reviewed, and PUBLISHED as draft PR #44** — not yet merged (operator-owned).
+Plan: Phase 7 (Crons + Email) 8 / 8 plans executed on `gsd/phase-7-crons-email`; `verify:phase-7` exits 0 locally at `aa6d8ab`; ship-review 0-must-fix; FU-2/FU-4 folded, FU-1 false-positive. Remaining: FU-3 hosted CI is RED for an environmental reason (CI Supabase DB/secret `check:rls` GRANT failure), so operator reconciles the CI DB then un-drafts/merges.
+Branch: `gsd/phase-7-crons-email` pushed to `origin` at **`aa6d8ab`** (FU-4 commit; HEAD = `aa6d8ab` → `6fd033a` → `cc267e5`), clean tree, draft PR #44. `main` remains at `c90dd44` matching `origin/main` (23 ahead / 1 behind).
+Main HEAD: `origin/main` is at `c90dd44` (last runtime/feature commit `1122da5` from PR #42). The current local `git` HEAD is `aa6d8ab` on `gsd/phase-7-crons-email`. Phase 6 remains the last shipped locked assembly phase at PR #32 squash `243067e` (`Phase 6: Billing`). Shipped since Phase 6: PRs #33–#40 operating/tooling/prep commits, then PR #42 Phase 9 Reviewer / approval-workflow MVP at `1122da5`; PR #41 was closed as superseded by #42.
 
 - **Phase 1** — Foundation **complete** (2026-05-16; 5/5 plans; PR #1 merged)
 - **Phase 2** — Data Layer **complete** (2026-05-18; 7/7 plans = 6 main + 02-07 hotfix; verify:phase-2 8/8 OK; PR #2 squash-merged to `main` @ `130b8ab` on 2026-05-19)
@@ -43,13 +43,14 @@ Main HEAD: last runtime/feature commit `1122da5` (the literal current `git` HEAD
 - **Phase 5** — Employee Portal **SHIPPED** (2026-05-27; PR #27 "Phase 5: Employee Portal" merged to `main` at `3344847`, parent `c50b317`; `gsd/phase-5-employee-portal` branch is gone).
 - **Phase 6** — Billing **SHIPPED** (2026-05-31; PR #32 squash-merged to `main` at `243067e`; 06-01..06-06 committed; local `pnpm db:verify` and pre-merge `pnpm verify:phase-6` green; live Stripe test-mode UAT 11/11 rows PASS; hosted pre-merge PR #32 checks green/acceptable at `1abca44`; post-merge targeted checks PASS).
 - **Phase 9** — Reviewer / approval-workflow MVP **SHIPPED out-of-band** (2026-06-05; PR #42 squash-merged to `main` at `1122da5`; closes R-017 with Growth+ approval-completeness enforcement in `publish()`, ADR-030 `(reviewer)` route-group ratification, and shared org reviewer queue MVP).
-- **Progress**: 6 / 8 phases shipped (75%); Phases 7-8 not started.
+- **Phase 7** — Crons + Email **PUBLISHED — DRAFT PR #44 (verify-green local; CI env-blocked)** (2026-06-05 executed, 2026-06-06 verify-green, 2026-06-14 published; 8/8 plans on `gsd/phase-7-crons-email`; additive `0014_reminder_sends` applied to approved dev/TEST targets only; Resend/React Email, cron route, Railway worker, event emission, bell UI, verification scripts, and CI workflow added. `verify:phase-7` **exits 0 locally at `aa6d8ab`** (39 files / 332 tests; earlier full-suite RED was a CPU-starvation flake vs Vitest's 5s `testTimeout`, fixed by a 30s shared `testTimeout`/`hookTimeout` — gate not weakened). Ship-review `wf_0fa4b84e-ad3` = ship / 0 must-fix + 4 follow-ups: **FU-2** (`6fd033a`, vitest env→node + jsdom-glob) + **FU-4** (`aa6d8ab`, complete `@/lib/db/schema` mock + `vi.stubEnv` env-leak fix) folded in with gate re-run green; **FU-1** confirmed false positive (no commit); **FU-3** = watch CI. Pushed @ `aa6d8ab`, draft PR #44 to `main`. **CI BLOCKER:** hosted `verify-phase-6`/`verify-phase-7` RED for an environmental reason — `check:rls` positive-control fails on the CI runner DB (`orgA cannot see its own policy row` / GRANT on Phase 2 `0001_rls_policies.sql`), CI `RESEND_API_KEY`/`CRON_SECRET` empty; same gate was green for Phase 6, so the CI Supabase DB/secret degraded since ([[gate-needs-two-supabase-projects]]). Not yet merged, no deployment, no staging/prod migration, no live email send. Operator reconciles the CI Supabase secret/project, then un-drafts/merges.
+- **Progress**: 6 / 8 phases merged to `main` (75%); Phase 7 executed + verify-green + ship-reviewed and now in-PR (7 / 8 executed = 88%, per frontmatter); Phase 8 not started.
 
 ```text
-[######--] 6/8 phases shipped - Foundation done / Data Layer done / Admin UI done / AI Layer done / Employee Portal shipped / Billing shipped
+[######~-] 6 shipped + Phase 7 verify-green/in-PR of 8 - Foundation / Data Layer / Admin UI / AI Layer / Employee Portal / Billing shipped · Crons+Email verify-green (PR open)
 ```
 
-**Next action**: Matthew may authorize Phase 7 planning next. Do not start Phase 7 until that explicit authorization. Phase 9 does not change the locked Phase 7/8 sequence. Future live Stripe UAT must use the app test-account CLI override or a CLI profile logged into the intended test account; the default CLI profile remains mismatched. Migration note: `0012_billing_state` is applied and verified on the approved TEST/dev target only; staging/prod remain operator-gated by the migration discipline. CI Phase 6 verification mutates only the approved dev/test target through TRUNCATE/seed. SF-WHSEC-1 remains an operator follow-up before any future live webhook smoke if the current `CLERK_WEBHOOK_SECRET` was used before rotation.
+**Next action**: (Operator) Reconcile the **CI Supabase DB/secret** so the hosted `verify-phase-6`/`verify-phase-7` gate can pass — the runs on PR #44 are RED only because `check:rls` positive-control fails on the CI runner's `DATABASE_URL` DB (GRANT/migration state on Phase 2 `0001_rls_policies.sql`; not a Phase 7 defect — local gate is green). Likely the CI Supabase project auto-paused / its `DATABASE_URL` secret is stale; resume/re-point it and (optionally) set the empty `RESEND_API_KEY`/`CRON_SECRET` CI secrets. Then un-draft PR #44 and squash-merge; post-merge `git checkout main && git pull --ff-only`. **Still pending (bookkeeping):** the 5 `.planning/consultant/*.md` keep-current edits + `ops/deltas/2026-06-14-phase-7-ship.md` were deferred under context exhaustion — see the delta stub. Do not deploy, run staging/prod migrations, or send live email until the operator opens those gates. Phase 8 not started.
 
 **Fast-follow PR backlog** (3 sequential PRs, originally scoped from PR #3 carry-forward):
 
@@ -74,7 +75,7 @@ Main HEAD: last runtime/feature commit `1122da5` (the literal current `git` HEAD
 
 | Metric | Value |
 |--------|-------|
-| Phases complete | 5 / 8 |
+| Phases complete | 7 / 8 executed (6 merged + Phase 7 verify-green/in-PR) |
 | Phase 1 plans drafted | 5 / 5 |
 | Phase 1 plans executed | 5 / 5 |
 | Phase 2 context | drafted 2026-05-17 |
@@ -259,6 +260,10 @@ Surfaced by `/pr-review-toolkit:review-pr` against PR #1 head `e3689d3` (silent-
 
 - **2026-05-30 Phase 6 Stripe test-clock UAT completion**: Live Stripe test-mode UAT rows 9 and 10 are now PASS with masked-only evidence. Row 9 used a true Stripe test-clock renewal and observed a fresh `invoice.paid` event with the app DB remaining Growth/active. Row 10 used a test-clock payment-failure path and observed `invoice.payment_failed` with the app DB remaining Growth/`past_due` at first failure, before any later terminal retry/deletion behavior. The Stripe CLI default profile still targets a different test account than the app test key; local UAT reconciled this by running Stripe CLI/listener commands with `STRIPE_API_KEY` sourced from the app test key and by injecting the active listener webhook secret into the local dev process without printing or committing it. Temporary listener logs that could contain the webhook secret were deleted. This entry captured the pre-publication UAT-complete state and is superseded for current PR guidance by the PR #32 shipped-state entry above.
 
+- **Phase 7 context**: gathered 2026-06-05 via `/gsd-discuss-phase 7` — 13 implementation (HOW) decisions D-01..D-13 at `.planning/phases/07-crons-email/07-CONTEXT.md` (commit `cb1acfd` on `gsd/phase-7-crons-email`; `07-SPEC.md` owns the 10 requirements). Locks: loop-per-org via `withOrgScope` (RLS-enforced); record-then-send at-most-once via the additive `reminder_sends` ledger (migration initially discussed as `0013`, corrected during planning to `0014`, dev/TEST-only before operator-gated staging/prod); cron-only dedup (event types gate on action idempotency); Railway native cron + dependency-free fetch script; shared React Email base layout + typed dispatch map; `review_due`→org admins; `ack_reminder` none+stale >7d; `next_review_date` forward-only on publish; per-org-isolation cron (200+counts, 5xx only on fatal); TEST-DB integration + stub-transport unit tests; bell UX deferred to `/gsd-ui-phase 7`. This context was superseded by the Phase 7 plan and local execution records below.
+
+- **2026-06-05 Phase 7 local execution**: Plans 07-01..07-08 were implemented locally on `gsd/phase-7-crons-email`. Runtime changes include exact package pins `resend@6.12.3` and `react-email@6.1.5`; additive migration `0014_reminder_sends`; `lib/email` client/templates/dispatch; notification and reminder repositories; forward-only `next_review_date` write on publish; `policy_assigned` and `policy_updated` notification/email emission after commit; `/api/cron/reminders` with bearer `CRON_SECRET`, per-org isolation, claim-before-send ledger semantics, and post-commit Resend sends; dependency-free Railway worker; admin/employee notification bell with mark-read and mark-all actions; Clerk webhook 409/catch tests; Phase 7 static gate; RLS/schema/artifact gate extensions; and hosted `verify-phase-7` workflow. Applied migrations only to approved dev/TEST targets (`db:migrate:test`, `db:migrate`). Not pushed, no upstream, no PR, no deployment, no staging/prod migration, and no live email send. Verification: `tsc`, focused Phase 7 tests, `check:crons-email`, `check:db-imports`, `check:artifacts`, `build`, `check:rls`, and `db:verify` passed. Cumulative `verify:phase-7` failed in inherited full `pnpm test` surfaces (`app/api/ai/consistency/route.test.ts`, `app/api/ai/qa/route.test.ts`, `app/api/webhooks/stripe/route.test.ts`); those files passed when rerun individually. **Superseded 2026-06-06**: that RED was diagnosed as a CPU-starvation flake against Vitest's 5s default `testTimeout` (not logic/pollution); fixed at `5d304b4` by raising the shared `vitest.config` `testTimeout`/`hookTimeout` to 30s → `verify:phase-7` exits 0. Ship-review `wf_0fa4b84e-ad3` = ship / 0 must-fix + 4 follow-ups. See the top-of-file status for the live publish state.
+
 ---
 
 ## Phase Roster
@@ -271,5 +276,5 @@ Surfaced by `/pr-review-toolkit:review-pr` against PR #1 head `e3689d3` (silent-
 | 4 | AI Layer | REQ-ai-policy-assistant, REQ-ai-usage-rules | **SHIPPED** — PR #15 squash-merged to `main` @ `f8207f4` (2026-05-22; 14/14 plans + UAT 5/5 + gsd-security-auditor 60/60 STRIDE CLOSED + real-key Anthropic smoke verifying SPEC R4 cache mechanics for ~$0.021 spend). Post-merge cleanup PR #17 @ `eda7bb4` (one-shot HANDOFF artifact deletions). Deploy-prep PR in flight (chore/phase-4-deploy-prep) — staging/prod migration infrastructure (verifier, runbook, CI workflow, Vercel hook). Phase 4.5 polish backlog tracked at GitHub issue #16 (~30 deferred items). |
 | 5 | Employee Portal | REQ-acknowledgment-tracking, REQ-acknowledgment-rules | **SHIPPED** — PR #27 merged to `main` at `3344847` on 2026-05-27T22:06:16Z; 10/10 plans complete; audit remediation gates closed before merge. |
 | 6 | Billing | REQ-tier-starter, REQ-tier-growth, REQ-tier-business | **SHIPPED** — PR #32 squash-merged to `main` at `243067e` on 2026-05-31T22:34:30Z; 6/6 plans committed; local `pnpm db:verify` and pre-merge `pnpm verify:phase-6` green; live Stripe test-mode UAT rows 1-11 PASS; hosted pre-merge PR #32 checks green/acceptable at `1abca44`; post-merge targeted checks PASS. |
-| 7 | Crons + Email | REQ-notification-system | Not started |
+| 7 | Crons + Email | REQ-notification-system | Executed locally / verify-green / ship-ready — 8/8 plans on `gsd/phase-7-crons-email`; `verify:phase-7` exits 0 at `5d304b4` (full-suite RED was a CPU-starvation flake vs Vitest 5s `testTimeout`, fixed with a 30s shared timeout — gate not weakened); ship-review 0 must-fix + 4 follow-ups. Being published this session (push + draft PR + fold FU-1/FU-2/FU-4); not yet merged, no deployment/live send. |
 | 8 | Validation | REQ-compliance-dashboard, REQ-integrations, REQ-acceptance-criteria | Not started |
