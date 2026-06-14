@@ -155,7 +155,7 @@ Ask `fallow` for structural truth (dead code, dupes, circular deps, complexity, 
 
 ## Database Migration Discipline
 
-Migrations are **immutable + forward-only** (`drizzle/meta/_journal.json` is the source of truth). **Destructive migrations (DROP COLUMN/TABLE, NOT NULL on an existing column) are ASK-FIRST** — operator approval + a migration-header documenting rationale, approval timestamp, and decision ID. **Pre-deploy gate:** `pnpm db:migrate:<env>` → `pnpm db:verify:<env>` exits 0 → only then deploy code (else the first request to the new schema 503s). Full procedure, audit-log template, and verifier map → `reference/MIGRATIONS.md`.
+Migrations are **immutable + forward-only** (`drizzle/meta/_journal.json` is the source of truth). **Destructive migrations (DROP COLUMN/TABLE, NOT NULL on an existing column) are ASK-FIRST** — operator approval + a migration-header documenting rationale, approval timestamp, and decision ID. **Pre-deploy gate:** `pnpm db:migrate:<env>` → `pnpm db:verify:<env>` exits 0 → only then deploy code (else the first request to the new schema 503s). Full procedure, audit-log template, and verifier map → `reference/MIGRATIONS.md`; deploy runbook → `docs/runbooks/deploy-migrations.md`.
 
 ---
 
