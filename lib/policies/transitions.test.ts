@@ -126,6 +126,17 @@ vi.mock('@/lib/ai/summary', () => ({
 // would import postgres at module load and break vitest's jsdom env).
 vi.mock('@/lib/db/schema', () => ({
   policies: { __stub: 'policies' } as unknown as Record<string, never>,
+  // FU-4a — transitions.ts pulls notifications.ts + reminders.ts into the
+  // module graph (the publish() policy_updated emission path). Those repos
+  // are NOT mocked, so they load for real and import these named table
+  // exports from the barrel. The stub must export them too or they resolve
+  // to `undefined`.
+  notifications: { __stub: 'notifications' } as unknown as Record<string, never>,
+  acknowledgments: { __stub: 'acknowledgments' } as unknown as Record<string, never>,
+  organizations: { __stub: 'organizations' } as unknown as Record<string, never>,
+  policyAssignments: { __stub: 'policyAssignments' } as unknown as Record<string, never>,
+  policyVersions: { __stub: 'policyVersions' } as unknown as Record<string, never>,
+  users: { __stub: 'users' } as unknown as Record<string, never>,
 }));
 
 import {

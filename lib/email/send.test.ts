@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EmailContext, NotificationType } from './send';
 
 vi.mock('server-only', () => ({}));
@@ -16,7 +16,11 @@ vi.mock('@/lib/email/client', () => ({
 beforeEach(() => {
   sendMock.mockReset();
   sendMock.mockResolvedValue({ data: { id: 'email_test_123' }, error: null });
-  process.env.RESEND_FROM_EMAIL = '';
+  vi.stubEnv('RESEND_FROM_EMAIL', '');
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 const baseCtx: EmailContext = {
@@ -55,7 +59,7 @@ describe('sendNotificationEmail', () => {
   }
 
   it('uses RESEND_FROM_EMAIL when configured', async () => {
-    process.env.RESEND_FROM_EMAIL = 'PolicyPilot <notify@example.test>';
+    vi.stubEnv('RESEND_FROM_EMAIL', 'PolicyPilot <notify@example.test>');
     const { sendNotificationEmail } = await import('./send');
 
     await sendNotificationEmail('policy_assigned', 'person@example.test', baseCtx);
