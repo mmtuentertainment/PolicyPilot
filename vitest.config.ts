@@ -27,7 +27,13 @@ export default defineConfig({
     postcss: { plugins: [] },
   },
   test: {
-    environment: 'jsdom',
+    // Default to node — most test files are node-only (.test.ts) and pay no DOM
+    // cost. Only the React component tests (.test.tsx) get jsdom via
+    // environmentMatchGlobs. (FU-2: jsdom-global was wasteful for node tests;
+    // setup.ts is node-safe — RTL cleanup() no-ops on an empty mount registry,
+    // and the matchMedia shim is `typeof window` guarded.)
+    environment: 'node',
+    environmentMatchGlobs: [['**/*.test.tsx', 'jsdom']],
     globals: true,
     setupFiles: ['./tests/setup.ts'],
     include: ['**/*.{test,spec}.{ts,tsx}'],
