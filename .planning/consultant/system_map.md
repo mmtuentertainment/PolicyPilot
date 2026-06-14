@@ -1,6 +1,6 @@
 # Consultant System Map — PolicyPilot
 
-Updated: 2026-06-05 - Phase 9 Reviewer MVP shipped via PR #42 at `1122da5` (D-09-01): `(reviewer)` route group + `review_decisions` append-only audit ledger + `publish()` Growth+ approval-completeness gate (R-017 mitigated live)
+Updated: 2026-06-14 - Phase 7 (Crons + Email) published as draft PR #44 from `gsd/phase-7-crons-email` (tip `9a3ebe2`); `verify:phase-7` green (tsc 0 / 39 vitest files·332 tests / check:rls / db:verify); ship-review `wf_0fa4b84e-ad3` = ship / 0 must-fix + 4 follow-ups (FU-2 folded `6fd033a`, FU-4 folded `aa6d8ab`, FU-1 false-positive, FU-3 hosted CI red = environmental); NOT merged, no deploy, no staging/prod migration, no live email send. Adds `lib/email/*` (Resend + React Email, 4 templates + base layout), `GET /api/cron/reminders` (in-route CRON_SECRET gate, idempotent via `reminder_sends`), Railway worker (`worker/trigger-reminders.mjs` + `railway.json`), `reminder_sends` send-ledger (additive `0014`, dev/TEST only), in-app NotificationBell, and publish/assign/update event emission. Prior: 2026-06-05 - Phase 9 Reviewer MVP shipped via PR #42 at `1122da5` (D-09-01): `(reviewer)` route group + `review_decisions` append-only audit ledger + `publish()` Growth+ approval-completeness gate (R-017 mitigated live)
 
 ## Product Boundary
 
@@ -31,6 +31,11 @@ flowchart TD
   ADMIN --> SA[Server Actions and API Routes]
   EMP --> SA
   REV --> SA
+
+  EMP --> BELL[NotificationBell: unread count + mark-read]
+  ADMIN --> BELL
+  BELL --> SA
+
   SA --> AUTHLIB[lib/auth: getOrgContext, requireAdmin, OrgScope]
   SA --> REPOS[lib/db/repositories: org-scoped aggregate access]
   REPOS --> DB[(Supabase Postgres + Drizzle + RLS)]
@@ -41,8 +46,12 @@ flowchart TD
   SA --> STRIPE[lib/stripe: Stripe Checkout, portal, webhooks]
   STRIPE --> STRIPE_EVENTS[(stripe_events idempotency)]
 
-  SA --> EMAIL[lib/email: Resend + React Email]
-  RAILWAY[Railway worker / cron reminders] --> EMAIL
+  SA --> EMAIL[lib/email: Resend + React Email templates]
+  RAILWAY[Railway worker / trigger-reminders.mjs] --> CRON[app/api/cron/reminders: CRON_SECRET gate]
+  CRON --> EMAIL
+  CRON --> NOTIF[(notifications rows)]
+  CRON --> RSEND[(reminder_sends idempotency ledger)]
+  SA --> NOTIF
   RAILWAY --> DB
 
   CLERK[Clerk webhooks] --> WH[app/api/webhooks/clerk]
@@ -76,7 +85,7 @@ Phase 3 Admin UI        shipped
 Phase 4 AI Layer        shipped
 Phase 5 Employee Portal shipped
 Phase 6 Billing         shipped (PR #32 squash commit 243067e; 06-01 foundation + 06-02 webhook + 06-03 tier gates + 06-04 checkout/pricing + 06-05 Customer Portal/settings + 06-06 verifier complete; db:verify green; local UAT 11/11 PASS; hosted pre-merge checks green/acceptable at 1abca44; post-merge targeted checks PASS)
-Phase 7 Crons + Email   pending
+Phase 7 Crons + Email   published as draft PR #44 / verify-green (branch gsd/phase-7-crons-email @ 9a3ebe2; NOT merged — not on main; main @ 7410700 after unrelated PR #43, branch merge-base c90dd44) — Railway worker → GET /api/cron/reminders (CRON_SECRET gate) → 4 Resend/React-Email types + notifications rows, deduped by additive reminder_sends ledger (migration 0014, dev/TEST only); in-app NotificationBell (unread + mark-all-read); next_review_date-on-publish + policy_assigned/policy_updated event emission; verify:phase-7 green (tsc 0 / 39 vitest files·332 tests / check:rls / db:verify pass); ship-review wf_0fa4b84e-ad3 = ship / 0 must-fix + 4 follow-ups (FU-2 folded 6fd033a, FU-4 folded aa6d8ab, FU-1 false-positive, FU-3 = watch hosted CI, currently red = environmental)
 Phase 8 Validation      pending
 Phase 9 Reviewer        shipped / monitor (PR #42 @ 1122da5, D-09-01) — out-of-band feature closing R-017: (reviewer) route group + review_decisions append-only ledger + publish() Growth+ approval-completeness gate
 ```
@@ -84,6 +93,8 @@ Phase 9 Reviewer        shipped / monitor (PR #42 @ 1122da5, D-09-01) — out-of
 Phase 5 shipped via PR #27 at `3344847`. Phase 6 shipped via PR #32 at squash commit `243067e9f259561a595230e5e7d3e97634040157` after prior PR head `1abca44dff89ccc7151d59b07fe1a93ce3d7be81` passed the hosted pre-merge gate. Plans 06-01 through 06-06 are complete: catalog/client/mask helpers exist, the additive billing-state migration is applied to the approved TEST/dev Supabase target, the Stripe webhook route verifies raw bodies, handles the 5 locked events, re-fetches canonical subscriptions where required, writes idempotently, `maxUsers` uses a real org-scoped user count, the admin checkout Server Action creates Stripe Checkout Sessions from server-derived org/price/metadata, public pricing carries only non-authoritative tier/interval intent, `/settings` is admin-gated, the admin billing page opens Stripe Customer Portal sessions from the DB-stored customer ID only, and `verify:phase-6` plus the hosted workflow/UAT checklist are wired. Local `pnpm db:verify`, pre-merge `pnpm verify:phase-6`, Stripe test-mode UAT rows 1-11, hosted pre-merge PR #32 checks, and post-merge targeted checks are green/acceptable. Hosted CI mutates only the approved dev/test Supabase target through TRUNCATE/seed; staging/prod remain operator-gated.
 
 Post-ship topology note: `gsd/phase-6-billing` contained local docs/topology work after the PR branch was published. The product/security scoped diff between that branch and `gsd/phase-6-stripe-uat-complete` was checked empty on 2026-05-31 before carrying over only safe docs. The remote PR branch was deleted by merge, and local `gsd/phase-6-billing` has since been deleted (no longer divergent).
+
+Phase 7 Crons + Email is EXECUTED and verify-green on `gsd/phase-7-crons-email`, now published as draft PR #44 (tip `9a3ebe2`; base `main` now at `7410700` after the unrelated PR #43 CLAUDE.md context-diet merge, branch merge-base `c90dd44`) but NOT yet merged. Plans 07-01..07-08 are complete: `lib/email/` (lazy `getResendClient` singleton, typed `type → {subject, template}` dispatch map, masked recipient logging, base layout + one React Email template per type), `GET /api/cron/reminders` (self-gates on `Bearer {CRON_SECRET}` since middleware bypasses Clerk for `/api/cron/*`; loops orgs under `withOrgScope`; record-then-send idempotency via the additive `reminder_sends` natural-key ledger committed before Resend send; returns `{reviewReminders, ackReminders}`), the Railway worker (`worker/trigger-reminders.mjs` + `railway.json`, dependency-free HTTPS GET on the 08:00 UTC schedule per ADR-014), the `next_review_date`-on-publish writer plus the `policy_updated` event emission in `lib/policies/transitions.ts` (the `policy_assigned` email+notification is emitted from the admin bulk-assign action in `app/(admin)/policies/[id]/actions.ts`), and the in-app NotificationBell (`Notifications.create()`/`markRead()` implemented; `markAllReadForUser` server action; admin + employee mount points). `reminder_sends` is additive forward migration `0014` (operator-pre-approved authoring), applied to dev/TEST only this phase; staging/prod remain operator-gated. `verify:phase-7` is green (`tsc --noEmit` 0, 39 vitest files / 332 tests, `check:rls` pass, `db:verify` pass — the dev Supabase project was resumed). It first went green at `5d304b4` after a flake fix (the earlier full-suite RED was a CPU-starvation flake against Vitest's 5s default `testTimeout`, fixed by raising the shared `vitest.config` `testTimeout`/`hookTimeout` to 30s — load tolerance only, the gate was NOT weakened), and re-verified green at `aa6d8ab` after folding two follow-ups. Ship-review `wf_0fa4b84e-ad3` returned ship / 0 must-fix + 4 follow-ups: FU-2 folded at `6fd033a` (vitest default env `node`; jsdom scoped to `**/*.test.tsx` via `environmentMatchGlobs`), FU-4 folded at `aa6d8ab` (completed the `@/lib/db/schema` mock in `transitions.test.ts` + contained the `RESEND_FROM_EMAIL` env leak in `send.test.ts` via `vi.stubEnv`/`vi.unstubAllEnvs`), FU-1 was a confirmed false positive (no commit), and FU-3 = watch the hosted CI. The hosted `verify-phase-6` / `verify-phase-7` CI is currently RED but ENVIRONMENTAL, not a Phase 7 defect: it fails at the `check:rls` positive control on the CI runner (GRANT/migration state behind the CI `DATABASE_URL` secret; fails on Phase 2 `0001_rls_policies.sql`, which Phase 7 never touches; the CI `RESEND_API_KEY`/`CRON_SECRET` secrets are empty). The operator must reconcile the CI Supabase secret/project, re-run CI green, THEN un-draft + squash-merge (post-merge: `git checkout main && git pull --ff-only`). The live 08:00 UTC Railway run is operator-executed secret-safe evidence, not a CI gate (ADR-014); no deploy, no live email send, no live Stripe.
 
 ---
 
@@ -154,6 +165,12 @@ Post-ship topology note: `gsd/phase-6-billing` contained local docs/topology wor
 - `lib/db/repositories/*`: app-layer org scoping.
 - `app/api/ai/*`: AI route security, logging, tier gates.
 - `app/api/webhooks/*`: signature verification and idempotency.
+- `app/api/cron/reminders/route.ts`: self-gates on `Bearer {CRON_SECRET}` (middleware bypasses Clerk for `/api/cron/*`), loops orgs under `withOrgScope`, record-then-send idempotency; returns `{reviewReminders, ackReminders}`. Phase 7.
+- `lib/email/*` (`client.ts` lazy `getResendClient`, `send.ts` typed dispatch + masked logging, `errors.ts`, `recipients.ts`, `urls.ts`, `templates/*`): the Resend + React Email transport for all 4 notification types. Phase 7 (ADR-016).
+- `drizzle/0014_reminder_sends.sql` (natural-key UNIQUE on `(org_id,user_id,policy_id,type,window_date)`) + `lib/db/repositories/reminders.ts` (org-scoped review_due / ack_reminder candidate queries): the at-most-once send-ledger. The `onConflictDoNothing` claim-before-send INSERT lives in `app/api/cron/reminders/route.ts` (record-then-send) — the idempotency invariant for the cron. Phase 7.
+- `worker/trigger-reminders.mjs` + `railway.json`: the dependency-free Railway worker that HTTPS-GETs the cron at 08:00 UTC with `CRON_SECRET`. Phase 7 (ADR-014).
+- `components/notifications/{NotificationBell,NotificationBellServer}.tsx` + `notification-href.ts` + `app/(employee)/notifications/actions.ts` (`markAllReadForUser`): the in-app bell (unread count + mark-read); `Notifications.create()`/`markRead()` now implemented (`notifications` is intentionally mutable, NOT in `IMMUTABLE_TABLES`). Phase 7.
+- `lib/policies/transitions.ts`: now also writes `next_review_date` on publish and emits the `policy_updated` event (the `policy_assigned` event is emitted from the admin bulk-assign action in `app/(admin)/policies/[id]/actions.ts`); both feed reminders + notifications. Phase 7.
 - `drizzle/*`: migration source of truth.
 - `scripts/check-*`: executable project invariants.
 - `app/(reviewer)/*` + `lib/policies/transitions.ts` (`publish()` approval-completeness gate, `recordReviewDecision`) + `lib/db/repositories/{workflow_stages,review_decisions}.ts`: the Phase 9 reviewer/approval surface; `review_decisions` is an append-only audit ledger (R-017 / D-09-01).
