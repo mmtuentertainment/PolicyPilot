@@ -14,12 +14,15 @@
 import { Project, SyntaxKind } from 'ts-morph';
 import { resolve as resolvePath, sep as pathSep, relative as relPath } from 'node:path';
 
-// ADR-023 allow-list with 4 logical entries (webhook(clerk|stripe), cron,
-// test-harness) — the test-harness entry expands to: tests/**,
-// scripts/check-rls.ts, scripts/check-schema.ts, scripts/check-db.ts, and
-// lib/db/index.test.ts (the Cause-B lazy-init regression test that imports
-// the barrel-under-test). Plus lib/db/scoped.ts as the wrapper that secures
-// the channel.
+// ADR-023 allow-list. The ORIGINAL Phase-2 scope was 4 logical entries
+// (webhook(clerk|stripe), cron, test-harness) — the test-harness entry
+// expands to: tests/**, scripts/check-rls.ts, scripts/check-schema.ts,
+// scripts/check-db.ts, and lib/db/index.test.ts (the Cause-B lazy-init
+// regression test that imports the barrel-under-test). Plus lib/db/scoped.ts
+// as the wrapper that secures the channel. Two documented additions have since
+// been allow-listed via ADR-023: lib/auth/context.ts (gap-closure 03-G1) and
+// lib/stripe/products.ts (Phase 4 Plan 04-06). The ALLOWLIST array below is
+// authoritative — keep it in sync; this prose is descriptive only.
 //
 // Note 1: scripts/check-artifacts.ts is NOT allow-listed — its @/lib/db
 // references are string literals used by its grep walker (NOT ES imports);
@@ -158,8 +161,11 @@ async function main(): Promise<void> {
     console.error('Allowed importers:');
     console.error('  - app/api/webhooks/{clerk,stripe}/route.ts');
     console.error('  - app/api/cron/**/route.ts');
-    console.error('  - tests/** + scripts/check-{rls,schema,db}.ts');
+    console.error('  - tests/** + scripts/check-{rls,schema,db}.ts + lib/db/index.test.ts');
     console.error('  - lib/db/scoped.ts (the wrapper that secures the channel)');
+    console.error('  - lib/auth/context.ts (gap-closure 03-G1)');
+    console.error('  - lib/stripe/products.ts (Phase 4 Plan 04-06; tier-limit gate)');
+    console.error('  (see the ALLOWLIST array in scripts/check-db-imports.ts for the authoritative list)');
     process.exit(1);
   }
 

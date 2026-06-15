@@ -428,7 +428,7 @@ Coverage tooling is not installed — `pnpm test` runs without coverage collecti
 
 ## CI Wiring (GitHub Actions)
 
-### Workflow: `verify.yml` — runs on PR + push to `main`/`gsd/**` + nightly schedule
+### Workflow: `verify.yml` — runs on PR + push to `main` + nightly schedule
 
 **`full-verification` job:**
 - Spins up a local Postgres 16 service container
@@ -442,7 +442,7 @@ Coverage tooling is not installed — `pnpm test` runs without coverage collecti
 - Runs only on `workflow_dispatch` or nightly schedule
 - Uses real secrets — exercises live Supabase + Clerk + Anthropic integration
 
-### Workflow: `verify-phase-6.yml` — runs on PR + push to `main`/`gsd/**`
+### Workflow: `verify-phase-6.yml` — runs on PR + push to `main`
 
 - Uses real Stripe secrets from repository secrets
 - Runs `pnpm verify:phase-6`
