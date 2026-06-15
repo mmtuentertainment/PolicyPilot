@@ -63,3 +63,21 @@ No-change to `working_context` / `system_map` / `feature_inventory` / `risk_regi
 this is post-merge hygiene on an already-shipped phase; no new feature, risk, or architecture decision.
 R-017 / R-018 unaffected. The CR1 latent bug is captured here + routed to Codex, not a new risk-register
 entry (dormant, scoped, owned).
+
+## Resolution — status update (2026-06-15, post-merge)
+
+Both branches from this delta have shipped to `main`:
+
+- **Doc-hygiene** (`chore/pr32-triage-doc-hygiene`, `33f35e1`) → **PR #46**
+  squash-merged to `main` `6a90196` ("docs(ops): close PR #32 CodeRabbit triage
+  hygiene"). Supersedes the "Not yet pushed" note above.
+- **CR1 prod-URL guard** (`codex/cr1-prod-url-guard`, `3152807`) → **PR #47**
+  squash-merged to `main` **`f4b4815`** at 2026-06-15T17:18:14Z ("fix(billing):
+  fail closed without production app URL (#47)"). Prod fail-closed guard now live
+  on both `getAppUrl()` (billing, `app/(admin)/settings/actions.ts`) and
+  `appBaseUrl()` (email, `lib/email/urls.ts`), with tests. PR worktree + local +
+  remote branch all removed. Realizes the CR1 handoff packet above.
+
+All 5 PR #32 CR threads remain resolved (0 unresolved). Consultant-set verdict
+unchanged: **no-change** (post-merge hygiene on an already-shipped phase; no new
+feature, risk, or architecture decision).
