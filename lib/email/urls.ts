@@ -12,7 +12,8 @@ export function appBaseUrl(): string {
     return withProtocol.replace(/\/$/, '');
   }
 
-  return 'http://localhost:3000';
+  if (process.env.NODE_ENV !== 'production') return 'http://localhost:3000';
+  throw new Error('NEXT_PUBLIC_APP_URL or VERCEL_URL must be set in production.');
 }
 
 export function acknowledgeUrl(policyId: string): string {
