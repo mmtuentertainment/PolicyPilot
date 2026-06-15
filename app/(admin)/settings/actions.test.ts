@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ForbiddenError, NotAuthenticatedError } from '@/lib/auth/errors';
 
 vi.mock('server-only', () => ({}));
@@ -72,6 +72,10 @@ const adminCtx = {
   clerkUserId: 'user_admin',
   role: 'admin',
 } as const;
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 const activeOrg = {
   stripeCustomerId: null,
@@ -282,6 +286,17 @@ describe('createCheckoutSessionAction', () => {
       'NEXT_REDIRECT:https://checkout.stripe.test/session',
     );
     expect(sessionsCreateMock).toHaveBeenCalledOnce();
+  });
+
+  it('fails closed in production when the app URL is not configured', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', '');
+
+    await expect(runAction()).rejects.toThrow(
+      'NEXT_PUBLIC_APP_URL must be set in production.',
+    );
+
+    expect(sessionsCreateMock).not.toHaveBeenCalled();
   });
 
   it('rejects invalid tier or interval before any Stripe call', async () => {
