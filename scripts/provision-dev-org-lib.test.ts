@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ProvisioningInputError,
   deriveProvisioningTarget,
+  membershipUserId,
   normalizeClerkRole,
   parseProvisionArgs,
 } from './provision-dev-org-lib';
@@ -51,6 +52,16 @@ describe('provision-dev-org helpers', () => {
       clerkUserId: 'user_live_5678',
       role: 'admin',
     });
+  });
+
+  it('reads Clerk membership user ids across SDK and REST payload shapes', () => {
+    expect(membershipUserId({ user: { id: 'user_from_object' } })).toBe('user_from_object');
+    expect(membershipUserId({ publicUserData: { userId: 'user_from_camel' } })).toBe(
+      'user_from_camel',
+    );
+    expect(membershipUserId({ public_user_data: { user_id: 'user_from_snake' } })).toBe(
+      'user_from_snake',
+    );
   });
 
   it('requires --user when Clerk returns multiple memberships', () => {

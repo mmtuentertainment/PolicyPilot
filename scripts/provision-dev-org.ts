@@ -5,6 +5,7 @@ import {
   deriveProvisioningTarget,
   maskClerkId,
   maskClerkOrgId,
+  membershipUserId,
   parseProvisionArgs,
   type ProvisioningTarget,
 } from './provision-dev-org-lib';
@@ -27,6 +28,7 @@ type UpsertResult = {
 };
 
 const CLERK_API_BASE = 'https://api.clerk.com/v1';
+const MEMBERSHIP_PAGE_LIMIT = 100;
 
 function usage(): string {
   return [
@@ -64,6 +66,13 @@ function dataArray(response: unknown): unknown[] {
   return [];
 }
 
+function dataTotalCount(response: unknown): number | null {
+  if (typeof response !== 'object' || response === null) return null;
+  if ('totalCount' in response && typeof response.totalCount === 'number') return response.totalCount;
+  if ('total_count' in response && typeof response.total_count === 'number') return response.total_count;
+  return null;
+}
+
 async function readClerkResponse(response: Response, label: string): Promise<unknown> {
   const text = await response.text();
   if (!response.ok) {
@@ -93,6 +102,43 @@ async function clerkGet(secretKey: string, path: string, label: string): Promise
     },
   });
   return readClerkResponse(response, label);
+}
+
+type ClerkGetFn = (path: string, label: string) => Promise<unknown>;
+
+function organizationMembershipsPath(organizationId: string, limit: number, offset: number): string {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  return `/organizations/${organizationId}/memberships?${params.toString()}`;
+}
+
+async function fetchMembershipsForProvisioning(input: {
+  organizationId: string;
+  requestedUserId?: string;
+  get: ClerkGetFn;
+}): Promise<unknown[]> {
+  const limit = input.requestedUserId ? MEMBERSHIP_PAGE_LIMIT : 2;
+  const memberships: unknown[] = [];
+
+  for (let offset = 0; ; offset += limit) {
+    const response = await input.get(
+      organizationMembershipsPath(input.organizationId, limit, offset),
+      'organization membership lookup',
+    );
+    const page = dataArray(response);
+    memberships.push(...page);
+
+    if (!input.requestedUserId) break;
+    if (page.some((membership) => membershipUserId(membership) === input.requestedUserId)) break;
+
+    const totalCount = dataTotalCount(response);
+    if (totalCount !== null && offset + page.length >= totalCount) break;
+    if (page.length < limit) break;
+  }
+
+  return memberships;
 }
 
 async function clerkPatch(
@@ -172,19 +218,17 @@ async function fetchProvisioningTarget(
 ): Promise<ProvisioningTarget> {
   const organizationId = encodeURIComponent(args.orgId);
   const organization = await clerkGet(secretKey, `/organizations/${organizationId}`, 'organization lookup');
-
-  const membershipLimit = args.userId ? '100' : '2';
-  const membershipsResponse = await clerkGet(
-    secretKey,
-    `/organizations/${organizationId}/memberships?limit=${membershipLimit}`,
-    'organization membership lookup',
-  );
+  const memberships = await fetchMembershipsForProvisioning({
+    organizationId,
+    requestedUserId: args.userId,
+    get: (path, label) => clerkGet(secretKey, path, label),
+  });
 
   return deriveProvisioningTarget({
     requestedOrgId: args.orgId,
     requestedUserId: args.userId,
     organization,
-    memberships: dataArray(membershipsResponse),
+    memberships,
   });
 }
 
@@ -255,4 +299,4 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   });
 }
 
-export { main };
+export { fetchMembershipsForProvisioning, main };

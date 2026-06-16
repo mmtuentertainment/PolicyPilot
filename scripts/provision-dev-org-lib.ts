@@ -69,7 +69,7 @@ function validateClerkId(label: string, value: string, prefix: 'org_' | 'user_')
   }
 }
 
-function membershipUserId(membership: unknown): string | null {
+export function membershipUserId(membership: unknown): string | null {
   return (
     readString(membership, ['user', 'id']) ??
     readString(membership, ['publicUserData', 'userId']) ??
