@@ -192,6 +192,16 @@ describe('Reports.listAckComplianceForOrg', () => {
       expect(current?.acknowledgedAt).toBeInstanceOf(Date);
       expect(current?.ipAddress).toBe('203.0.113.10');
       expect(current?.departmentName).toBe('Dual Team');
+      // SF-1 single-current-ack co-existence guard: the (userCurrent, pCurrent)
+      // group is collapsed by GROUP BY (direct + department assignment fan-out)
+      // yet has exactly ONE current_ack row — the single seeded acknowledgment
+      // at ip 203.0.113.10 / 2026-06-01. min(acknowledgedAt) / max(ipAddress)
+      // must therefore return THAT ack's own values verbatim (the aggregate only
+      // satisfies GROUP BY; it does not pick a different row or null them out).
+      // acknowledged_at is a zone-naive `timestamp` (schema.ts:58), so — like the
+      // COV-1 assertion above — pin only the UTC date portion to stay portable
+      // across runner offsets while still proving value preservation.
+      expect(current?.acknowledgedAt?.toISOString().slice(0, 10)).toBe('2026-06-01');
       // COV-1 regression guard: dedup must select MIN(assignedAt) = the EARLIER of the direct (2026-05-01)
       // and department (2026-05-02) assignments. A MIN->MAX regression in reports.ts:60 selects the LATER
       // (2026-05-02) instant and fails here.

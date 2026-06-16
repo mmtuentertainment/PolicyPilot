@@ -34,14 +34,16 @@ name which stages were represented and which checks were unavailable.
 
 `.planning/STATE.md` is the source of truth for phase state; the consultant
 files (`working_context.md`, `system_map.md`, `feature_inventory.md`,
-`risk_register.md`, `backlog.md`) carry the current detail. As of 2026-06-15:
-Phases 1-6 are shipped on `main`; Phase 9 Reviewer/approval-workflow MVP shipped
-via PR #42 at `1122da5`; Phase 7 Crons + Email is SHIPPED to `main` via PR #44
-squash commit `8b7019d` (2026-06-14; branch deleted post-merge; main now
-`3df5223`); Phase 8 Validation is now in progress (CSV-first slice authorized
-2026-06-15 + planned on `gsd/phase-8-validation`, handed to Codex). Do not
-treat a phase branch, phase directory, or handoff as permission to start a phase
-the operator has not authorized.
+`risk_register.md`, `backlog.md`) carry the current detail. As of 2026-06-16
+(HEAD `7ba6ba2`): **all 8 build-sequence phases are shipped on `main` — the v1.0
+build is COMPLETE.** Phase 8 Validation (CSV-first slice, AC#5) shipped via PR #48
+squash commit `03c18d4` (2026-06-16; final phase; STATE `phase_8_shipped`/100%);
+Phase 7 Crons + Email via PR #44 `8b7019d` (2026-06-14); Phase 9 Reviewer MVP via
+PR #42 `1122da5`; Phases 1-6 prior. Remaining work is operator launch gates only
+(prod provision/deploy via `docs/runbooks/launch-mvp.md`, live email send, Phase 8
+deferrals — see backlog rank-15/18/23-26). Do not treat a phase branch, phase
+directory, or handoff as permission to start a phase the operator has not
+authorized.
 
 ## Keep Current
 
