@@ -154,6 +154,22 @@ describe('GET /api/reports/acknowledgments', () => {
     expect(body).not.toContain('null');
   });
 
+  it('guards formula-injection in the Clerk-derived name and email CSV columns', async () => {
+    mockListAckComplianceForOrg.mockResolvedValueOnce([currentReportRow]);
+    mockEnrichWithClerkIdentity.mockResolvedValueOnce([
+      { ...currentReportRow, name: '=1+1', email: '@evil.example' },
+    ]);
+
+    const res = await GET(
+      request('http://localhost/api/reports/acknowledgments?format=csv'),
+    );
+    const body = Buffer.from(new Uint8Array(await res.arrayBuffer())).toString('utf8');
+
+    expect(res.status).toBe(200);
+    expect(body).toContain("'=1+1"); // name column neutralized
+    expect(body).toContain("'@evil.example"); // email column neutralized
+  });
+
   it('returns 400 for an unknown format', async () => {
     const res = await GET(
       request('http://localhost/api/reports/acknowledgments?format=xml'),

@@ -192,6 +192,17 @@ describe('Reports.listAckComplianceForOrg', () => {
       expect(current?.acknowledgedAt).toBeInstanceOf(Date);
       expect(current?.ipAddress).toBe('203.0.113.10');
       expect(current?.departmentName).toBe('Dual Team');
+      // COV-1 regression guard: dedup must select MIN(assignedAt) = the EARLIER of the direct (2026-05-01)
+      // and department (2026-05-02) assignments. A MIN->MAX regression in reports.ts:60 selects the LATER
+      // (2026-05-02) instant and fails here.
+      //
+      // assigned_at is a zone-naive `timestamp` column, so the postgres driver round-trips the stored UTC
+      // instant through the runner's local offset (e.g. on EDT, 2026-05-01T00:00Z reads back as
+      // 2026-05-01T04:00Z). The two candidate assignments are a full calendar day apart, so the MIN value
+      // and the (mutated) MAX value land on different UTC dates under any realistic runner offset. Pinning
+      // the UTC date portion stays portable across runner timezones while still catching the MIN->MAX swap.
+      expect(current?.assignedAt).toBeInstanceOf(Date);
+      expect(current?.assignedAt?.toISOString().slice(0, 10)).toBe('2026-05-01');
 
       const stale = rows.find((row) => row.policyId === ids.pStale);
       expect(stale?.ackState).toBe('stale');
