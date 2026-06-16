@@ -233,7 +233,7 @@ pnpm db:verify:staging
 Invokes `scripts/with-deploy-creds.ps1 staging tsx scripts/check-deploy-schema.ts` — same Pattern 3 wrapper materializes `DIRECT_URL` from SecretStore for the child process, and the verifier asserts:
 
 - Journal entry count matches applied count
-- All 12 tenant tables exist with RLS + `org_isolation` policy + 4 GRANTs
+- All 14 tenant tables exist with RLS + `org_isolation` policy + 4 GRANTs
 - 2 service-role tables exist with RLS **disabled**
 - `ai_generations` has the 5 Phase 4 columns
 - `ai_generations` has the `ai_generations_org_idempotency_key` partial-unique index
@@ -245,7 +245,7 @@ Invokes `scripts/with-deploy-creds.ps1 staging tsx scripts/check-deploy-schema.t
 Expected output:
 
 ```text
-OK — deploy schema audit passed: 15 migrations applied, 12 tenant-scoped tables (RLS + policy + 4 GRANTs each), 2 service-role tables (no RLS), Phase 4 column shape + partial-unique index present, Phase 3 G3 + Phase 4/5 unique constraints present, qa_citation_grants columns + wrapped RLS + indexes present, Phase 6 billing columns + partial unique indexes present.
+OK — deploy schema audit passed: 15 migrations applied, 14 tenant-scoped tables (RLS + policy + 4 GRANTs each), 2 service-role tables (no RLS), Phase 4 column shape + partial-unique index present, Phase 3 G3 + Phase 4/5 unique constraints present, qa_citation_grants columns + wrapped RLS + indexes present, Phase 6 billing columns + partial unique indexes present.
 ```
 
 ### 3. Operator approval gate
