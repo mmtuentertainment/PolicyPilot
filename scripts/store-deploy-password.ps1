@@ -86,10 +86,15 @@ if ($len -gt 128) {
 }
 
 # Compute SHA prefix for verification (one-way, safe to display).
-# Uses the modern SHA256.HashData static API instead of the obsolete
-# SHA256Managed class (deprecated in .NET 6+; pending removal).
+# Windows PowerShell 5.1 runs on .NET Framework, where SHA256.HashData is not
+# available, so use the instance API for compatibility.
 $bytes = [System.Text.Encoding]::UTF8.GetBytes($cred.GetNetworkCredential().Password)
-$sha = [System.Security.Cryptography.SHA256]::HashData($bytes)
+$sha256 = [System.Security.Cryptography.SHA256]::Create()
+try {
+  $sha = $sha256.ComputeHash($bytes)
+} finally {
+  $sha256.Dispose()
+}
 $hex8 = -join ($sha[0..3] | ForEach-Object { $_.ToString('x2') })
 $bytes = $null
 
