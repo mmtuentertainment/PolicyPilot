@@ -97,7 +97,7 @@ Email (Phase 7 reminders) sends through Resend + React Email. Production deliver
 
 ### Clerk
 
-1. Create/confirm the production Clerk instance (or continue with the dev instance for a soft launch — operator's call; note the Clerk dev new-org provisioning gap in `memory/stripe-clerk-dev-uat.md`).
+1. Create/confirm the production Clerk instance (or continue with the dev instance for a soft launch — operator's call; for local-only Clerk org repair, use [`dev-clerk-org-provisioning.md`](./dev-clerk-org-provisioning.md)).
 2. Capture the keys for §7: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SECRET`.
 3. Set the two redirect env vars to `/post-sign-in` (both are asserted by `scripts/check-foundation.ts`): `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL`, `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL`.
 4. Point the Clerk webhook at `https://<PROD_APP_URL>/api/webhooks/clerk`; the handler is Svix-verified (`CLERK_WEBHOOK_SECRET`).
