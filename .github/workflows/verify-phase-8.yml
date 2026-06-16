@@ -1,4 +1,4 @@
-name: Verify Phase 7
+name: Verify Phase 8
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: verify-phase-7-${{ github.ref }}
+  group: verify-phase-8-${{ github.ref }}
   cancel-in-progress: true
 
 # Each per-phase verifier runs against its OWN ephemeral postgres:16 service
@@ -17,8 +17,8 @@ concurrency:
 # / RLS positive-control races. App secrets are still referenced by name from
 # the repo secret store (never hardcoded); only the database is local.
 jobs:
-  phase-7-verification:
-    name: Phase 7 verifier
+  phase-8-verification:
+    name: Phase 8 verifier
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -200,5 +200,5 @@ jobs:
           pnpm db:migrate
           pnpm db:migrate:test
 
-      - name: Run Phase 7 verifier
-        run: pnpm verify:phase-7
+      - name: Run Phase 8 verifier
+        run: pnpm verify:phase-8

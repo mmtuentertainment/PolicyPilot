@@ -75,6 +75,7 @@ export default defineConfig({
       'tests/e2e/**',
       'scripts/check-ai-layer.test.ts',
       'scripts/check-employee-portal.test.ts',
+      'scripts/check-reports.test.ts',
     ],
   },
 });

@@ -43,6 +43,7 @@
     "check:ai-layer": "tsx --env-file=.env.local node_modules/vitest/vitest.mjs run scripts/check-ai-layer.test.ts --config scripts/check-ai-layer.vitest.config.ts",
     "check:employee-portal": "tsx --env-file=.env.local node_modules/vitest/vitest.mjs run scripts/check-employee-portal.test.ts --config scripts/check-employee-portal.vitest.config.ts",
     "check:crons-email": "tsx --env-file=.env.local node_modules/vitest/vitest.mjs run scripts/check-crons-email.ts --config scripts/check-crons-email.vitest.config.ts",
+    "check:reports": "tsx --env-file=.env.local node_modules/vitest/vitest.mjs run scripts/check-reports.test.ts --config scripts/check-reports.vitest.config.ts",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
@@ -52,7 +53,8 @@
     "verify:phase-4": "pnpm verify:phase-3 && pnpm check:ai-prompts && pnpm check:ai-layer",
     "verify:phase-5": "pnpm verify:phase-4 && pnpm check:acknowledgment-immutability && pnpm check:acknowledgment-immutability:self-test && pnpm check:employee-portal",
     "verify:phase-6": "pnpm tsc --noEmit && pnpm verify:phase-5 && pnpm run test -- --run lib/stripe && pnpm run test -- --run app/api/webhooks/stripe && pnpm db:verify && pnpm check:artifacts",
-    "verify:phase-7": "pnpm tsc --noEmit && pnpm verify:phase-6 && pnpm check:crons-email && pnpm run test -- --run lib/email && pnpm run test -- --run app/api/cron && pnpm run test -- --run app/api/webhooks/clerk && pnpm db:verify && pnpm check:artifacts"
+    "verify:phase-7": "pnpm tsc --noEmit && pnpm verify:phase-6 && pnpm check:crons-email && pnpm run test -- --run lib/email && pnpm run test -- --run app/api/cron && pnpm run test -- --run app/api/webhooks/clerk && pnpm db:verify && pnpm check:artifacts",
+    "verify:phase-8": "pnpm tsc --noEmit && pnpm verify:phase-7 && pnpm check:reports && pnpm run test -- --run app/api/reports && pnpm run test -- --run lib/reports && pnpm db:verify && pnpm check:artifacts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.97.1",

@@ -14,10 +14,10 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 - [x] **Phase 4: AI Layer** — Draft generation, TL;DR summaries, Employee Q&A, Consistency Check (Growth+). ✓ 2026-05-22
 - [x] **Phase 5: Employee Portal** — Assigned-policies dashboard + append-only acknowledgment flow. Shipped via PR #27 at `3344847` on 2026-05-27T22:06:16Z.
 - [x] **Phase 6: Billing** — Stripe Checkout + 5-event webhook + tier gating via `TIER_LIMITS`. Shipped via PR #32 at `243067e` on 2026-05-31T22:34:30Z.
-- [ ] **Phase 7: Crons + Email** — Railway worker + Resend templates + idempotent reminders.
-- [ ] **Phase 8: Validation** — Compliance dashboard + CSV export + all 8 acceptance criteria green.
+- [x] **Phase 7: Crons + Email** — Railway worker + Resend templates + idempotent reminders. Shipped via PR #44 at `8b7019d` on 2026-06-14.
+- [ ] **Phase 8: Validation** — Compliance dashboard + CSV export + all 8 acceptance criteria green. *(CSV-export slice / AC#5 EXECUTED on `gsd/phase-8-validation`, PR open + pending merge; compliance-dashboard/donut half + remaining-criteria evidence DEFERRED.)*
 
-> Out-of-band shipped mitigation: **Phase 9 Reviewer / approval-workflow MVP** shipped via PR #42 at `1122da5` on 2026-06-05, closing R-017 without changing the locked 8-phase assembly order. Phase 7 and Phase 8 remain not started.
+> Out-of-band shipped mitigation: **Phase 9 Reviewer / approval-workflow MVP** shipped via PR #42 at `1122da5` on 2026-06-05, closing R-017 without changing the locked 8-phase assembly order. Phase 7 **SHIPPED** (PR #44 at `8b7019d`, 2026-06-14); Phase 8 (CSV-first validation slice, AC#5) **EXECUTED** on `gsd/phase-8-validation` (PR open, pending merge) — the compliance-dashboard/donut half remains DEFERRED.
 
 ---
 
@@ -220,5 +220,5 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 | 4. AI Layer | 14/14 | Complete | 2026-05-22 |
 | 5. Employee Portal | 10/10 | Complete - shipped via PR #27 at `3344847` | 2026-05-27 |
 | 6. Billing | 6/6 | Complete - shipped via PR #32 at `243067e`; live Stripe test-mode UAT 11/11 rows PASS; hosted pre-merge PR #32 checks green/acceptable at `1abca44`; post-merge targeted checks PASS | 2026-05-31 |
-| 7. Crons + Email | 0/0 | Not started | - |
-| 8. Validation | 0/0 | Not started | - |
+| 7. Crons + Email | 8/8 | Complete - shipped via PR #44 at `8b7019d` | 2026-06-14 |
+| 8. Validation | 1/1 | Executed (CSV slice, AC#5) - PR open on `gsd/phase-8-validation`; dashboard/donut + remaining criteria DEFERRED | 2026-06-15 |

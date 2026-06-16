@@ -3,9 +3,6 @@ name: Verify Phase 6
 on:
   pull_request:
   push:
-    # Only main: PR branches are covered by the pull_request trigger above. Running
-    # both push (gsd/**) and pull_request spawned two concurrent verifier jobs against
-    # the shared Supabase verification DB, deadlocking on TRUNCATE in the integration tests.
     branches:
       - main
   workflow_dispatch:
@@ -14,6 +11,11 @@ concurrency:
   group: verify-phase-6-${{ github.ref }}
   cancel-in-progress: true
 
+# Each per-phase verifier runs against its OWN ephemeral postgres:16 service
+# container instead of the shared remote Supabase verification DB, so the
+# Phase 6/7/8 verifiers can run concurrently without TRUNCATE-CASCADE deadlocks
+# / RLS positive-control races. App secrets are still referenced by name from
+# the repo secret store (never hardcoded); only the database is local.
 jobs:
   phase-6-verification:
     name: Phase 6 verifier
@@ -21,12 +23,24 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: policy_pilot
+          POSTGRES_PASSWORD: policy_pilot
+          POSTGRES_DB: policypilot_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U policy_pilot -d policypilot_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      DIRECT_URL: ${{ secrets.DIRECT_URL }}
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
       CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
       CLERK_WEBHOOK_SECRET: ${{ secrets.CLERK_WEBHOOK_SECRET }}
@@ -66,6 +80,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
       - name: Write verification environment
         shell: bash
         run: |
@@ -75,8 +92,6 @@ jobs:
             NEXT_PUBLIC_SUPABASE_URL
             NEXT_PUBLIC_SUPABASE_ANON_KEY
             SUPABASE_SERVICE_ROLE_KEY
-            DATABASE_URL
-            DIRECT_URL
             NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
             CLERK_SECRET_KEY
             CLERK_WEBHOOK_SECRET
@@ -104,16 +119,24 @@ jobs:
             exit 1
           fi
 
+          # The database is a LOCAL ephemeral postgres:16 service container (see
+          # services.postgres above), NOT the shared remote Supabase DB. This is
+          # what removes the cross-workflow TRUNCATE-CASCADE contention flake.
+          ci_db_main="postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci"
+          ci_db_test="postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci_test"
+
           write_env_file() {
             local file="$1"
+            local database_url="$2"
+            local direct_url="$3"
             {
               printf 'NEXT_PUBLIC_SUPABASE_URL=%s\n' "$NEXT_PUBLIC_SUPABASE_URL"
               printf 'NEXT_PUBLIC_SUPABASE_ANON_KEY=%s\n' "$NEXT_PUBLIC_SUPABASE_ANON_KEY"
               printf 'SUPABASE_SERVICE_ROLE_KEY=%s\n' "$SUPABASE_SERVICE_ROLE_KEY"
-              printf 'DATABASE_URL=%s\n' "$DATABASE_URL"
-              printf 'DIRECT_URL=%s\n' "$DIRECT_URL"
-              printf 'DATABASE_URL_TEST=%s\n' "${DATABASE_URL_TEST:-$DATABASE_URL}"
-              printf 'DIRECT_URL_TEST=%s\n' "${DIRECT_URL_TEST:-$DIRECT_URL}"
+              printf 'DATABASE_URL=%s\n' "$database_url"
+              printf 'DIRECT_URL=%s\n' "$direct_url"
+              printf 'DATABASE_URL_TEST=%s\n' "$ci_db_test"
+              printf 'DIRECT_URL_TEST=%s\n' "$ci_db_test"
               printf 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=%s\n' "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"
               printf 'CLERK_SECRET_KEY=%s\n' "$CLERK_SECRET_KEY"
               printf 'CLERK_WEBHOOK_SECRET=%s\n' "$CLERK_WEBHOOK_SECRET"
@@ -139,8 +162,43 @@ jobs:
             } > "$file"
           }
 
-          write_env_file .env.local
-          write_env_file .env.local.test
+          write_env_file .env.local "$ci_db_main" "$ci_db_main"
+          write_env_file .env.local.test "$ci_db_test" "$ci_db_test"
+
+      - name: Prepare CI databases
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          install_supabase_stubs() {
+            local db="$1"
+            PGPASSWORD=policy_pilot psql -h 127.0.0.1 -U policy_pilot -d "$db" <<'SQL'
+          DO $$
+          BEGIN
+            CREATE ROLE authenticated;
+          EXCEPTION WHEN duplicate_object THEN
+            NULL;
+          END
+          $$;
+
+          CREATE SCHEMA IF NOT EXISTS auth;
+
+          CREATE OR REPLACE FUNCTION auth.jwt()
+          RETURNS jsonb
+          LANGUAGE sql
+          STABLE
+          AS $$
+            SELECT COALESCE(NULLIF(current_setting('request.jwt.claims', true), ''), '{}')::jsonb;
+          $$;
+          SQL
+          }
+
+          PGPASSWORD=policy_pilot psql -h 127.0.0.1 -U policy_pilot -d policypilot_ci -tc "SELECT 1 FROM pg_database WHERE datname = 'policypilot_ci_test'" | grep -q 1 || \
+            PGPASSWORD=policy_pilot createdb -h 127.0.0.1 -U policy_pilot policypilot_ci_test
+          install_supabase_stubs policypilot_ci
+          install_supabase_stubs policypilot_ci_test
+          pnpm db:migrate
+          pnpm db:migrate:test
 
       - name: Run Phase 6 verifier
         run: pnpm verify:phase-6
