@@ -11,6 +11,10 @@ concurrency:
   group: verify-phase-7-${{ github.ref }}
   cancel-in-progress: true
 
+# Each per-phase verifier runs against its OWN ephemeral postgres:16 service
+# container (mirroring verify.yml's full-gate job). It no longer touches the
+# shared remote Supabase verification DB, so the Phase 6/7/8 verifiers can run
+# concurrently without TRUNCATE-CASCADE deadlocks / positive-control races.
 jobs:
   phase-7-verification:
     name: Phase 7 verifier
@@ -18,31 +22,20 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
-    env:
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      DIRECT_URL: ${{ secrets.DIRECT_URL }}
-      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
-      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
-      CLERK_WEBHOOK_SECRET: ${{ secrets.CLERK_WEBHOOK_SECRET }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
-      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
-      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
-      STRIPE_PRICE_STARTER_MONTHLY: ${{ secrets.STRIPE_PRICE_STARTER_MONTHLY }}
-      STRIPE_PRICE_STARTER_ANNUAL: ${{ secrets.STRIPE_PRICE_STARTER_ANNUAL }}
-      STRIPE_PRICE_GROWTH_MONTHLY: ${{ secrets.STRIPE_PRICE_GROWTH_MONTHLY }}
-      STRIPE_PRICE_GROWTH_ANNUAL: ${{ secrets.STRIPE_PRICE_GROWTH_ANNUAL }}
-      STRIPE_PRICE_BUSINESS_MONTHLY: ${{ secrets.STRIPE_PRICE_BUSINESS_MONTHLY }}
-      STRIPE_PRICE_BUSINESS_ANNUAL: ${{ secrets.STRIPE_PRICE_BUSINESS_ANNUAL }}
-      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-      RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
-      CRON_SECRET: ${{ secrets.CRON_SECRET }}
-      NEXT_PUBLIC_POSTHOG_KEY: ${{ secrets.NEXT_PUBLIC_POSTHOG_KEY }}
-      NEXT_PUBLIC_POSTHOG_HOST: ${{ secrets.NEXT_PUBLIC_POSTHOG_HOST }}
-      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: policy_pilot
+          POSTGRES_PASSWORD: policy_pilot
+          POSTGRES_DB: policypilot_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U policy_pilot -d policypilot_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -63,81 +56,88 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Write verification environment
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Write verification CI environment
         shell: bash
         run: |
           set -euo pipefail
 
-          required=(
-            NEXT_PUBLIC_SUPABASE_URL
-            NEXT_PUBLIC_SUPABASE_ANON_KEY
-            SUPABASE_SERVICE_ROLE_KEY
-            DATABASE_URL
-            DIRECT_URL
-            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-            CLERK_SECRET_KEY
-            CLERK_WEBHOOK_SECRET
-            ANTHROPIC_API_KEY
-            NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-            STRIPE_SECRET_KEY
-            STRIPE_WEBHOOK_SECRET
-            STRIPE_PRICE_STARTER_MONTHLY
-            STRIPE_PRICE_STARTER_ANNUAL
-            STRIPE_PRICE_GROWTH_MONTHLY
-            STRIPE_PRICE_GROWTH_ANNUAL
-            STRIPE_PRICE_BUSINESS_MONTHLY
-            STRIPE_PRICE_BUSINESS_ANNUAL
-          )
+          cat > .env.local <<'EOF'
+          NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY=ci-anon-placeholder
+          SUPABASE_SERVICE_ROLE_KEY=ci-service-role-placeholder
+          DATABASE_URL=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci
+          DIRECT_URL=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci
+          DATABASE_URL_TEST=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci_test
+          DIRECT_URL_TEST=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci_test
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuaW5zcGlyZWQucHVtYS03NC5sY2wuZGV2JA
+          CLERK_SECRET_KEY=sk_test_policy_pilot_ci_dummy
+          CLERK_WEBHOOK_SECRET=whsec_policy_pilot_ci_dummy
+          NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/post-sign-in
+          NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=/post-sign-in
+          POLICYPILOT_E2E_AUTH_BYPASS=1
+          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_policy_pilot_ci_dummy
+          STRIPE_SECRET_KEY=sk_test_policy_pilot_ci_dummy
+          STRIPE_WEBHOOK_SECRET=whsec_policy_pilot_ci_dummy
+          STRIPE_PRICE_STARTER_MONTHLY=price_starter_monthly_ci
+          STRIPE_PRICE_STARTER_ANNUAL=price_starter_annual_ci
+          STRIPE_PRICE_GROWTH_MONTHLY=price_growth_monthly_ci
+          STRIPE_PRICE_GROWTH_ANNUAL=price_growth_annual_ci
+          STRIPE_PRICE_BUSINESS_MONTHLY=price_business_monthly_ci
+          STRIPE_PRICE_BUSINESS_ANNUAL=price_business_annual_ci
+          ANTHROPIC_API_KEY=sk-ant-ci-placeholder
+          RESEND_API_KEY=re_ci_placeholder
+          RESEND_FROM_EMAIL=noreply@policypilot.com
+          NEXT_PUBLIC_APP_URL=http://localhost:3000
+          CRON_SECRET=cron_ci_placeholder
+          NEXT_PUBLIC_POSTHOG_KEY=phc_ci_placeholder
+          NEXT_PUBLIC_POSTHOG_HOST=https://app.posthog.com
+          SENTRY_DSN=
+          EOF
 
-          missing=()
-          for name in "${required[@]}"; do
-            if [ -z "${!name:-}" ]; then
-              missing+=("$name")
-            fi
-          done
+          sed -i 's/^          //' .env.local
+          cp .env.local .env.local.test
+          sed -i \
+            -e 's#^DATABASE_URL=.*#DATABASE_URL=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci_test#' \
+            -e 's#^DIRECT_URL=.*#DIRECT_URL=postgresql://policy_pilot:policy_pilot@127.0.0.1:5432/policypilot_ci_test#' \
+            .env.local.test
 
-          if [ "${#missing[@]}" -ne 0 ]; then
-            printf '::error::Cannot run Phase 7 verification; missing repository secrets: %s\n' "${missing[*]}"
-            exit 1
-          fi
+      - name: Prepare CI databases
+        shell: bash
+        run: |
+          set -euo pipefail
 
-          write_env_file() {
-            local file="$1"
-            {
-              printf 'NEXT_PUBLIC_SUPABASE_URL=%s\n' "$NEXT_PUBLIC_SUPABASE_URL"
-              printf 'NEXT_PUBLIC_SUPABASE_ANON_KEY=%s\n' "$NEXT_PUBLIC_SUPABASE_ANON_KEY"
-              printf 'SUPABASE_SERVICE_ROLE_KEY=%s\n' "$SUPABASE_SERVICE_ROLE_KEY"
-              printf 'DATABASE_URL=%s\n' "$DATABASE_URL"
-              printf 'DIRECT_URL=%s\n' "$DIRECT_URL"
-              printf 'DATABASE_URL_TEST=%s\n' "${DATABASE_URL_TEST:-$DATABASE_URL}"
-              printf 'DIRECT_URL_TEST=%s\n' "${DIRECT_URL_TEST:-$DIRECT_URL}"
-              printf 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=%s\n' "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"
-              printf 'CLERK_SECRET_KEY=%s\n' "$CLERK_SECRET_KEY"
-              printf 'CLERK_WEBHOOK_SECRET=%s\n' "$CLERK_WEBHOOK_SECRET"
-              printf 'NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/post-sign-in\n'
-              printf 'NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=/post-sign-in\n'
-              printf 'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=%s\n' "$NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"
-              printf 'STRIPE_SECRET_KEY=%s\n' "$STRIPE_SECRET_KEY"
-              printf 'STRIPE_WEBHOOK_SECRET=%s\n' "$STRIPE_WEBHOOK_SECRET"
-              printf 'STRIPE_PRICE_STARTER_MONTHLY=%s\n' "$STRIPE_PRICE_STARTER_MONTHLY"
-              printf 'STRIPE_PRICE_STARTER_ANNUAL=%s\n' "$STRIPE_PRICE_STARTER_ANNUAL"
-              printf 'STRIPE_PRICE_GROWTH_MONTHLY=%s\n' "$STRIPE_PRICE_GROWTH_MONTHLY"
-              printf 'STRIPE_PRICE_GROWTH_ANNUAL=%s\n' "$STRIPE_PRICE_GROWTH_ANNUAL"
-              printf 'STRIPE_PRICE_BUSINESS_MONTHLY=%s\n' "$STRIPE_PRICE_BUSINESS_MONTHLY"
-              printf 'STRIPE_PRICE_BUSINESS_ANNUAL=%s\n' "$STRIPE_PRICE_BUSINESS_ANNUAL"
-              printf 'ANTHROPIC_API_KEY=%s\n' "$ANTHROPIC_API_KEY"
-              printf 'RESEND_API_KEY=%s\n' "${RESEND_API_KEY:-}"
-              printf 'RESEND_FROM_EMAIL=%s\n' "${RESEND_FROM_EMAIL:-noreply@policypilot.com}"
-              printf 'NEXT_PUBLIC_APP_URL=http://localhost:3000\n'
-              printf 'CRON_SECRET=%s\n' "${CRON_SECRET:-}"
-              printf 'NEXT_PUBLIC_POSTHOG_KEY=%s\n' "${NEXT_PUBLIC_POSTHOG_KEY:-}"
-              printf 'NEXT_PUBLIC_POSTHOG_HOST=%s\n' "${NEXT_PUBLIC_POSTHOG_HOST:-https://app.posthog.com}"
-              printf 'SENTRY_DSN=%s\n' "${SENTRY_DSN:-}"
-            } > "$file"
+          install_supabase_stubs() {
+            local db="$1"
+            PGPASSWORD=policy_pilot psql -h 127.0.0.1 -U policy_pilot -d "$db" <<'SQL'
+          DO $$
+          BEGIN
+            CREATE ROLE authenticated;
+          EXCEPTION WHEN duplicate_object THEN
+            NULL;
+          END
+          $$;
+
+          CREATE SCHEMA IF NOT EXISTS auth;
+
+          CREATE OR REPLACE FUNCTION auth.jwt()
+          RETURNS jsonb
+          LANGUAGE sql
+          STABLE
+          AS $$
+            SELECT COALESCE(NULLIF(current_setting('request.jwt.claims', true), ''), '{}')::jsonb;
+          $$;
+          SQL
           }
 
-          write_env_file .env.local
-          write_env_file .env.local.test
+          PGPASSWORD=policy_pilot psql -h 127.0.0.1 -U policy_pilot -d policypilot_ci -tc "SELECT 1 FROM pg_database WHERE datname = 'policypilot_ci_test'" | grep -q 1 || \
+            PGPASSWORD=policy_pilot createdb -h 127.0.0.1 -U policy_pilot policypilot_ci_test
+          install_supabase_stubs policypilot_ci
+          install_supabase_stubs policypilot_ci_test
+          pnpm db:migrate
+          pnpm db:migrate:test
 
       - name: Run Phase 7 verifier
         run: pnpm verify:phase-7
