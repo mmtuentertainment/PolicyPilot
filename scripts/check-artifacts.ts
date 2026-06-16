@@ -2823,6 +2823,75 @@ function checkPhase7CronsEmailVerifier(): Check[] {
   return out;
 }
 
+function checkPhase8ReportsVerifier(): Check[] {
+  const out: Check[] = [];
+
+  for (const rel of [
+    "app/api/reports/acknowledgments/route.ts",
+    "app/api/reports/acknowledgments/route.test.ts",
+    "lib/db/repositories/reports.ts",
+    "lib/reports/csv.ts",
+    "lib/reports/csv.test.ts",
+    "lib/reports/enrich.ts",
+    "lib/reports/enrich.test.ts",
+    "scripts/check-reports.test.ts",
+    "scripts/check-reports.vitest.config.ts",
+    ".github/workflows/verify-phase-8.yml",
+  ]) {
+    assert(out, exists(rel), `${rel} exists (Phase 8 reports verifier)`, "required Phase 8 reports artifact missing");
+  }
+
+  const anchors: Array<[string, string, string]> = [
+    ["app/api/reports/acknowledgments/route.ts", "requireAdminFromCtx", "reports route calls requireAdminFromCtx"],
+    ["app/api/reports/acknowledgments/route.ts", "withOrgScope", "reports route uses withOrgScope"],
+    ["app/api/reports/acknowledgments/route.ts", "toCsv", "reports route serializes CSV via toCsv"],
+    ["lib/db/repositories/reports.ts", "listAckComplianceForOrg", "Reports repository exports listAckComplianceForOrg"],
+    ["lib/db/repositories/reports.ts", "departments.orgId", "Reports repository scopes department join by org_id"],
+    ["lib/reports/csv.ts", "toCsv", "CSV helper exports toCsv"],
+    ["lib/reports/csv.test.ts", "0xfeff", "CSV unit test asserts UTF-8 BOM contract"],
+    ["lib/reports/enrich.ts", "getUserList", "Clerk enrichment uses getUserList"],
+    ["lib/reports/enrich.ts", "limit: 100", "Clerk enrichment chunks at <=100"],
+    ["scripts/check-reports.test.ts", "listAckComplianceForOrg", "check:reports drives the real reports repository"],
+    ["scripts/check-reports.vitest.config.ts", "check-reports.test.ts", "check:reports config includes only reports gate"],
+    [".github/workflows/verify-phase-8.yml", "pnpm verify:phase-8", "Verify Phase 8 workflow runs verify:phase-8"],
+  ];
+
+  for (const [rel, needle, label] of anchors) {
+    assert(
+      out,
+      exists(rel) && read(rel).includes(needle),
+      `${label} (Phase 8 reports verifier)`,
+      `${needle} missing from ${rel}`,
+    );
+  }
+
+  if (exists("package.json")) {
+    let pkgJson: { scripts?: Record<string, string> } | null = null;
+    try {
+      pkgJson = JSON.parse(read("package.json")) as { scripts?: Record<string, string> };
+    } catch {
+      pkgJson = null;
+    }
+    assert(
+      out,
+      pkgJson?.scripts?.["check:reports"] ===
+        "tsx --env-file=.env.local node_modules/vitest/vitest.mjs run scripts/check-reports.test.ts --config scripts/check-reports.vitest.config.ts",
+      "package.json declares exact check:reports runner",
+      "check:reports must use the vitest config + --env-file runner form",
+    );
+    assert(
+      out,
+      typeof pkgJson?.scripts?.["verify:phase-8"] === "string" &&
+        pkgJson.scripts["verify:phase-8"].includes("verify:phase-7") &&
+        pkgJson.scripts["verify:phase-8"].includes("check:reports"),
+      "package.json declares cumulative verify:phase-8",
+      "verify:phase-8 must wrap verify:phase-7 and add check:reports",
+    );
+  }
+
+  return out;
+}
+
 function main(): void {
   console.log("─── Foundation — artifact regression gate ───");
   console.log(`Repo root: ${REPO_ROOT}`);
@@ -2866,6 +2935,8 @@ function main(): void {
     ...checkPhase6BillingVerifier(),
     // Phase 7 (Crons + Email) - verifier/artifact spine:
     ...checkPhase7CronsEmailVerifier(),
+    // Phase 8 (Validation/Reports) additions:
+    ...checkPhase8ReportsVerifier(),
   ];
 
   let passed = 0;
