@@ -6,8 +6,15 @@
 Rewrote `.github/workflows/verify-phase-6.yml`, `verify-phase-7.yml`, and `verify-phase-8.yml`
 so each per-phase verifier provisions its **own ephemeral `postgres:16` service container**
 (plus a created `policypilot_ci_test`, Supabase stubs `auth.jwt()` + role `authenticated`,
-`db:migrate` + `db:migrate:test`) and runs `verify:phase-N` against it — the exact, proven-green
-pattern already used by `verify.yml`'s full-gate job.
+`db:migrate` + `db:migrate:test`) and runs `verify:phase-N` against it — the `postgres:16` +
+stub + migrate pattern already proven green by `verify.yml`'s full-gate job.
+
+**Hybrid (deliberate):** only the **database** is localized to the container (the four
+`DATABASE_URL*`/`DIRECT_URL*` values are local literals). All **app secrets**
+(Clerk/Stripe/Anthropic/Resend/…) are still referenced **by name** via `${{ secrets.* }}` and
+written from `$VAR` references, never hardcoded — so the `check:artifacts` security guardrail
+("verify-phase-6.yml references secrets by name; no literal `sk_`/`pk_`/`whsec_`/`price_`
+values") stays intact and passes (567/567).
 
 Previously these three workflows all pointed `DATABASE_URL` at the **one shared remote Supabase
 TEST DB** via `secrets.*`. Firing together on every PR, their `TRUNCATE … CASCADE` resets
