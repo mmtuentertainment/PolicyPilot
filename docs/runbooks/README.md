@@ -7,6 +7,7 @@ Operational procedures for PolicyPilot deploys, incidents, and recurring mainten
 | Runbook | When to use |
 |---|---|
 | [deploy-migrations.md](./deploy-migrations.md) | Before any deploy that includes a new Drizzle migration. Procedure for applying migrations to staging + prod with verify gates. |
+| [launch-mvp.md](./launch-mvp.md) | Launching the MVP: sequences Milestone 1 (Phase 7 R-018 — Railway worker + cron + Resend domain + 0014 gate) then Milestone 2 (provision prod Supabase, prod migration/verify gate, first prod deploy + smoke test). |
 
 ## Adding a new runbook
 

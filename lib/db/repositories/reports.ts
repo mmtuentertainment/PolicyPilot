@@ -53,6 +53,12 @@ export const Reports = {
             WHEN count(${priorAck.id}) FILTER (WHERE ${priorAck.id} IS NOT NULL) > 0 THEN 'stale'
             ELSE 'none'
           END`.as('ack_state'),
+        // Single-row-safe aggregates: the acknowledgments UNIQUE
+        // (user_id, policy_id, policy_version_id) plus the fixed current
+        // policy_version_id per GROUP guarantees at most one current_ack
+        // row per (user, policy) group, so min(acknowledgedAt) / max(ipAddress)
+        // collapse that single row — the aggregate only satisfies GROUP BY and
+        // does not alter the value. See SF-1.
         acknowledgedAt: sql<string | null>`min(${currentAck.acknowledgedAt})`.as(
           'acknowledged_at',
         ),
