@@ -117,7 +117,7 @@ CREATE UNIQUE INDEX ai_generations_org_idempotency_key
 ```typescript
 export const notifications = pgTable('notifications', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => organizations.id), // D-02 org denormalization — RLS org_isolation + notifications_org_id_idx (frozen-contract doc reconciled 2026-06-15; live in lib/db/schema.ts since Phase 7, operator-approved ASK-FIRST fix)
+  orgId: uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }), // D-02 org denormalization — live cascade shape reconciled 2026-06-16; RLS org_isolation + notifications_org_id_idx.
   userId: uuid('user_id').notNull().references(() => users.id),
   type: text('type').notNull(), // 'policy_assigned'|'policy_updated'|'review_due'|'ack_reminder'
   payloadJson: jsonb('payload_json'),
