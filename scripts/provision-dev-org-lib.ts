@@ -1,9 +1,11 @@
-export type AppRole = 'admin' | 'reviewer' | 'employee';
+import { normalizeClerkRole, type AppRole } from '../lib/auth/clerk-role';
+export { normalizeClerkRole, type AppRole } from '../lib/auth/clerk-role';
 
 export type ProvisionArgs = {
   orgId: string;
   userId?: string;
   apply: boolean;
+  allowHost: boolean;
   help: boolean;
 };
 
@@ -42,15 +44,6 @@ function readString(root: unknown, path: readonly string[]): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
-}
-
-export function normalizeClerkRole(value: unknown): AppRole | null {
-  if (typeof value !== 'string') return null;
-  const stripped = value.replace(/^org:/, '');
-  if (stripped === 'admin' || stripped === 'reviewer' || stripped === 'employee') {
-    return stripped;
-  }
-  return null;
 }
 
 export function maskClerkId(id: string): string {
@@ -148,7 +141,7 @@ export function deriveProvisioningTarget(input: {
 }
 
 export function parseProvisionArgs(argv: string[]): ProvisionArgs {
-  const args: ProvisionArgs = { orgId: '', apply: false, help: false };
+  const args: ProvisionArgs = { orgId: '', apply: false, allowHost: false, help: false };
 
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i];
@@ -160,6 +153,10 @@ export function parseProvisionArgs(argv: string[]): ProvisionArgs {
     }
     if (token === '--apply') {
       args.apply = true;
+      continue;
+    }
+    if (token === '--allow-host') {
+      args.allowHost = true;
       continue;
     }
     if (token === '--org' || token === '--user') {

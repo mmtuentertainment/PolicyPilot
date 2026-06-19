@@ -29,6 +29,7 @@ type UpsertResult = {
 
 const CLERK_API_BASE = 'https://api.clerk.com/v1';
 const MEMBERSHIP_PAGE_LIMIT = 100;
+const MAX_MEMBERSHIP_PAGES = 50;
 
 function usage(): string {
   return [
@@ -42,6 +43,8 @@ function usage(): string {
     'Safety:',
     '  Defaults to dry-run. Add --apply to write organizations/users rows and',
     '  mirror publicMetadata.role in Clerk. Never prints env values or secrets.',
+    '  --apply requires NODE_ENV=development/test for non-local hosts unless',
+    '  --allow-host is provided after manually verifying the target is not prod.',
   ].join('\n');
 }
 
@@ -51,6 +54,62 @@ function dbHost(url: string): string {
   } catch {
     return '(unparseable DATABASE_URL host)';
   }
+}
+
+function dbHostname(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return '';
+  }
+}
+
+function isLocalDbHost(hostname: string): boolean {
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '[::1]' ||
+    hostname === '::1'
+  );
+}
+
+function assertSafeApplyHost(input: {
+  apply: boolean;
+  allowHost: boolean;
+  dbUrl: string;
+  nodeEnv: string | undefined;
+}): void {
+  if (!input.apply || input.allowHost) return;
+  if (input.nodeEnv === 'development' || input.nodeEnv === 'test') return;
+
+  const hostname = dbHostname(input.dbUrl);
+  if (isLocalDbHost(hostname)) return;
+
+  const target = dbHost(input.dbUrl);
+  const reason = hostname.endsWith('.pooler.supabase.com')
+    ? 'Supabase pooler host'
+    : `non-local DB host ${target}`;
+  throw new ProvisioningInputError(
+    `Refusing --apply against ${reason}. Set NODE_ENV=development or NODE_ENV=test, or pass --allow-host after verifying this is not production.`,
+  );
+}
+
+function sanitizeErrorMessage(message: string): string {
+  return message
+    .replace(/postgres(?:ql)?:\/\/[^\s'")]+/gi, 'postgres://[redacted]')
+    .replace(/\b(host|user|password|database)\s+"[^"]*"/gi, '$1 "[redacted]"')
+    .replace(
+      /\b(host|user|password|database|dsn|connection string)(\s*[:=]\s*)[^\s,;]+/gi,
+      '$1$2[redacted]',
+    )
+    .replace(/\b[A-Za-z0-9.-]*supabase\.com\b/gi, '[redacted-host]');
+}
+
+function formatProvisioningFailure(err: unknown): string {
+  if (err instanceof Error) {
+    return `${err.name}: ${sanitizeErrorMessage(err.message)}`;
+  }
+  return sanitizeErrorMessage(String(err));
 }
 
 function dataArray(response: unknown): unknown[] {
@@ -122,7 +181,13 @@ async function fetchMembershipsForProvisioning(input: {
   const limit = input.requestedUserId ? MEMBERSHIP_PAGE_LIMIT : 2;
   const memberships: unknown[] = [];
 
-  for (let offset = 0; ; offset += limit) {
+  for (let offset = 0, pageCount = 0; ; offset += limit, pageCount += 1) {
+    if (pageCount >= MAX_MEMBERSHIP_PAGES) {
+      throw new ProvisioningInputError(
+        `Clerk membership lookup exceeded ${MAX_MEMBERSHIP_PAGES} pages without finding the requested user`,
+      );
+    }
+
     const response = await input.get(
       organizationMembershipsPath(input.organizationId, limit, offset),
       'organization membership lookup',
@@ -250,6 +315,13 @@ async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
   }
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) throw new ProvisioningInputError('DATABASE_URL must be set in .env.local');
+  assertSafeApplyHost({
+    apply: args.apply,
+    allowHost: args.allowHost,
+    dbUrl,
+    nodeEnv: process.env.NODE_ENV,
+  });
+
   const clerkSecretKey = process.env.CLERK_SECRET_KEY;
   if (!clerkSecretKey) {
     throw new ProvisioningInputError('CLERK_SECRET_KEY must be set in .env.local');
@@ -293,10 +365,15 @@ async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   main().catch((err: unknown) => {
-    const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+    const detail = formatProvisioningFailure(err);
     console.error(`[provision-dev-org] FAILED: ${detail}`);
     process.exit(1);
   });
 }
 
-export { fetchMembershipsForProvisioning, main };
+export {
+  fetchMembershipsForProvisioning,
+  formatProvisioningFailure,
+  main,
+  upsertProvisionedRows,
+};

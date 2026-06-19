@@ -99,6 +99,8 @@ $hex8 = -join ($sha[0..3] | ForEach-Object { $_.ToString('x2') })
 $bytes = $null
 
 Set-Secret -Name $secretName -Secret $cred.Password -Vault PolicyPilot
+$cred = $null
+[System.GC]::Collect()
 
 # Read-back verification — SecretStore has historically silently stored
 # empty/truncated secrets when the SecureString source was disposed mid-call.

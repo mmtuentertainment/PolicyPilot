@@ -3,6 +3,8 @@
 .temp
 
 # dotenvx
+.env
+.env.*
 .env.keys
 .env.local
 .env.*.local
