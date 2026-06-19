@@ -303,7 +303,7 @@ This is the load-bearing audit trail for compliance + future-troubleshooting.
 
 ## CI/CD path (alternative to manual)
 
-`.github/workflows/migrate.yml` provides a manual-trigger CI workflow that runs the same migrate + verify steps using GitHub repository secrets `STAGING_DATABASE_URL` / `STAGING_DIRECT_URL` / `PROD_DATABASE_URL` / `PROD_DIRECT_URL`. Prod is gated by a GitHub Environment with manual approval.
+`.github/workflows/migrate.yml` provides a manual-trigger CI workflow that runs the same migrate + verify steps using GitHub Environment secrets named `DATABASE_URL` and `DIRECT_URL` in each target environment (`staging` / `prod`). Prod is gated by a GitHub Environment with manual approval.
 
 Trigger:
 
@@ -315,6 +315,22 @@ gh workflow run migrate -f env=prod
 ```
 
 The CI workflow is the recommended path once the operator is comfortable with the manual procedure — it preserves an audit trail in GitHub Actions history and removes the local-machine-credential risk.
+
+---
+
+## Supabase GitHub Integration
+
+The repo has a top-level `supabase/` folder so the Supabase Dashboard GitHub
+Integration can use `.` as its **Working directory**. Keep the integration
+Drizzle-safe:
+
+- **Automatic branching**: allowed for Supabase preview branches.
+- **Supabase changes only**: recommended when available, to avoid preview work
+  for ordinary application-only commits.
+- **Deploy to production**: keep off. PolicyPilot production migrations are
+  Drizzle-owned and run through this runbook or `.github/workflows/migrate.yml`.
+- **`supabase/migrations/`**: do not add files there unless Matthew explicitly
+  approves moving migration authority away from `drizzle/`.
 
 ---
 
