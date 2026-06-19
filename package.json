@@ -8,6 +8,7 @@
   "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev": "next dev",
+    "dev:provision-org": "tsx --env-file=.env.local scripts/provision-dev-org.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
