@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ProvisioningTarget } from './provision-dev-org-lib';
-import { deriveProvisioningTarget, membershipUserId } from './provision-dev-org-lib';
+import { ProvisioningInputError, deriveProvisioningTarget, membershipUserId } from './provision-dev-org-lib';
 import {
+  assertSafeApplyHost,
   fetchMembershipsForProvisioning,
   formatProvisioningFailure,
   main,
@@ -222,5 +223,134 @@ describe('provision-dev-org safety guards', () => {
     await expect(upsertProvisionedRows(sql, target)).rejects.toThrow('users insert failed');
     expect(committedWrites).toEqual([]);
     expect(pendingWrites).toEqual([]);
+  });
+
+  // TEST-2: assertSafeApplyHost allow-paths plus non-pooler and edge throw-paths.
+
+  it('allows --apply against a pooler host when --allow-host is set', () => {
+    expect(() =>
+      assertSafeApplyHost({
+        apply: true,
+        allowHost: true,
+        dbUrl:
+          'postgres://postgres.project_ref:secret@aws-1-us-east-1.pooler.supabase.com:6543/postgres',
+        nodeEnv: '',
+      }),
+    ).not.toThrow();
+  });
+
+  it('allows --apply when NODE_ENV=development against a non-local host', () => {
+    expect(() =>
+      assertSafeApplyHost({
+        apply: true,
+        allowHost: false,
+        dbUrl:
+          'postgres://postgres.project_ref:secret@aws-1-us-east-1.pooler.supabase.com:6543/postgres',
+        nodeEnv: 'development',
+      }),
+    ).not.toThrow();
+  });
+
+  it('allows --apply when NODE_ENV=test against a non-local host', () => {
+    expect(() =>
+      assertSafeApplyHost({
+        apply: true,
+        allowHost: false,
+        dbUrl:
+          'postgres://postgres.project_ref:secret@aws-1-us-east-1.pooler.supabase.com:6543/postgres',
+        nodeEnv: 'test',
+      }),
+    ).not.toThrow();
+  });
+
+  it('allows --apply against a localhost DB host', () => {
+    expect(() =>
+      assertSafeApplyHost({
+        apply: true,
+        allowHost: false,
+        dbUrl: 'postgres://postgres:postgres@localhost:5432/postgres',
+        nodeEnv: '',
+      }),
+    ).not.toThrow();
+  });
+
+  it('allows --apply against the 127.0.0.1 local DB host', () => {
+    expect(() =>
+      assertSafeApplyHost({
+        apply: true,
+        allowHost: false,
+        dbUrl: 'postgres://postgres:postgres@127.0.0.1:5432/postgres',
+        nodeEnv: '',
+      }),
+    ).not.toThrow();
+  });
+
+  it('allows --apply against the IPv6 [::1] local DB host', () => {
+    expect(() =>
+      assertSafeApplyHost({
+        apply: true,
+        allowHost: false,
+        dbUrl: 'postgres://postgres:postgres@[::1]:5432/postgres',
+        nodeEnv: '',
+      }),
+    ).not.toThrow();
+  });
+
+  it('allows dry-run (no --apply) against a pooler host', () => {
+    expect(() =>
+      assertSafeApplyHost({
+        apply: false,
+        allowHost: false,
+        dbUrl:
+          'postgres://postgres.project_ref:secret@aws-1-us-east-1.pooler.supabase.com:6543/postgres',
+        nodeEnv: '',
+      }),
+    ).not.toThrow();
+  });
+
+  it('refuses --apply against a non-pooler non-local DB host', () => {
+    expect(() =>
+      assertSafeApplyHost({
+        apply: true,
+        allowHost: false,
+        dbUrl: 'postgres://user:pass@db.example.com:5432/postgres',
+        nodeEnv: '',
+      }),
+    ).toThrow(
+      'Refusing --apply against non-local DB host db.example.com:5432. Set NODE_ENV=development or NODE_ENV=test, or pass --allow-host after verifying this is not production.',
+    );
+  });
+
+  it('throws ProvisioningInputError for a refused non-local host', () => {
+    expect(() =>
+      assertSafeApplyHost({
+        apply: true,
+        allowHost: false,
+        dbUrl: 'postgres://user:pass@db.example.com:5432/postgres',
+        nodeEnv: '',
+      }),
+    ).toThrow(ProvisioningInputError);
+  });
+
+  it('refuses --apply when NODE_ENV is undefined', () => {
+    expect(() =>
+      assertSafeApplyHost({
+        apply: true,
+        allowHost: false,
+        dbUrl: 'postgres://user:pass@db.example.com:5432/postgres',
+        nodeEnv: undefined,
+      }),
+    ).toThrow('Refusing --apply against non-local DB host db.example.com:5432');
+  });
+
+  it('refuses --apply against an unparseable DATABASE_URL host', () => {
+    expect(() =>
+      assertSafeApplyHost({
+        apply: true,
+        allowHost: false,
+        dbUrl: 'not a url',
+        nodeEnv: '',
+      }),
+    ).toThrow('Refusing --apply against non-local DB host (unparseable DATABASE_URL host)');
   });
 });
