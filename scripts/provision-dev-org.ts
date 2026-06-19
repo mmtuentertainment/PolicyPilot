@@ -102,7 +102,7 @@ function sanitizeErrorMessage(message: string): string {
       /\b(host|user|password|database|dsn|connection string)(\s*[:=]\s*)[^\s,;]+/gi,
       '$1$2[redacted]',
     )
-    .replace(/\b[A-Za-z0-9.-]*supabase\.com\b/gi, '[redacted-host]');
+    .replace(/\b[A-Za-z0-9.-]*supabase\.(?:co|com)\b/gi, '[redacted-host]');
 }
 
 function formatProvisioningFailure(err: unknown): string {
