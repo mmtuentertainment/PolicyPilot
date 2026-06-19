@@ -10,9 +10,16 @@ import {
 describe('provision-dev-org helpers', () => {
   it('normalizes Clerk org roles into app roles', () => {
     expect(normalizeClerkRole('org:admin')).toBe('admin');
+    expect(normalizeClerkRole('admin')).toBe('admin');
+    expect(normalizeClerkRole('org:reviewer')).toBe('reviewer');
     expect(normalizeClerkRole('reviewer')).toBe('reviewer');
     expect(normalizeClerkRole('org:employee')).toBe('employee');
+    expect(normalizeClerkRole('employee')).toBe('employee');
     expect(normalizeClerkRole('org:owner')).toBeNull();
+    expect(normalizeClerkRole('owner')).toBeNull();
+    expect(normalizeClerkRole('')).toBeNull();
+    expect(normalizeClerkRole(null)).toBeNull();
+    expect(normalizeClerkRole(123)).toBeNull();
   });
 
   it('parses dry-run and apply arguments without accepting unknown flags', () => {
@@ -20,9 +27,11 @@ describe('provision-dev-org helpers', () => {
       orgId: 'org_1234',
       userId: 'user_5678',
       apply: false,
+      allowHost: false,
       help: false,
     });
     expect(parseProvisionArgs(['--org=org_1234', '--apply']).apply).toBe(true);
+    expect(parseProvisionArgs(['--org=org_1234', '--allow-host']).allowHost).toBe(true);
     expect(() => parseProvisionArgs(['--org', 'bad'])).toThrow(ProvisioningInputError);
     expect(() => parseProvisionArgs(['--org=org_1234', '--wat'])).toThrow(ProvisioningInputError);
   });
@@ -75,5 +84,19 @@ describe('provision-dev-org helpers', () => {
         ],
       }),
     ).toThrow(/--user/);
+  });
+
+  it('throws when the requested user is absent from the Clerk membership list', () => {
+    expect(() =>
+      deriveProvisioningTarget({
+        requestedOrgId: 'org_live_1234',
+        requestedUserId: 'user_missing_9999',
+        organization: { id: 'org_live_1234', name: 'Acme Policies', slug: 'acme' },
+        memberships: [
+          { role: 'org:admin', user: { id: 'user_live_1' } },
+          { role: 'org:employee', user: { id: 'user_live_2' } },
+        ],
+      }),
+    ).toThrow(/did not include requested user/);
   });
 });

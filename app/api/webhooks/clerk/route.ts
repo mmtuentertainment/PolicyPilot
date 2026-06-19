@@ -25,6 +25,7 @@
 // but the silent-drop race is closed at the application layer.
 import { Webhook } from 'svix';
 import { clerkClient, type WebhookEvent } from '@clerk/nextjs/server';
+import { normalizeClerkRole, type AppRole } from '@/lib/auth/clerk-role';
 import { db } from '@/lib/db';
 import { clerkEvents, organizations, users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -65,7 +66,7 @@ function maskClerkOrgId(id: string): string {
  */
 async function mirrorRoleToClerk(
   clerkUserId: string,
-  role: 'admin' | 'reviewer' | 'employee',
+  role: AppRole,
   source: string,
 ): Promise<void> {
   try {
@@ -113,23 +114,6 @@ async function deleteIdempotencyRow(svixId: string, reason: string): Promise<voi
       `[clerk-webhook] failed to delete clerk_events row for ${svixId} (${reason}): ${cd}`,
     );
   }
-}
-
-/**
- * Normalize a Clerk organization membership role string to one of the application's roles.
- *
- * Strips an optional `org:` prefix and maps the result to `'admin'`, `'reviewer'`, or `'employee'`.
- *
- * @param value - Role value from a Clerk membership payload
- * @returns `'admin'`, `'reviewer'`, or `'employee'` if `value` maps to a known role, `null` otherwise
- */
-function asAppRole(value: unknown): 'admin' | 'reviewer' | 'employee' | null {
-  if (typeof value !== 'string') return null;
-  const stripped = value.replace(/^org:/, '');
-  if (stripped === 'admin' || stripped === 'reviewer' || stripped === 'employee') {
-    return stripped;
-  }
-  return null;
 }
 
 /**
@@ -251,7 +235,7 @@ export async function POST(req: Request): Promise<Response> {
         const data = evt.data;
         const clerkUserId = data.public_user_data?.user_id;
         const clerkOrgId = data.organization?.id;
-        const roleStr = asAppRole(data.role);
+        const roleStr = normalizeClerkRole(data.role);
         if (!clerkUserId || !clerkOrgId) {
           console.error(
             '[clerk-webhook] organizationMembership.created missing user_id or organization.id',
@@ -332,7 +316,7 @@ export async function POST(req: Request): Promise<Response> {
       case 'organizationMembership.updated': {
         const data = evt.data;
         const clerkUserId = data.public_user_data?.user_id;
-        const roleStr = asAppRole(data.role);
+        const roleStr = normalizeClerkRole(data.role);
         if (!clerkUserId || !roleStr) {
           console.error(
             '[clerk-webhook] organizationMembership.updated missing user_id or unknown role',

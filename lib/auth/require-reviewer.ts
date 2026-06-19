@@ -9,7 +9,7 @@
 // Admins are admitted alongside reviewers because §13(d) ALLOWS self-approval
 // (no separation-of-duties): an admin may review/approve, including their own
 // submission. The `reviewer` role already exists end-to-end (lib/auth/context.ts
-// Role union + Clerk asAppRole) — these guards wire it, they do not add it.
+// Role union + Clerk normalizeClerkRole) — these guards wire it, they do not add it.
 import 'server-only';
 import { notFound } from 'next/navigation';
 import { getOrgContext, type OrgContext } from '@/lib/auth/context';

@@ -1,6 +1,6 @@
 # Runbook: Dev Clerk Org Provisioning
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-06-19
 **Audience:** Operator (Matthew).
 **Scope:** Repair local-dev `OrgNotProvisionedError` after creating a Clerk organization when localhost did not receive Clerk webhooks.
 
@@ -22,7 +22,7 @@ This is a dev-ops repair path. Production should use a reachable Clerk webhook e
 
 1. Fetches the Clerk organization through the Backend API.
 2. Fetches the target organization membership.
-3. Upserts the matching `organizations` row with the same defaults as `organization.created`: Starter + `trialing`.
+3. Upserts the matching `organizations` row to the same local end-state as `organization.created`: Starter + `trialing`; existing rows have Clerk name/slug refreshed.
 4. Upserts the matching `users` row with the membership role, moving the user to that org if needed per the current one-user-one-org model.
 5. Mirrors `publicMetadata.role` back to Clerk, matching the webhook handler behavior required by `getOrgContext()`.
 
@@ -41,10 +41,13 @@ Apply:
 
 ```powershell
 $env:COREPACK_DEFAULT_TO_LATEST='0'
+$env:NODE_ENV='development'
 pnpm dev:provision-org -- --org org_... --user user_... --apply
 ```
 
 If the org has exactly one membership, `--user` can be omitted. If Clerk returns multiple memberships, the script stops and asks for `--user user_...` so it cannot pick the wrong account.
+
+For non-local database hosts, `--apply` requires `NODE_ENV=development` or `NODE_ENV=test`. If the environment is intentionally different, use `--allow-host` only after verifying the database target is not staging or production.
 
 ## Inputs
 
@@ -72,5 +75,6 @@ Healthy local state has a row in `organizations` for the Clerk org and a row in 
 ## Guardrails
 
 - Do not run with production credentials.
+- `--apply` refuses `NODE_ENV=production` and non-local hosts without explicit local/test intent or `--allow-host`.
 - Do not paste secrets into chat or tracked files.
 - Prefer a real webhook tunnel when testing the webhook handler itself. This script repairs local state; it does not prove Clerk webhook delivery.

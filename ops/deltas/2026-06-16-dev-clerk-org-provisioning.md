@@ -35,7 +35,7 @@ Clears local-dev `OrgNotProvisionedError` caused by creating Clerk orgs while lo
 
 ## Verification
 
-- `pnpm exec vitest run scripts/provision-dev-org-lib.test.ts` - passed, 4 tests.
+- `pnpm exec vitest run scripts/provision-dev-org-lib.test.ts` - passed, 5 tests.
 - `pnpm dev:provision-org -- --help` - passed, script loads without touching Clerk or DB.
 - `pnpm typecheck` - passed.
 - `git diff --check` - passed.

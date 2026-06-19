@@ -25,6 +25,7 @@ jobs:
       contents: read
     services:
       postgres:
+        # 2026-06-19: keep byte-equal with verify-phase-6/7/8.yml; this pins the postgres:16 verifier DB manifest.
         image: postgres:16@sha256:081f1bc7bd5e143dbb6e487b710bbc27712cdcfaced4c071b8e47349aa1b4171
         env:
           POSTGRES_USER: policy_pilot
