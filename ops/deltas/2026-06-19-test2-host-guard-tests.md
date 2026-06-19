@@ -25,4 +25,7 @@ Adds direct unit coverage for the dev Clerk provisioning host guard allow paths 
 
 ## Verification
 
-- Pending in this branch: `tsc --noEmit`, `pnpm exec vitest run scripts/provision-dev-org.test.ts`, and `git diff --cached --check`.
+- `tsc --noEmit`: passed (repo-local compiler).
+- `pnpm exec vitest run scripts/provision-dev-org.test.ts`: passed (20/20).
+- `git diff --cached --check`: passed.
+- CI on PR #54: Verify full gate, Phase 6/7/8 verifiers, browser e2e smoke, and Vercel all green; CodeRabbit approved (0 threads).

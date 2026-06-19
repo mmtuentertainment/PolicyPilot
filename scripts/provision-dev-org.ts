@@ -65,6 +65,8 @@ function dbHostname(url: string): string {
 }
 
 function isLocalDbHost(hostname: string): boolean {
+  // `hostname` comes from `new URL().hostname`, which brackets IPv6 (yielding
+  // `[::1]`); the bare `::1` arm is defensive and is not reachable via that path.
   return (
     hostname === 'localhost' ||
     hostname === '127.0.0.1' ||
