@@ -9,7 +9,7 @@
     "secretName": "PolicyPilotStagingDB"
   },
   "prod": {
-    "$comment": "PLACEHOLDER — prod Supabase project not yet provisioned. Replace REPLACE_WITH_PROD_PROJECT_REF in `user` once the Free third project exists in a separate Free org ($0 launch path; PITR waived by operator decision; reversible to Pro without PITR via Dashboard toggle). scripts/with-deploy-creds.ps1 rejects this placeholder string explicitly (line 75-77) so any accidental `pnpm db:*:prod` invocation fails fast. After replacement, populate the secret via `./scripts/store-deploy-password.ps1 prod`.",
+    "$comment": "PLACEHOLDER — prod Supabase project not yet provisioned. Replace REPLACE_WITH_PROD_PROJECT_REF in `user` once the prod DB is provisioned via an operator-approved path (the literal third active Free project in a separate org is blocked by the account-global 2-active-Free cap; use a paused-non-prod $0 posture, Supabase Pro without PITR (paid tier), or an ASK-FIRST $0 non-Supabase host — see docs/runbooks/launch-mvp.md §2). PITR is operator-waived (not an ADR-018 req). scripts/with-deploy-creds.ps1 rejects this placeholder string explicitly (the REPLACE_WITH_* guard) so any accidental `pnpm db:*:prod` invocation fails fast. After replacement, populate the secret via `./scripts/store-deploy-password.ps1 prod`.",
     "host": "aws-1-us-east-1.pooler.supabase.com",
     "poolerPort": 6543,
     "directPort": 5432,
