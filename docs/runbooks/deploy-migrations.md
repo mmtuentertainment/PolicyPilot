@@ -12,7 +12,7 @@ Run this BEFORE deploying any code that depends on a not-yet-applied migration. 
 
 PolicyPilot's `drizzle/meta/_journal.json` currently has 15 entries (0000..0014): 5 from Phase 1-3 (0000-0004), 3 from Phase 4 (0005-0007 including the destructive 0007 `DROP COLUMN tokens_used`), 2 post-Phase-4 deploy-prep RLS-perf additions (0008 subquery-wrap + 0009 btree(org_id), both additive), 2 from Phase 5 (0010_phase5_uniques + 0011_qa_citation_grants), 1 from Phase 6 (0012_billing_state), 1 from Phase 9 (0013_review_decisions), and 1 from Phase 7 (0014_reminder_sends). Future migrations append to the journal and follow this same procedure.
 
-**Prod project not yet provisioned.** `scripts/deploy-config.json` carries a `REPLACE_WITH_PROD_PROJECT_REF` placeholder in the `prod` block; `scripts/with-deploy-creds.ps1` rejects this string explicitly (line 75-77) to prevent accidental use against the wrong env. When the prod Supabase project is created (Pro tier + PITR add-on required for the append-only audit-trail invariant per ADR-018), populate the placeholder with the real `project_ref` + store the password via `./scripts/store-deploy-password.ps1 prod` before running any `pnpm db:*:prod` command.
+**Prod project not yet provisioned.** `scripts/deploy-config.json` carries a `REPLACE_WITH_PROD_PROJECT_REF` placeholder in the `prod` block; `scripts/with-deploy-creds.ps1` rejects this string explicitly (line 75-77) to prevent accidental use against the wrong env. Production targets a Free third Supabase project in a separate Free org at $0, subject to the Supabase Dashboard accepting that project under the operator account/team setup; PITR is explicitly waived by operator decision for the pre-revenue launch path, and the same project can later be upgraded to Pro without PITR from the Supabase Dashboard. When the prod Supabase project is created, populate the placeholder with the real `project_ref` + store the password via `./scripts/store-deploy-password.ps1 prod` before running any `pnpm db:*:prod` command.
 
 ---
 
@@ -195,7 +195,7 @@ the only documented escape hatch per issue #44210.
 
 ### Tier note
 
-Free-tier projects (dev + staging as of 2026-05-22) and Pro-tier projects
+Free-tier projects (dev + staging as of 2026-05-22) and paid-tier projects
 share the same Supavisor cache infrastructure. **Tier does not change
 propagation timing** as far as primary-source docs say; the empirical
 distribution is the same backlog item for issue #44210.
@@ -275,6 +275,12 @@ pnpm db:verify:prod
 
 If exit 0: production schema is now caught up to the journal. Deploy is safe to land.
 
+This is a schema/catalog gate, not a tenant-isolation proof. `check-deploy-schema.ts`
+checks migration count, RLS enabled flags, policy existence, grants, and expected
+shape using the privileged database connection. It does not switch to the
+`authenticated` role and does not prove cross-org rows are hidden at runtime. The
+launch runbook's post-deploy cross-org smoke is the hard production RLS gate.
+
 If exit 1: stop the deploy. Surface the failure detail to the operator. Likely causes:
 
 - A migration applied partially (PostgreSQL DDL is transactional, so this implies a manual `psql` intervention happened — investigate the audit log of the Supabase project)
@@ -294,7 +300,7 @@ After every successful prod migration, append to `.planning/STATE.md` (Session C
 Example (most recent staging migration, drawn from `.planning/STATE.md` Session Continuity):
 
 ```markdown
-- **Deploy migration 2026-05-23T03:36Z**: Applied drizzle/0008..0009 to staging at 03:36Z (verify OK at 03:38Z); prod deferred pending Pro+PITR project provisioning per `.wiki/supabase/06-project-lifecycle.md`. Operator: matthewutt. Migration types: 0008 + 0009 additive (RLS initPlan subquery-wrap + btree(org_id) indexes per `.wiki/supabase` research). Notes: `wait-pooler-auth.ts` cleared a transient 28P01 in 2m1s between migrate and verify, confirming research finding #4 (multi-instance Supavisor cache lag in `aws-1-us-east-1`).
+- **Deploy migration 2026-05-23T03:36Z**: Applied drizzle/0008..0009 to staging at 03:36Z (verify OK at 03:38Z); prod deferred pending production Supabase project provisioning. Operator: matthewutt. Migration types: 0008 + 0009 additive (RLS initPlan subquery-wrap + btree(org_id) indexes per `.wiki/supabase` research). Notes: `wait-pooler-auth.ts` cleared a transient 28P01 in 2m1s between migrate and verify, confirming research finding #4 (multi-instance Supavisor cache lag in `aws-1-us-east-1`).
 ```
 
 This is the load-bearing audit trail for compliance + future-troubleshooting.
@@ -338,10 +344,10 @@ Drizzle-safe:
 
 `vercel.json` includes a `buildCommand` that runs `pnpm deploy:preflight` before `pnpm build`. This step:
 
-1. Runs `pnpm tsc --noEmit` (already part of `verify:phase-4`)
-2. Runs `pnpm db:verify` against whichever DATABASE_URL is set in the Vercel environment
+1. Runs the deploy preflight script.
+2. The preflight script runs `check-deploy-schema.ts` against whichever `DIRECT_URL`/`DATABASE_URL` is set in the Vercel environment.
 
-If `db:verify` fails, the Vercel build fails — preventing a deploy that would 503 on first request. This is a defense-in-depth gate; the operator is still expected to run `pnpm db:migrate:<env>` BEFORE pushing the build trigger.
+If schema verification fails, the Vercel build fails — preventing a deploy that would 503 on first request. This is a defense-in-depth gate; the operator is still expected to run `pnpm db:migrate:<env>` BEFORE pushing the build trigger. Type-checking happens in the separate build step, and preflight does not validate non-database secret completeness.
 
 `deploy:preflight` is **graceful** when `DATABASE_URL` is unset (returns OK with a "skipped: no DATABASE_URL configured" notice) so build doesn't break for branches that don't need a DB.
 
