@@ -106,9 +106,9 @@ scan_mode: fast (tech+arch)
 **Required Env Vars:**
 - `DATABASE_URL` (pooler URI, port 6543)
 - `DIRECT_URL` (direct URI, port 5432, migrations only)
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `NEXT_PUBLIC_SUPABASE_URL` (currently unused at runtime; `@supabase/supabase-js` has no app importer)
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` (currently unused at runtime; app DB access uses Drizzle/`postgres`)
+- `SUPABASE_SERVICE_ROLE_KEY` (currently unused at runtime; do not expose client-side)
 
 **Test DB:**
 - `DATABASE_URL_TEST` / `DIRECT_URL_TEST` — second Supabase project for RLS cross-org property test; keeps test fixtures from polluting dev data
@@ -286,9 +286,9 @@ Both are scaffolded in environment configuration and CI workflows for future act
 |----------|---------|-------------|
 | `DATABASE_URL` | Supabase | Runtime queries (pooler port 6543) |
 | `DIRECT_URL` | Supabase | Migrations (direct port 5432) |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase | Client SDK init |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase | Client SDK init |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase | Service-role operations |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase | Currently unused at runtime; set real prod value or safe placeholder for env-shape/artifact checks |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase | Currently unused at runtime; `@supabase/supabase-js` has no app importer |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase | Currently unused at runtime; service-role key must stay server-only if populated |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk | Client SDK |
 | `CLERK_SECRET_KEY` | Clerk | Server SDK |
 | `CLERK_WEBHOOK_SECRET` | Clerk | Webhook signature verification |

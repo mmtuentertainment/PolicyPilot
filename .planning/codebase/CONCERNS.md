@@ -194,14 +194,14 @@ scan_mode: fast (concerns)
 - Issue: PolicyPilot production (`https://policypilot.mmtu.tv`) has never successfully deployed. Vercel shows `404 DEPLOYMENT_NOT_FOUND` for all prod commits, including Phase 6 ship commit `243067e`.
 - Root cause history: 
   - **Cause-A (Build-Time Coupling)**: Stripe catalog + DB client crashed at `next build` when env vars were missing. **FIXED and shipped in main at PR #37 (3b4bdb5) and PR #38 (6f17412).**
-  - **Cause-B (Prod Supabase project not yet provisioned, THEN pooler auth)**: The blocker is broader than a stale password. (1) The production Supabase project does **not yet exist** — `scripts/deploy-config.json:12` still holds the `REPLACE_WITH_PROD_PROJECT_REF` placeholder, and provisioning it requires Pro tier + PITR per `docs/runbooks/deploy-migrations.md:15`. (2) Only *after* the prod project is provisioned can the operator configure/rotate the Transaction-pooler (port 6543) password and set `DATABASE_URL`; until both are done, `deploy:preflight` fails authentication against the pooler and the build exits 1.
+  - **Cause-B (Prod Supabase project not yet provisioned, THEN pooler auth)**: The blocker is broader than a stale password. (1) The production Supabase project does **not yet exist** — `scripts/deploy-config.json:12` still holds the `REPLACE_WITH_PROD_PROJECT_REF` placeholder. The current target path is a Free third Supabase project in a separate Free org at $0, subject to Dashboard acceptance under the operator account/team setup; PITR is waived by operator decision for the pre-revenue launch path and remains reversible to Pro without PITR by Dashboard toggle. (2) Only *after* the prod project is provisioned can the operator configure/rotate the Transaction-pooler (port 6543) password and set `DATABASE_URL`; until both are done, `deploy:preflight` fails authentication against the pooler and the build exits 1.
 - Impact: No production traffic can run on the latest code. Live users (if any) are stuck at the last successful deployment (if any exist).
 - Action path: 
-  1. Operator provisions the production Supabase project (Pro tier + PITR) and replaces `REPLACE_WITH_PROD_PROJECT_REF` in `scripts/deploy-config.json`.
+  1. Operator provisions the production Supabase project as a Free third project in a separate Free org if the Dashboard accepts it for the operator account/team setup ($0; PITR waived; reversible to Pro without PITR by Dashboard toggle) and replaces `REPLACE_WITH_PROD_PROJECT_REF` in `scripts/deploy-config.json`.
   2. Operator sets/rotates the prod pooler password and configures `DATABASE_URL` in Vercel production environment secrets.
   3. Trigger a re-deployment in Vercel or push a new commit to `main`.
   4. Verify `pnpm db:verify:prod` passes after deploy.
-- Files: `scripts/deploy-config.json:12`, `scripts/deploy-preflight.ts`, `docs/runbooks/deploy-migrations.md:15`
+- Files: `scripts/deploy-config.json:12`, `scripts/deploy-preflight.ts`, `docs/runbooks/deploy-migrations.md:15`, `docs/runbooks/launch-mvp.md`
 - Verify-phase-6 status: The build-crash class is CLOSED. The remaining blockers are prod-project provisioning followed by pooler-auth configuration.
 
 **Vercel preview `deploy:preflight` fails on stale Supabase `postgres` password** (MEDIUM — non-blocking)

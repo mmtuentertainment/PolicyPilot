@@ -38,10 +38,11 @@ To check the live state of a target, run `pnpm db:verify:<env>` (see [`deploy-mi
 
 The production Supabase project does not exist yet. Create it before touching any `db:*:prod` command.
 
-1. Supabase Dashboard → **New project** in the PolicyPilot organization.
-2. **Tier: Pro** — required. **Add the PITR (Point-in-Time Recovery) add-on.** Rationale: PITR protects the **ADR-018 append-only acknowledgment audit-trail invariant** in production — *"Pro tier + PITR add-on required for the append-only audit-trail invariant per ADR-018"* (see [`deploy-migrations.md`](./deploy-migrations.md) and `.planning/codebase/CONCERNS.md` prod action path). Free tier (no PITR, auto-pause) is unacceptable for the prod audit trail.
-3. Region: match the existing projects' region (`aws-1-us-east-1`, the pooler host in `deploy-config.json`) so the documented `28P01` pooler-cache behavior and host template line up.
-4. Note the new **project ref** from the Dashboard URL / Project Settings → General. You'll paste it in §3. (The project ref is half-credential at most — it appears in public URLs — so committing it to `deploy-config.json` is acceptable per that file's `$comment`.)
+1. Supabase Dashboard → **New project** in a separate Free organization. The target path is a **third Free project in a separate Free org** at **$0** because the current dev + TEST projects occupy org #1. Current Supabase billing docs still describe a two-active-Free-project entitlement across organizations where a user is Owner/Admin, so the Dashboard creation step is the feasibility check. If Supabase blocks the third active Free project for the operator account/team setup, stop and choose an operator-approved fallback such as pausing/transferring a non-prod project or upgrading the same prod project to Pro without PITR.
+2. **Tier: Free for launch.** PITR is explicitly **waived by operator decision** for the pre-revenue production stand-up; this is not an ADR-018 hard requirement for the current launch path. The same project can later be upgraded to **Pro without PITR** from the Supabase Dashboard, with no code, migration, or env-var change.
+3. **Free-tier idle-pause note.** Free projects pause after about a week of inactivity. The existing Railway daily cron (`railway.json` `0 8 * * *` → `/api/cron/reminders`) performs a database-backed org enumeration when it succeeds, so the Railway worker must be live with a matching `CRON_SECRET` to act as the default keep-alive.
+4. Region: strongly prefer the existing projects' region (`aws-1-us-east-1`, the pooler host in `deploy-config.json`) so the documented `28P01` pooler-cache behavior and host template line up. If Supabase assigns a different pooler host, update the `prod.host` field in `scripts/deploy-config.json` at the same time as the project ref.
+5. Note the new **project ref** from the Dashboard URL / Project Settings → General. You'll paste it in §3. (The project ref is half-credential at most — it appears in public URLs — so committing it to `deploy-config.json` is acceptable per that file's `$comment`.)
 
 Do **not** run any command that prints a secret here. Setting the database password happens in §3 via the GUI-prompt helper.
 
@@ -59,7 +60,7 @@ Edit `scripts/deploy-config.json` → `prod` block → `user` field. Replace the
 "user": "postgres.REPLACE_WITH_PROD_PROJECT_REF"   →   "user": "postgres.<PROD_PROJECT_REF>"
 ```
 
-Leave `host`, `poolerPort` (6543), `directPort` (5432), `database` (`postgres`), and `secretName` (`PolicyPilotProdDB`) as-is. Until this replacement is done, `scripts/with-deploy-creds.ps1` rejects the placeholder string and every `pnpm db:*:prod` fails by design.
+Leave `poolerPort` (6543), `directPort` (5432), `database` (`postgres`), and `secretName` (`PolicyPilotProdDB`) as-is. If the new project uses a pooler host other than `aws-1-us-east-1.pooler.supabase.com`, update `host` to the real pooler host from Supabase. Until the `user` replacement is done, `scripts/with-deploy-creds.ps1` rejects the placeholder string and every `pnpm db:*:prod` fails by design.
 
 ### 3b. Store the prod database password (interactive, never echoed)
 
@@ -127,10 +128,12 @@ pnpm db:verify:staging       # MUST exit 0
 
 # 3. Production (only after the gate above)
 pnpm db:migrate:prod         # virgin DB → applies ALL of 0000..0014
-pnpm db:verify:prod          # MUST exit 0 before deploying code
+pnpm db:verify:prod          # MUST exit 0 before deploying code; schema/catalog gate only
 ```
 
 `db:verify:<env>` **must exit 0 before you deploy code to that environment** — code shipped ahead of its schema 503s on first request (the whole point of the gate).
+
+**Important RLS boundary.** `db:verify:prod` proves schema/catalog state: migration count, tenant tables with RLS enabled, policies present, grants present, and expected columns/indexes/constraints. It runs as the privileged database connection and does **not** prove cross-org isolation actually enforces under the `authenticated` role. The authoritative prod isolation proof is the post-deploy cross-org smoke in §10c.
 
 **`28P01` pooler-password note.** If, immediately after first setting/rotating the prod database password, a `db:migrate`/`db:verify` returns `28P01 password authentication failed for user "postgres"`, the Supabase pooler is still serving the old cached secret — this is expected for a window with no documented upper bound. **Do not retry in a tight loop** (it trips a 2-minute circuit-breaker IP lockout). Run the paced gate `pnpm db:wait-pooler-auth:prod` and follow [`deploy-migrations.md` § Post-rotation auth-propagation gate](./deploy-migrations.md#post-rotation-auth-propagation-gate) (escalation: Dashboard → Restart project).
 
@@ -150,7 +153,7 @@ Set the production environment variables in Vercel. **Reuse the authoritative ma
 | Clerk keys | the 3 keys + 2 `/post-sign-in` redirect vars from §5 |
 | Stripe keys | publishable + secret + webhook secret + 6 **test-mode** price IDs from §5 |
 | `ANTHROPIC_API_KEY` | prod Anthropic key (server-only) |
-| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` | from the prod Supabase project |
+| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` | from the prod Supabase project; currently runtime-inert because app DB access uses Drizzle/`postgres`, not `@supabase/supabase-js` |
 
 > **Caveat — `deploy:preflight` does NOT validate secret completeness.** The Vercel build runs `pnpm deploy:preflight && pnpm build`. `deploy:preflight` (`scripts/deploy-preflight.ts`) runs **only** the schema verify (`check-deploy-schema.ts`) when `DIRECT_URL`/`DATABASE_URL` is set, and `next build` type-checks. **Neither checks that every other secret is present.** A missing `CRON_SECRET`, a missing Resend key, or a missing Stripe key will **not** fail preflight or the build — it surfaces only at runtime (e.g. cron 401, fail-closed `StripeCatalogConfigError`). Double-check this matrix by hand; the gate won't catch a gap.
 
@@ -201,6 +204,20 @@ curl -i https://<PROD_APP_URL>/api/cron/reminders
 ```
 
 The exact success body is `{ "reviewReminders": <number>, "ackReminders": <number> }` (the route's `Response.json({ reviewReminders, ackReminders })`). On a freshly launched org with no due/overdue policies both counts are `0` — that's a healthy 200, not a failure. A `503` with `{ "error": "Database unavailable" }` means the org-enumeration query failed (check `DATABASE_URL`).
+
+---
+
+### 10c. Cross-org RLS smoke (hard blocking before real tenants)
+
+Before admitting any real tenant, prove tenant isolation in the deployed production app under a real Clerk session. This is the production authority for RLS enforcement; the schema verifier in §6 is not enough.
+
+1. Create or use two production test organizations: Org A and Org B.
+2. Sign in as an Org A user and confirm the positive control: Org A can see its own expected rows.
+3. Run a deliberate Org B probe through an Org A session and confirm the negative control: Org B rows return `0`.
+4. Treat a result where Org A sees no rows at all as inconclusive, not as a pass. A broken/empty JWT claim can fail closed and hide every row.
+5. Record the pass/fail evidence without secrets or raw third-party payloads.
+
+This smoke is load-bearing because the runtime makes RLS fire by entering `withOrgScope()` and issuing `SET LOCAL ROLE authenticated` before tenant queries.
 
 ---
 
