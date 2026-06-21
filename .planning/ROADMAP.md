@@ -221,4 +221,4 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 | 5. Employee Portal | 10/10 | Complete - shipped via PR #27 at `3344847` | 2026-05-27 |
 | 6. Billing | 6/6 | Complete - shipped via PR #32 at `243067e`; live Stripe test-mode UAT 11/11 rows PASS; hosted pre-merge PR #32 checks green/acceptable at `1abca44`; post-merge targeted checks PASS | 2026-05-31 |
 | 7. Crons + Email | 8/8 | Complete - shipped via PR #44 at `8b7019d` | 2026-06-14 |
-| 8. Validation | 1/1 | Executed (CSV slice, AC#5) - PR open on `gsd/phase-8-validation`; dashboard/donut + remaining criteria DEFERRED | 2026-06-15 |
+| 8. Validation | 1/1 | Complete - shipped via PR #48 at `03c18d4` (CSV slice, AC#5); dashboard/donut + remaining criteria DEFERRED to milestone-3 | 2026-06-16 |
