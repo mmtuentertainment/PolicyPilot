@@ -14,12 +14,20 @@ read "Executed … PR open on gsd/phase-8-validation … 2026-06-15" → now "Co
 "PR 3.3 … still queued" and corrected "PR #9/#10/#11 OPEN" → SHIPPED with verified SHAs `d185efc`/`85aebed`/`28f646e`,
 all ancestors of `main`).
 
-**Known residual doc-debt (pre-existing at base tip `dec2cbd`, NOT introduced by this reconcile — deferred to keep
-scope tight; flag for a follow-up roster/metrics sweep):** ROADMAP Phase 7 plan checkboxes `[ ]` unchecked for a
-shipped phase; ROADMAP Phase 7 plan count "7 plans" (detail) vs "8/8" (Progress table / STATE roster); ROADMAP
-Phase 8 detail "Plans: TBD" with no "Status:" line (Phase 5/6 blocks carry one); STATE frontmatter total_plans 64 /
-completed_plans 65 (completed > total); STATE Phase 4 roster "deploy-prep PR in flight" (shipped via PR #18 `bae9174`
-/ PR #20 `9f4d8eb`).
+**Residual doc-debt SWEPT (follow-up commit, 2026-06-21):** the pre-existing items below (present at base tip
+`dec2cbd`, NOT introduced by this reconcile) were resolved in a third commit on this branch:
+- ROADMAP Phase 7: all 8 plan checkboxes (`07-01`…`07-08`) marked `[x]`; the "7 plans" count corrected to "8 plans"
+  and the missing `07-08-PLAN.md` (notification bell UI, wave 2) added to the enumeration. Evidence: on-disk
+  `.planning/phases/07-crons-email/` holds 8 `NN-PLAN.md` files (07-01…07-08), so the three "8/8" surfaces (Progress
+  table, STATE line 46, STATE roster) were already correct — only the ROADMAP detail was stale. All four Phase-7
+  count surfaces now agree at 8.
+- ROADMAP Phase 8 detail: `**Plans**: TBD` → "1 plan — CSV-first validation slice (AC#5) shipped via PR #48"; added
+  the `**Status**: Shipped …` line that the Phase 5/6 blocks carry.
+- STATE frontmatter: `total_plans 64 / completed_plans 65` (completed > total — impossible) recomputed to `66 / 66`
+  = sum of the Progress-table denominators for the 8 build phases (5+7+15+14+10+6+8+1 = 66; Phase 9 Reviewer is
+  out-of-band with no standalone `NN-PLAN.md` and is excluded, consistent with `total_phases: 8`).
+- STATE Phase 4 roster: stale "deploy-prep PR in flight" → SHIPPED via PR #18 `bae9174` + PR #20 `9f4d8eb` (both
+  verified ancestors of `main`).
 
 **Consultant set review (keep-current):** `no-change`. working_context / system_map / feature_inventory /
 risk_register / backlog are unaffected — this is bookkeeping that corrects stale doc state, not a

@@ -7,8 +7,8 @@ last_updated: "2026-06-20"
 progress:
   total_phases: 8
   completed_phases: 8
-  total_plans: 64
-  completed_plans: 65
+  total_plans: 66
+  completed_plans: 66
   percent: 100
 ---
 
@@ -277,7 +277,7 @@ Surfaced by `/pr-review-toolkit:review-pr` against PR #1 head `e3689d3` (silent-
 | 1 | Foundation | REQ-product-vision | Complete — 5/5 plans shipped 2026-05-16 (PR #1) |
 | 2 | Data Layer | REQ-user-roles, REQ-multi-tenancy | Complete — Plans 02-01..02-06 + 02-07 hotfix shipped 2026-05-17 → 2026-05-18 (7 / 7 plans complete); `pnpm verify:phase-2` exits 0 with 7/7 OK against live TEST DB. Code-review CR-01 (webhook publicMetadata.role mirror) + HI-01 (middleware narrowing parity) closed by Plan 02-07. Blockers: SF-DB-1 CLOSED, SF-DB-2 CLOSED, SF-M4 FULLY CLOSED, CR-01 CLOSED, HI-01 CLOSED. Carry-forward: CR-02 admin-matcher dead code → Phase 3. |
 | 3 | Admin UI | REQ-policy-library, REQ-policy-lifecycle, REQ-access-control | Shipped — PR #3 @ `edebab7` (2026-05-20). Fast-follows: PR #5 ADR-026 typed errors @ `bf65712`, PR #7 ADR-027 lookup-scoping @ `c6dca6a`, PR #13 ADR-028 PolicyId brand @ `bd2257a`. Audit cascade (security/validation/verification) complete via PR #8/#10/#11 — PR #8 SHIPPED @ `5a57000` (SECURED 67/67 STRIDE); PR #10 @ `85aebed` + PR #11 @ `28f646e` SHIPPED. VALIDATION-2.7 closure via PR #9 @ `d185efc` SHIPPED (10-assertion `check:policies-list-filters`). |
-| 4 | AI Layer | REQ-ai-policy-assistant, REQ-ai-usage-rules | **SHIPPED** — PR #15 squash-merged to `main` @ `f8207f4` (2026-05-22; 14/14 plans + UAT 5/5 + gsd-security-auditor 60/60 STRIDE CLOSED + real-key Anthropic smoke verifying SPEC R4 cache mechanics for ~$0.021 spend). Post-merge cleanup PR #17 @ `eda7bb4` (one-shot HANDOFF artifact deletions). Deploy-prep PR in flight (chore/phase-4-deploy-prep) — staging/prod migration infrastructure (verifier, runbook, CI workflow, Vercel hook). Phase 4.5 polish backlog tracked at GitHub issue #16 (~30 deferred items). |
+| 4 | AI Layer | REQ-ai-policy-assistant, REQ-ai-usage-rules | **SHIPPED** — PR #15 squash-merged to `main` @ `f8207f4` (2026-05-22; 14/14 plans + UAT 5/5 + gsd-security-auditor 60/60 STRIDE CLOSED + real-key Anthropic smoke verifying SPEC R4 cache mechanics for ~$0.021 spend). Post-merge cleanup PR #17 @ `eda7bb4` (one-shot HANDOFF artifact deletions). Deploy-prep (staging/prod migration infrastructure: verifier, runbook, CI workflow, Vercel hook) SHIPPED via PR #18 @ `bae9174` + PR #20 @ `9f4d8eb`. Phase 4.5 polish backlog tracked at GitHub issue #16 (~30 deferred items). |
 | 5 | Employee Portal | REQ-acknowledgment-tracking, REQ-acknowledgment-rules | **SHIPPED** — PR #27 merged to `main` at `3344847` on 2026-05-27T22:06:16Z; 10/10 plans complete; audit remediation gates closed before merge. |
 | 6 | Billing | REQ-tier-starter, REQ-tier-growth, REQ-tier-business | **SHIPPED** — PR #32 squash-merged to `main` at `243067e` on 2026-05-31T22:34:30Z; 6/6 plans committed; local `pnpm db:verify` and pre-merge `pnpm verify:phase-6` green; live Stripe test-mode UAT rows 1-11 PASS; hosted pre-merge PR #32 checks green/acceptable at `1abca44`; post-merge targeted checks PASS. |
 | 7 | Crons + Email | REQ-notification-system | **SHIPPED** 2026-06-14 — PR #44 squash-merged to `main` at `8b7019d`; 8/8 plans; `verify:phase-7` exits 0 + all hosted gates green on merged head (lone Phase 6 RED = transient CI-DB `check:rls` deadlock, cleared on re-run); ship-review 0 must-fix; FU-2/FU-4 folded, FU-1 false-positive, FU-3 resolved. Operator-gated: no deployment / no staging-prod migration / no live email yet. |
