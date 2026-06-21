@@ -15,9 +15,9 @@ Granularity: **standard** (8 phases — matches the locked build sequence).
 - [x] **Phase 5: Employee Portal** — Assigned-policies dashboard + append-only acknowledgment flow. Shipped via PR #27 at `3344847` on 2026-05-27T22:06:16Z.
 - [x] **Phase 6: Billing** — Stripe Checkout + 5-event webhook + tier gating via `TIER_LIMITS`. Shipped via PR #32 at `243067e` on 2026-05-31T22:34:30Z.
 - [x] **Phase 7: Crons + Email** — Railway worker + Resend templates + idempotent reminders. Shipped via PR #44 at `8b7019d` on 2026-06-14.
-- [ ] **Phase 8: Validation** — Compliance dashboard + CSV export + all 8 acceptance criteria green. *(CSV-export slice / AC#5 EXECUTED on `gsd/phase-8-validation`, PR open + pending merge; compliance-dashboard/donut half + remaining-criteria evidence DEFERRED.)*
+- [x] **Phase 8: Validation** — CSV acknowledgment-export (AC#5) shipped via **PR #48 at `03c18d4`** on 2026-06-16 — 8th and FINAL phase; v1.0 build sequence complete on `main`. *(Compliance-dashboard/donut half + remaining-criteria evidence DEFERRED to the milestone-3 backlog.)*
 
-> Out-of-band shipped mitigation: **Phase 9 Reviewer / approval-workflow MVP** shipped via PR #42 at `1122da5` on 2026-06-05, closing R-017 without changing the locked 8-phase assembly order. Phase 7 **SHIPPED** (PR #44 at `8b7019d`, 2026-06-14); Phase 8 (CSV-first validation slice, AC#5) **EXECUTED** on `gsd/phase-8-validation` (PR open, pending merge) — the compliance-dashboard/donut half remains DEFERRED.
+> Out-of-band shipped mitigation: **Phase 9 Reviewer / approval-workflow MVP** shipped via PR #42 at `1122da5` on 2026-06-05, closing R-017 without changing the locked 8-phase assembly order. Phase 7 **SHIPPED** (PR #44 at `8b7019d`, 2026-06-14); Phase 8 (CSV-first validation slice, AC#5) **SHIPPED** via PR #48 at `03c18d4` (2026-06-16) — the compliance-dashboard/donut half remains DEFERRED to milestone-3.
 
 ---
 
